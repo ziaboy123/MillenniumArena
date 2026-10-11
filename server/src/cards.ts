@@ -11,6 +11,8 @@ import { ENGINE_DATA } from './config.ts';
 export interface EngineCard {
   code: number; alias: number; setcodes: number[]; type: number; level: number; attribute: number; race: bigint;
   attack: number; defense: number; lscale: number; rscale: number; link_marker: number; name: string; text: string;
+  /** The card's effect descriptions (str1-str16), which prompts refer to by number. */
+  strings: string[];
 }
 
 const T = OcgType;
@@ -30,7 +32,7 @@ export function loadCards(): Map<number, EngineCard> {
   const cards = new Map<number, EngineCard>();
   for (const file of cardDatabases()) {
     const db = new DatabaseSync(file, { readOnly: true });
-    const query = db.prepare('SELECT d.id, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, t.name, t.desc FROM datas d JOIN texts t ON t.id = d.id');
+    const query = db.prepare('SELECT d.id, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, t.name, t.desc, t.str1, t.str2, t.str3, t.str4, t.str5, t.str6, t.str7, t.str8, t.str9, t.str10, t.str11, t.str12, t.str13, t.str14, t.str15, t.str16 FROM datas d JOIN texts t ON t.id = d.id');
     query.setReadBigInts(true);   // setcode and race are 64-bit
     for (const r of query.all() as any[]) {
       const code = Number(r.id), type = Number(r.type), level = Number(r.level), isLink = (type & T.LINK) !== 0;
@@ -40,6 +42,7 @@ export function loadCards(): Map<number, EngineCard> {
         code, alias: Number(r.alias), setcodes, type, level: level & 0xff, attribute: Number(r.attribute), race: BigInt(r.race),
         attack: Number(r.atk), defense: isLink ? 0 : Number(r.def), lscale: (level >> 24) & 0xff, rscale: (level >> 16) & 0xff,
         link_marker: isLink ? Number(r.def) : 0, name: String(r.name), text: String(r.desc),
+        strings: Array.from({ length: 16 }, (_, i) => String(r[`str${i + 1}`] ?? '')),
       });
     }
     db.close();

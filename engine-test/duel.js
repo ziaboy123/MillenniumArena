@@ -273,7 +273,10 @@ function playDuel(seed, DECKS){
     function Effect.SetTarget(e, f) return st(e, wrap('target', f, e)) end
 `);
   DECKS.forEach((deck, team) => {
-    for (const code of deck.main) lib.duelNewCard(handle, { team, duelist: 0, code, controller: team, location: OcgLocation.DECK, sequence: 0, position: OcgPosition.FACEDOWN_DEFENSE });
+    // the engine doesn't shuffle at the start (EDOPro's host does), so shuffle here from the duel's seed
+    const main = [...deck.main];
+    for (let i = main.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [main[i], main[j]] = [main[j], main[i]]; }
+    for (const code of main) lib.duelNewCard(handle, { team, duelist: 0, code, controller: team, location: OcgLocation.DECK, sequence: 0, position: OcgPosition.FACEDOWN_DEFENSE });
     for (const code of deck.extra) lib.duelNewCard(handle, { team, duelist: 0, code, controller: team, location: OcgLocation.EXTRA, sequence: 0, position: OcgPosition.FACEDOWN_DEFENSE });
   });
 

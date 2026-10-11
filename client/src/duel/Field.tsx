@@ -27,7 +27,7 @@ function cellAt(r: number, c: number): Cell {
 const CELLS = Array.from({ length: 35 }, (_, i) => cellAt(Math.floor(i / 7), i % 7));
 
 /** Where a zone sits on the grid (Extra Monster Zones are shared: left = your 5 / their 6, right = your 6 / their 5). */
-function gridOf(z: ZoneRef): [number, number] | null {
+export function gridOf(z: Pick<ZoneRef, 'p' | 'loc' | 'seq'>): [number, number] | null {
   if (z.loc === 'm') {
     if (z.seq < 5) return z.p === 0 ? [3, z.seq + 1] : [1, 5 - z.seq];
     if (z.seq === 5) return [2, z.p === 0 ? 2 : 4];
@@ -39,6 +39,16 @@ function gridOf(z: ZoneRef): [number, number] | null {
   }
   return null;
 }
+/** Grid cell index (row * 7 + column) of a pile. */
+export function pileCell(p: Side, kind: PileKind): number {
+  const rc: Record<PileKind, [number, number]> = p === 0 ? { gy: [3, 6], ban: [2, 6], deck: [4, 6], extra: [4, 0] } : { gy: [1, 0], ban: [2, 0], deck: [0, 0], extra: [0, 6] };
+  return rc[kind][0] * 7 + rc[kind][1];
+}
+export const cellIndex = (z: Pick<ZoneRef, 'p' | 'loc' | 'seq'>) => { const g = gridOf(z); return g ? g[0] * 7 + g[1] : -1; };
+
+/** How a cell is marked while you're choosing: `can` = has something you can do, `pick` = a zone you can choose. */
+export type Mark = 'can' | 'pick' | 'picked';
+
 const sameCell = (z: ZoneRef, r: number, c: number) => { const g = gridOf(z); return !!g && g[0] === r && g[1] === c; };
 
 function CardFace({ card, monster }: { card: FieldCard; monster: boolean }) {
@@ -53,7 +63,10 @@ function CardFace({ card, monster }: { card: FieldCard; monster: boolean }) {
   </>;
 }
 
-export function Field({ frame, onPile }: { frame: Frame; onPile: (p: Side, kind: PileKind) => void }) {
+export function Field({ frame, onPile, marks, onCell }: {
+  frame: Frame; onPile: (p: Side, kind: PileKind, el: HTMLElement) => void;
+  marks?: Map<number, Mark>; onCell?: (cell: number, el: HTMLElement) => void;
+}) {
   const b = frame.board;
   const cells = CELLS.map((cell, i) => {
     const r = Math.floor(i / 7), c = i % 7;
@@ -89,8 +102,11 @@ export function Field({ frame, onPile }: { frame: Frame; onPile: (p: Side, kind:
     const kindClass = cell.kind === 'emblem' ? 'none emblem' : cell.kind;
     const label = { m: 'MZ', st: 'S/T', emz: 'EMZ', fieldz: 'FIELD', gy: 'GY', ban: 'BAN', deck: 'DECK', extra: 'EXTRA', none: '', emblem: '' }[cell.kind];
     const pile = 'p' in cell && (cell.kind === 'gy' || cell.kind === 'ban' || cell.kind === 'deck' || cell.kind === 'extra') ? cell : null;
+    const mark = marks?.get(i);
+    const click = pile ? (e: React.MouseEvent<HTMLElement>) => onPile(pile.p, pile.kind, e.currentTarget)
+      : mark && onCell ? (e: React.MouseEvent<HTMLElement>) => onCell(i, e.currentTarget) : undefined;
     return (
-      <div key={i} className={`zone ${kindClass} ${extra} ${flags} ${theirs ? 'theirs' : ''}`} data-label={label} onClick={pile ? () => onPile(pile.p, pile.kind) : undefined}>
+      <div key={i} className={`zone ${kindClass} ${extra} ${flags} ${theirs ? 'theirs' : ''} ${mark ?? ''}`} data-label={label} onClick={click}>
         {content}
         {chainLinks.map(n => <div key={n} className="link">{n}</div>)}
       </div>

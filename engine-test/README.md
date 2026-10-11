@@ -21,8 +21,9 @@ Needs Node 22.13 or newer (built-in `node:sqlite`).
 Engine: ygopro-core `93eff32` (11 Oct 2026), CardScripts and BabelCDB at their 11 Oct commits.
 
 - **30 tournament decks** from September–October 2026 WCQ Regionals and YCSs: Mitsurugi, Ryzeal, Fiendsmith, Branded Despia, Snake-Eye, Sky Striker, Maliss, Elfnote, Angelechy, Blitzclique, Light and Darkness Ritual, Memento, Primite Dracotail and more.
-- **870 / 870 duels finish** (every pairing, both going first): no script errors, no decoder mismatches, nothing missing.
-- **62 ms of engine time per duel on average**, ~13 turns. See `meta-report.txt`, `sample-meta-duel.txt` (a 5-link chain on turn 2) and `sample-duel.txt`.
+- **870 / 870 duels finish** (every pairing, both going first, decks shuffled from each duel's seed): no script errors, no decoder mismatches, nothing missing.
+- **78 ms of engine time per duel on average**, ~9 turns. See `meta-report.txt`, `sample-meta-duel.txt` (a 5-link chain on turn 2) and `sample-duel.txt`.
+- Until 12 Oct the test didn't shuffle decks (the engine leaves that to the host, as EDOPro does), so every duel opened with the same cards; bot choices and in-duel shuffles still varied. Re-run with shuffling: same result, all 870 finish cleanly.
 
 ## What we learned
 
@@ -31,7 +32,7 @@ Engine: ygopro-core `93eff32` (11 Oct 2026), CardScripts and BabelCDB at their 1
 3. **Emscripten 6 needs one extra flag** (`wasmBinary`) and the engine should be built for speed (`-O3`, ~12% faster than the wrapper's size-optimised default). Both are in `../engine/build-core.sh`. A fourth fix came later: the board query decoder didn't skip data for flags it doesn't handle.
 4. **A few cards are slow to check.** The worst: **Lunalight Fusion**, which can fuse from the Deck once the opponent has summoned from the Extra Deck, so every "can I activate this?" check searches material combinations across the whole Deck (mostly Lunalight Liger Dancer's). In one duel that made each chain check take ~1.4 s. Other hotspots: Dominus Impulse, Fiendsmith Engraver. **The real server must run each duel in its own worker thread** so one slow check never stalls other duels, and the duel screen should show a "thinking" state when the engine takes a moment.
 5. **Prompts the UI must handle** (most to least common): respond to chain, main phase actions, choose a zone, choose cards, battle actions, select/unselect cards, choose position, yes/no on an effect, declare a card, order cards, yes/no, Level-sum selection, choose an option, Tribute selection, declare a number, declare an Attribute, place counters. ~92% of "respond?" prompts have nothing to activate, so the UI must auto-pass them.
-6. **The engine doesn't enforce the banlist.** Deck legality is ours to check before a duel, as the Decks page does.
+6. **The engine doesn't shuffle decks at the start or enforce the banlist.** The host shuffles before adding cards, and deck legality is ours to check before a duel, as the Decks page does.
 
 ## Licences
 

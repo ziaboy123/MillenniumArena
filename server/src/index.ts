@@ -4,7 +4,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { ClientMessage, ServerMessage } from '@arena/shared';
+import type { ClientMessage, ServerMessage, Side } from '@arena/shared';
 import { clientCardList, loadCards } from './cards.ts';
 import { BASE, CLIENT_DIST, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
 import { loadDecks, summarise } from './decks.ts';
@@ -52,7 +52,8 @@ const wss = new WebSocketServer({ server, path: `${BASE}/ws`, maxPayload: 64 * 1
 wss.on('connection', (ws: WebSocket) => {
   let room: DuelRoom | null = null;
   const viewer: Viewer = { side: null, send: (msg: ServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg)); } };
-  const leave = () => { room?.leave(viewer); room = null; };
+  const leave = () => { room?.leave(viewer); room = null; viewer.side = null; };
+  const full = () => rooms.size >= MAX_DUELS && (viewer.send({ type: 'error', message: 'The server is running as many duels as it can right now. Try again in a minute.' }), true);
 
   ws.on('message', raw => {
     let msg: ClientMessage;
@@ -62,14 +63,28 @@ wss.on('connection', (ws: WebSocket) => {
       leave();
       const pair = msg.decks.map(id => decks.get(id));
       if (!pair[0] || !pair[1]) return viewer.send({ type: 'error', message: 'Unknown deck.' });
-      if (rooms.size >= MAX_DUELS) return viewer.send({ type: 'error', message: 'The server is running as many duels as it can right now. Try again in a minute.' });
+      if (full()) return;
       const mirror = pair[0].id === pair[1].id;
-      const r = new DuelRoom([pair[0], pair[1]], mirror ? ['Bot A', 'Bot B'] : [`Bot (${pair[0].name})`, `Bot (${pair[1].name})`],
+      const r = new DuelRoom([pair[0], pair[1]], mirror ? ['Bot A', 'Bot B'] : [`Bot (${pair[0].name})`, `Bot (${pair[1].name})`], [],
         msg.fullView ?? true, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r));
       rooms.add(r);
       room = r;
       r.join(viewer);
-    } else if (msg.type === 'leave') leave();
+    } else if (msg.type === 'play') {
+      leave();
+      const mine = decks.get(msg.deck), bot = decks.get(msg.botDeck);
+      if (!mine || !bot) return viewer.send({ type: 'error', message: 'Unknown deck.' });
+      if (full()) return;
+      const name = String(msg.name ?? '').replace(/[^\p{L}\p{N} _.'-]/gu, '').trim().slice(0, 16) || 'Duelist';
+      const side: Side = msg.first === 'me' ? 0 : msg.first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
+      const r = new DuelRoom(side === 0 ? [mine, bot] : [bot, mine], side === 0 ? [name, 'Bot'] : ['Bot', name], [side],
+        false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r));
+      rooms.add(r);
+      room = r;
+      viewer.side = side;
+      r.join(viewer);
+    } else if (msg.type === 'answer') room?.answer(viewer, msg.id, msg.answer);
+    else if (msg.type === 'leave') leave();
   });
   ws.on('close', leave);
 });
