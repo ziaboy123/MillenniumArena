@@ -13,13 +13,26 @@ const PILE_NAMES: Record<PileKind, string> = { gy: 'Graveyard', ban: 'Banished',
 
 export interface LogRow { step: number; turn: number; text: string; isTurn: boolean }
 type Ending = Extract<ServerMessage, { type: 'end' }>;
+/** Cards the engine showed you, and when they arrived. */
+export type Reveal = Extract<ServerMessage, { type: 'reveal' }> & { at: number };
+/** Each response on the opponent's turn has this long (the server's limit). */
+const RESPONSE_MS = 30_000;
+
+/** The current time, refreshed every `ms` while `ms` > 0. */
+function useNow(ms: number) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { if (!ms) return; const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
+  return now;
+}
+const clockText = (ms: number) => { const s = Math.ceil(Math.max(0, ms) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 type Menu = { x: number; y: number; below: boolean; title?: string; items: MenuItem[] };
 const sameZone = (a: ZoneRef, b: ZoneRef) => a.p === b.p && a.loc === b.loc && a.seq === b.seq;
 
-export function DuelScreen({ duel, frame, log, ending, prompt, onAnswer, onSurrender, onLeave }: {
+export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave }: {
   duel: DuelInfo; frame: Frame | null; log: LogRow[]; ending: Ending | null;
-  prompt: Prompt | null; onAnswer: (a: PromptAnswer) => void; onSurrender: () => void; onLeave: () => void;
+  prompt: Prompt | null; promptAt: number; onAnswer: (a: PromptAnswer) => void;
+  reveal: Reveal | null; onCloseReveal: () => void; onSurrender: () => void; onLeave: () => void;
 }) {
   const [detail, setDetail] = useState<number | null>(null);
   const [pile, setPile] = useState<[Side, PileKind] | null>(null);
@@ -31,6 +44,15 @@ export function DuelScreen({ duel, frame, log, ending, prompt, onAnswer, onSurre
   const playing = duel.you === 0 && !ending;
   const closeMenu = useCallback(() => setMenu(null), []);
   useEffect(() => { setMenu(null); setZones([]); }, [prompt?.id]);
+
+  // turn timer: the prompt's clock counts down while it's on screen; between prompts your turn's time is paused
+  const now = useNow(prompt?.time ? 250 : 0);
+  const left = prompt?.time ? prompt.time.left - (now - promptAt) : null;
+  const bank = useRef(duel.timer * 1000);
+  if (prompt?.time?.turn && left !== null) bank.current = Math.max(0, left);
+  const myTurn = frame?.turnPlayer === 0 && duel.you === 0;
+  useEffect(() => { if (myTurn) bank.current = duel.timer * 1000; }, [frame?.turn]);   // a fresh turn's time
+  const clock = duel.timer && duel.you === 0 ? (myTurn ? bank.current : null) : null;
 
   // what you can click right now: cards with actions (glow), zones you can choose, and choices with no card on screen
   const byCard = useMemo(() => actionsByCard(prompt), [prompt]);
@@ -94,7 +116,7 @@ export function DuelScreen({ duel, frame, log, ending, prompt, onAnswer, onSurre
     const t = setTimeout(() => setPops(p => p.filter(x => !fresh.includes(x))), 1500);
     return () => clearTimeout(t);
   }, [frame?.step]);
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPile(null); setConfirm(null); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPile(null); setConfirm(null); onCloseReveal(); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [onCloseReveal]);
 
   const onHover = (e: React.MouseEvent) => {
     const code = Number((e.target as HTMLElement).closest<HTMLElement>('[data-code]')?.dataset.code);
@@ -117,10 +139,11 @@ export function DuelScreen({ duel, frame, log, ending, prompt, onAnswer, onSurre
           <CardDetail code={detail} />
           {frame && <>
             <LifePanel side={1} duel={duel} frame={frame} />
-            <LifePanel side={0} duel={duel} frame={frame} />
+            <LifePanel side={0} duel={duel} frame={frame} clock={clock} />
             <Hands frame={frame} can={handActions} onHand={(i, el) => { const e = handActions.get(i); if (e) openActions(el, e); }} />
             <PhaseBar duel={duel} frame={frame} />
             <div className="rightcol">
+              {prompt?.time && left !== null && <TimerBar left={left} full={prompt.time.turn ? duel.timer * 1000 : RESPONSE_MS} turn={prompt.time.turn} />}
               <ChainPanel duel={duel} frame={frame} />
               {prompt && <PromptPanel key={prompt.id} prompt={prompt} phase={frame.phase} loose={loose} zonesLeft={prompt.kind === 'place' ? prompt.count - zones.length : 0} onAnswer={answer} onAutoZone={autoZone} />}
             </div>
@@ -128,6 +151,7 @@ export function DuelScreen({ duel, frame, log, ending, prompt, onAnswer, onSurre
             {prompt?.kind === 'position' && <PositionPicker key={prompt.id} prompt={prompt} onAnswer={answer} />}
             {pops.map(d => <div key={d.id} className={`dmg ${d.cost ? 'cost' : ''}`} style={{ left: d.p === 0 ? 174 : 1406, top: d.p === 0 ? 730 : 110 }}>−{d.amount}</div>)}
             {pile && <PileViewer duel={duel} frame={frame} pile={pile} setPile={setPile} actions={pileActions} onAct={openActions} />}
+            {reveal && <RevealPanel reveal={reveal} onClose={onCloseReveal} />}
           </>}
           <LogPanel log={log} step={frame?.step ?? -1} duel={duel} />
           {menu && <ActionMenu {...menu} onClose={closeMenu} />}
@@ -173,13 +197,38 @@ function CardDetail({ code }: { code: number | null }) {
   );
 }
 
-function LifePanel({ side, duel, frame }: { side: Side; duel: DuelInfo; frame: Frame }) {
+function TimerBar({ left, full, turn }: { left: number; full: number; turn: boolean }) {
+  return (
+    <div className={`panel timerbar ${left < 10_000 ? 'low' : ''}`}>
+      <span>{turn ? 'Your turn' : 'Respond within'}</span><b>{clockText(left)}</b>
+      <div className="timer"><i style={{ width: `${Math.min(100, (100 * left) / Math.max(full, 1))}%` }} /></div>
+    </div>
+  );
+}
+
+function RevealPanel({ reveal, onClose }: { reveal: Reveal; onClose: () => void }) {
+  return (
+    <div className={`panel pileview on reveal ${reveal.brief ? 'brief' : ''}`}>
+      <div className="pv-head"><h3>{reveal.title}</h3><span className="n">{reveal.cards.length}</span>
+        <span className="note">{reveal.brief ? '' : 'Shown to you by a card effect'}</span>
+        <button className="pv-close" onClick={onClose} title="Close (Esc)">×</button></div>
+      <div className="pv-grid">
+        {reveal.cards.map((code, i) => <div key={i} className="pv-card" data-code={code || undefined}>
+          {code ? <img src={smallImage(code)} alt="" onError={e => imageFallback(e, code)} /> : <div className="card back" style={{ position: 'absolute', inset: 0 }}><EyeSvg /></div>}
+        </div>)}
+      </div>
+    </div>
+  );
+}
+
+function LifePanel({ side, duel, frame, clock }: { side: Side; duel: DuelInfo; frame: Frame; clock?: number | null }) {
   const lp = frame.board[side].lp, name = duel.players[side];
   return (
     <div className={`panel ${side === 0 ? 'me' : 'opp'}`}>
       <div className="av">{name[0]}</div>
       <div className="who">
-        <div className="name">{name} <span className="rank">{frame.turnPlayer === side ? (duel.you === side ? 'Your turn' : 'Their turn') : ''}</span></div>
+        <div className="name">{name} <span className={`rank ${clock !== undefined && clock !== null && clock < 10_000 ? 'low' : ''}`}>
+          {frame.turnPlayer === side ? (duel.you === side ? 'Your turn' : 'Their turn') : ''}{clock !== undefined && clock !== null ? ` · ${clockText(clock)}` : ''}</span></div>
         <div className="lp"><small>LP</small>{lp}</div>
         <div className="bar"><i style={{ width: `${Math.min(100, lp / 80)}%` }} /></div>
       </div>

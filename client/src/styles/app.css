@@ -101,3 +101,29 @@ button.opt { font: inherit; color: inherit; text-align: left; width: 100%; }
 .pos-card img { width: 100%; height: 100%; object-fit: cover; }
 .pos-card .card.pk-back { position: absolute; inset: 0; }
 .pos-card.side { transform: rotate(90deg) scale(.85); margin: -10px 0; }
+
+/* ---------- turn timer ---------- */
+.rightcol > .timerbar { padding: 10px 14px; display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 6px 10px; }
+.timerbar span { font: 600 11px/1 var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.timerbar b { font: 700 20px/1 var(--font-display); color: var(--text); }
+.timerbar .timer { grid-column: 1 / -1; }
+.timerbar .timer i { animation: none; transition: width .25s linear; }
+.timerbar.low b, .rank.low { color: #ff8a76; }
+.timerbar.low .timer i { background: #e0503a; }
+
+/* ---------- negated cards and columns ---------- */
+.negx { position: absolute; inset: 0; z-index: 2; pointer-events: none; background:
+  linear-gradient(to top right, transparent calc(50% - 3px), rgba(255,70,50,.95) calc(50% - 2px), rgba(255,70,50,.95) calc(50% + 2px), transparent calc(50% + 3px)),
+  linear-gradient(to top left, transparent calc(50% - 3px), rgba(255,70,50,.95) calc(50% - 2px), rgba(255,70,50,.95) calc(50% + 2px), transparent calc(50% + 3px)),
+  rgba(120,10,0,.28); }
+.colneg { position: absolute; top: -8px; height: calc(100% + 16px); z-index: 4; pointer-events: none; border: 2px dashed rgba(255,80,60,.75); border-radius: 6px;
+  background: repeating-linear-gradient(135deg, rgba(255,70,50,.12) 0 10px, transparent 10px 22px); box-shadow: 0 0 24px rgba(255,70,50,.25), inset 0 0 30px rgba(255,70,50,.15); }
+.colneg span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-90deg); white-space: nowrap; font: 700 11px/1 var(--font-ui);
+  letter-spacing: .18em; text-transform: uppercase; color: #fff; background: rgba(170,30,15,.9); padding: 5px 9px; border-radius: 3px; }
+
+/* ---------- cards an effect shows you ---------- */
+/* the pile viewer and reveal window stop short of the prompt column on the right */
+.pileview { width: 800px !important; }
+.pileview.reveal { z-index: 54; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 30px 80px rgba(0,0,0,.7); }
+.pileview.reveal.brief { left: 560px; width: 480px; top: 200px; }
+.pileview.reveal.brief .pv-grid { grid-template-columns: repeat(4, 1fr); }

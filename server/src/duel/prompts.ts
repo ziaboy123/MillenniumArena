@@ -19,6 +19,8 @@ export interface PromptContext {
   chainTop: number;
   /** The card this player last chose to use, for titles like 'Choose a zone for "X"'. */
   lastCard: number;
+  /** Hidden cards the engine has shown this player during the current chain ("controller:location:sequence"). */
+  known?: Set<string>;
 }
 
 const FACEDOWN = 0xa;
@@ -48,7 +50,8 @@ function card(ctx: PromptContext, c: any, player: Side, desc?: string): PromptCa
   const mat = c.overlay_sequence !== undefined;
   let pos = c.position ?? 0;
   if (!pos && (loc === 'm' || loc === 's')) pos = ctx.board[c.controller as Side][loc][c.sequence]?.[1] ?? 0;
-  const hidden = p === 1 && !mat && (loc === 'hand' || loc === 'deck' || ((pos & FACEDOWN) !== 0 && loc !== 'gy'));
+  const shown = ctx.known?.has(`${c.controller}:${c.location}:${c.sequence}`);
+  const hidden = p === 1 && !mat && !shown && (loc === 'hand' || loc === 'deck' || ((pos & FACEDOWN) !== 0 && loc !== 'gy'));
   return { code: hidden ? 0 : c.code, p, loc, seq: c.sequence, pos, ...(mat ? { mat } : {}), ...(desc ? { desc } : {}) };
 }
 

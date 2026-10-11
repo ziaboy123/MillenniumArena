@@ -2,8 +2,10 @@
 
 export type Side = 0 | 1;
 
-/** A card on the field: [code, position flags, ATK, DEF, Xyz materials, card type]. Code 0 = hidden from this viewer. */
-export type FieldCard = [code: number, position: number, atk: number | null, def: number | null, materials: number, type: number];
+/** A card on the field: [code, position flags, ATK, DEF, Xyz materials, card type, flags]. Code 0 = hidden from this viewer. */
+export type FieldCard = [code: number, position: number, atk: number | null, def: number | null, materials: number, type: number, flags: number];
+/** FieldCard flags: its effects are negated. */
+export const NEGATED = 1;
 
 export interface SideView {
   lp: number;
@@ -39,6 +41,8 @@ export interface Frame {
   chain: (ZoneRef & { code: number })[];
   damage: { p: Side; amount: number; cost?: boolean }[];
   highlight: ZoneRef[];
+  /** Columns whose cards are negated for the rest of the turn (e.g. a Set Infinite Impermanence), named by player p's Spell/Trap zone `seq`. */
+  columns: { p: Side; seq: number }[];
   board: [SideView, SideView];
 }
 
@@ -52,7 +56,12 @@ export interface DuelInfo {
   /** Watching with every card visible (bot-vs-bot testing). */
   fullView: boolean;
   engine: string;
+  /** Seconds each player gets per turn (0 = no timer). */
+  timer: number;
 }
+
+/** How fast the bot's moves play out. */
+export type Speed = 'slow' | 'normal' | 'fast' | 'instant';
 
 // ---------- prompts: the engine asking a player to choose ----------
 // Sides in prompts are relative to the player being asked: 0 = you, 1 = your opponent.
@@ -66,7 +75,8 @@ export type IdleAct = 'summon' | 'spsummon' | 'repos' | 'mset' | 'sset' | 'activ
 /** One thing you can do with a card right now: `index` is its position in the engine's list for that kind of action. */
 export interface PromptAction { act: IdleAct | 'attack'; index: number; card: PromptCard; label: string }
 
-export type Prompt = { id: number; title: string; retry?: boolean } & (
+/** `time`: milliseconds left to answer when it was sent; `turn` = it comes out of your turn's time (else it's a response limit). */
+export type Prompt = { id: number; title: string; retry?: boolean; time?: { left: number; turn: boolean } } & (
   /** Main Phase: use a card, or move on. */
   | { kind: 'idle'; actions: PromptAction[]; toBP: boolean; toEP: boolean }
   /** Battle Phase: attack, use a card, or move on. */
@@ -100,20 +110,23 @@ export type PromptAnswer =
 export interface DeckSummary { id: string; name: string; main: number; extra: number; source: 'mine' | 'tournament' }
 
 export type ServerMessage =
-  | { type: 'decks'; decks: DeckSummary[] }
+  /** `scenarios`: test set-ups, only offered by a development server. */
+  | { type: 'decks'; decks: DeckSummary[]; scenarios?: { id: string; name: string }[] }
   | { type: 'duel'; duel: DuelInfo }
   | { type: 'frame'; frame: Frame }
   /** Your turn to choose (null: nothing to answer right now). */
   | { type: 'prompt'; prompt: Prompt | null }
+  /** Cards the engine shows you (e.g. Galaxy Hundred lets you look at the opponent's Extra Deck). `brief`: just a glimpse, it closes itself. */
+  | { type: 'reveal'; title: string; cards: number[]; brief: boolean }
   | { type: 'end'; winner: Side | 2 | null; reason: string; turns: number }
   | { type: 'error'; message: string };
 
 export type ClientMessage =
   | { type: 'listDecks' }
   /** Milestone 1: two bots duel and this connection watches. */
-  | { type: 'watch'; decks: [string, string]; fullView?: boolean; seed?: number }
+  | { type: 'watch'; decks: [string, string]; fullView?: boolean; seed?: number; speed?: Speed }
   /** Milestone 2: duel the bot. */
-  | { type: 'play'; deck: string; botDeck: string; first: 'me' | 'bot' | 'random'; name?: string; seed?: number }
+  | { type: 'play'; deck: string; botDeck: string; first: 'me' | 'bot' | 'random'; name?: string; seed?: number; speed?: Speed; timer?: number; scenario?: string }
   | { type: 'answer'; id: number; answer: PromptAnswer }
   | { type: 'leave' };
 

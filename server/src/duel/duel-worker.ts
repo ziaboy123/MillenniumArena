@@ -6,37 +6,48 @@ import path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 import createCore, {
   OcgDuelMode, OcgHintType, OcgLocation, OcgMessageType as M, OcgPhase, OcgPosition, OcgProcessResult, OcgQueryFlags, OcgResponseType,
+  SelectBattleCMDAction, SelectIdleCMDAction,
 } from 'ocgcore-wasm';
-import type { Frame, Phase, Prompt, PromptAnswer, Side, SideView, ZoneRef } from '@arena/shared';
+import { NEGATED, type Frame, type Phase, type Prompt, type PromptAnswer, type Side, type SideView, type ZoneRef } from '@arena/shared';
 import { loadCards } from '../cards.ts';
 import { ENGINE_DATA } from '../config.ts';
 import { victoryString } from '../strings.ts';
-import { PROMPTS, decide, rng, shuffle, type BotState } from './bot.ts';
+import { PROMPTS, decide, rng, shuffle, type BotLevel, type BotState, type BotView } from './bot.ts';
 import { NOT_YET, describe, toPrompt, toResponse } from './prompts.ts';
+import { COLUMN_NEGATORS } from './specials.ts';
 
 export interface WorkerInput {
   decks: [{ name: string; main: number[]; extra: number[] }, { name: string; main: number[]; extra: number[] }];
   players: [string, string];
   /** Engine sides played by people; the bot plays the rest. Side 0 goes first. */
   humans: Side[];
+  /** How the bot plays each side nobody is playing (default smart). */
+  bots?: [BotLevel, BotLevel];
+  /** Cards placed before the duel starts (test scenarios on the dev server). */
+  setup?: { team: Side; code: number; location: number; sequence: number; position: number }[];
   seed: number;
 }
 export type WorkerOutput =
   | { type: 'frame'; frame: Frame }
   | { type: 'prompt'; side: Side; prompt: Prompt }
+  | { type: 'reveal'; side: Side | 'all'; title: string; cards: number[]; brief: boolean }
   | { type: 'end'; winner: Side | 2 | null; reason: string; turns: number }
   | { type: 'error'; message: string };
-export type WorkerCommand = { type: 'answer'; id: number; answer: PromptAnswer };
+/** The room sends a player's answer, or `timeout` when their time ran out. */
+export type WorkerCommand = { type: 'answer'; id: number; answer: PromptAnswer } | { type: 'timeout'; id: number };
 
 const input = workerData as WorkerInput;
 const post = (msg: WorkerOutput) => parentPort!.postMessage(msg);
 
 // a person's answer arrives from the room as a message; the duel loop waits for it
-let waiting: { id: number; resolve: (a: PromptAnswer) => void } | null = null;
+let waiting: { id: number; resolve: (a: PromptAnswer | null) => void } | null = null;
 parentPort!.on('message', (msg: WorkerCommand) => {
-  if (msg?.type === 'answer' && waiting && msg.id === waiting.id) { const w = waiting; waiting = null; w.resolve(msg.answer); }
+  if (!waiting || msg?.id !== waiting.id) return;
+  const w = waiting;
+  waiting = null;
+  w.resolve(msg.type === 'answer' ? msg.answer : null);   // null: time ran out
 });
-const answerTo = (id: number) => new Promise<PromptAnswer>(resolve => { waiting = { id, resolve }; });
+const answerTo = (id: number) => new Promise<PromptAnswer | null>(resolve => { waiting = { id, resolve }; });
 
 const cards = loadCards();
 const nameOf = (code: number) => cards.get(code)?.name ?? `#${code}`;
@@ -56,7 +67,9 @@ const PHASES: Record<number, Phase> = {
   [OcgPhase.DRAW]: 'DP', [OcgPhase.STANDBY]: 'SP', [OcgPhase.MAIN1]: 'M1', [OcgPhase.BATTLE_START]: 'BP', [OcgPhase.BATTLE_STEP]: 'BP',
   [OcgPhase.DAMAGE]: 'BP', [OcgPhase.DAMAGE_CAL]: 'BP', [OcgPhase.BATTLE]: 'BP', [OcgPhase.MAIN2]: 'M2', [OcgPhase.END]: 'EP',
 };
-const QF = OcgQueryFlags.CODE | OcgQueryFlags.POSITION | OcgQueryFlags.ATTACK | OcgQueryFlags.DEFENSE | OcgQueryFlags.OVERLAY_CARD | OcgQueryFlags.TYPE;
+const QF = OcgQueryFlags.CODE | OcgQueryFlags.POSITION | OcgQueryFlags.ATTACK | OcgQueryFlags.DEFENSE | OcgQueryFlags.OVERLAY_CARD | OcgQueryFlags.TYPE | OcgQueryFlags.STATUS;
+const STATUS_DISABLED = 0x1;   // the card's effects are negated
+const LOC_NAMES: Record<number, string> = { [OcgLocation.HAND]: 'hand', [OcgLocation.DECK]: 'Deck', [OcgLocation.EXTRA]: 'Extra Deck', [OcgLocation.GRAVE]: 'GY', [OcgLocation.REMOVED]: 'banished cards', [OcgLocation.MZONE]: 'field', [OcgLocation.SZONE]: 'field' };
 
 async function run() {
   const lib = await createCore({ sync: true });
@@ -78,14 +91,25 @@ async function run() {
     shuffle([...deck.main], shuffler).forEach(c => add(c, OcgLocation.DECK));
     deck.extra.forEach(c => add(c, OcgLocation.EXTRA));
   });
+  for (const c of input.setup ?? []) lib.duelNewCard(handle, { team: c.team, duelist: 0, code: c.code, controller: c.team, location: c.location, sequence: c.sequence, position: c.position });
 
-  const players = input.players, lp = [8000, 8000], humans = new Set(input.humans);
+  const players = input.players, lp = [8000, 8000], humans = new Set(input.humans), levels = input.bots ?? ['smart', 'smart'];
   const r = rng(input.seed), bots: BotState[] = [{ acts: 0, attacks: 0 }, { acts: 0, attacks: 0 }];
   const chain: (ZoneRef & { code: number })[] = [];
   let turn = 0, turnPlayer: Side = 0, phase: Phase = 'DP', winner: Side | 2 | null = null, winReason = '', step = 0;
   let lines: string[] = [], attack: Frame['attack'] = null, damage: Frame['damage'] = [], highlight: ZoneRef[] = [];
-  let lastKey = '', lastPrompt: any = null, tries = 0, responses = 0, board: [SideView, SideView] | null = null, promptId = 0;
+  let lastKey = '', lastPrompt: any = null, tries = 0, responses = 0, board = null as [SideView, SideView] | null, promptId = 0;
   const hints: [bigint, bigint] = [0n, 0n], lastCard = [0, 0];
+  // chain links as they're activated (owner, and whether a column-negating card was Set first); negated columns this turn
+  const links: { code: number; p: Side; seq: number; columnFromSet: boolean; negated: boolean }[] = [];
+  let columns: Frame['columns'] = [];
+  // hidden cards the engine has shown a player during this chain (e.g. Galaxy Hundred: the opponent's Extra Deck),
+  // so a prompt that follows can show them too
+  const known: [Set<string>, Set<string>] = [new Set(), new Set()];
+  const timedOut = [0, 0];   // the turn on which each side's time last ran out (said once per turn)
+  // which Spell/Trap zones have held a face-down card (by the time an activation is announced the card is already
+  // face-up, so "was it Set?" is answered from this)
+  const setInZone = new Map<string, number>();
 
   const zoneOf = (l: any): ZoneRef => ({ p: l.controller, loc: l.location === OcgLocation.MZONE ? 'm' : l.location === OcgLocation.SZONE ? 's' : l.location === OcgLocation.HAND ? 'hand' : 'other', seq: l.sequence });
   const codeAt = (l: any) => lib.duelQuery(handle, { flags: OcgQueryFlags.CODE, controller: l.controller, location: l.location, sequence: l.sequence, overlaySequence: 0 })?.code;
@@ -93,7 +117,7 @@ async function run() {
   function snapshot(): [SideView, SideView] {
     const side = (p: Side): SideView => {
       const q = (location: number) => lib.duelQueryLocation(handle, { flags: QF, controller: p, location }) as any[];
-      const card = (c: any) => c && c.code ? [c.code, c.position, c.attack ?? null, c.defense ?? null, c.overlayCards?.length || 0, c.type ?? 0] as any : null;
+      const card = (c: any) => c && c.code ? [c.code, c.position, c.attack ?? null, c.defense ?? null, c.overlayCards?.length || 0, c.type ?? 0, (c.status ?? 0) & STATUS_DISABLED ? NEGATED : 0] as any : null;
       return {
         lp: Math.max(lp[p], 0), hand: q(OcgLocation.HAND).map(c => c?.code ?? 0), m: q(OcgLocation.MZONE).map(card), s: q(OcgLocation.SZONE).map(card),
         gy: q(OcgLocation.GRAVE).map(c => c?.code ?? 0), ban: q(OcgLocation.REMOVED).map(c => [c?.code ?? 0, c?.position ?? 1]),
@@ -105,30 +129,48 @@ async function run() {
   }
   function frame() {
     board = snapshot();
-    const key = JSON.stringify([board, phase, turn, chain.length]);
+    board.forEach((side, p) => side.s.slice(0, 5).forEach((c, seq) => {
+      if (c && c[1] & OcgPosition.FACEDOWN) setInZone.set(`${p}:${seq}`, c[0]);
+      else if (!c) setInZone.delete(`${p}:${seq}`);
+    }));
+    const key = JSON.stringify([board, phase, turn, chain.length, columns.length]);
     if (!lines.length && !attack && key === lastKey) return;   // nothing visible changed
     lastKey = key;
-    post({ type: 'frame', frame: { step: step++, turn, turnPlayer, phase, lines, attack, chain: chain.map(c => ({ ...c })), damage, highlight, board } });
+    post({ type: 'frame', frame: { step: step++, turn, turnPlayer, phase, lines, attack, chain: chain.map(c => ({ ...c })), damage, highlight, columns: [...columns], board } });
     lines = []; attack = null; damage = []; highlight = [];
   }
   const say = (s: string) => lines.push(s);
+
+  const view = (m: any): BotView => ({ board: board ?? snapshot(), chain: links.map(l => ({ code: l.code, p: l.p })), hint: m.selectHint ?? 0n });
+  const bot = (m: any, p: Side) => decide(m, r, bots[p], tries, cards, view(m), levels[p]);
+
+  /** When a player's time runs out: move the turn along (pass, go to the End Phase), and let the bot make any other choice. */
+  function outOfTime(m: any, p: Side): any {
+    if (timedOut[p] !== turn) { timedOut[p] = turn; say(`${players[p]} ran out of time`); frame(); }
+    if (m.type === M.SELECT_IDLECMD && (m.to_ep || m.to_bp)) return { type: OcgResponseType.SELECT_IDLECMD, action: m.to_ep ? SelectIdleCMDAction.TO_EP : SelectIdleCMDAction.TO_BP, index: null };
+    if (m.type === M.SELECT_BATTLECMD) return { type: OcgResponseType.SELECT_BATTLECMD, action: m.to_ep ? SelectBattleCMDAction.TO_EP : SelectBattleCMDAction.TO_M2, index: null };
+    if (m.type === M.SELECT_CHAIN && !m.forced) return { type: OcgResponseType.SELECT_CHAIN, index: null };
+    if (m.type === M.SELECT_EFFECTYN) return { type: OcgResponseType.SELECT_EFFECTYN, yes: false };
+    return bot(m, p);
+  }
 
   /** Ask a person, and keep asking until the answer is one the prompt allows. */
   async function ask(m: any): Promise<any> {
     const p = m.player as Side;
     // most "respond?" moments offer nothing to activate: pass without asking
     if (m.type === M.SELECT_CHAIN && !m.selects.length && !m.forced) return { type: OcgResponseType.SELECT_CHAIN, index: null };
-    const prompt = toPrompt(m, { cards, board: board ?? snapshot(), hint: m.selectHint ?? 0n, chainTop: chain.at(-1)?.code ?? 0, lastCard: lastCard[p] });
+    const prompt = toPrompt(m, { cards, board: board ?? snapshot(), hint: m.selectHint ?? 0n, chainTop: chain.at(-1)?.code ?? 0, lastCard: lastCard[p], known: known[p] });
     if (!prompt) {
       say(`${players[p]}: ${NOT_YET[m.type] ?? 'a choice'} was picked automatically (this choice comes in a later update)`);
       frame();
-      return decide(m, r, bots[p], tries, cards);
+      return bot(m, p);
     }
     let retry = tries > 0;
     while (true) {
       const id = ++promptId;
       post({ type: 'prompt', side: p, prompt: { ...prompt, id, ...(retry ? { retry } : {}) } });
       const answer = await answerTo(id);
+      if (answer === null) return outOfTime(m, p);
       const res = toResponse(m, answer);
       if (res) {
         const used = res.index ?? null;   // remember which card was used, for later prompt titles
@@ -158,16 +200,27 @@ async function run() {
           else if (m.hint_type === OcgHintType.OPSELECTED) { const t = describe(cards, m.hint); if (t) say(`Chosen: ${t}`); }
           break;
         case M.NEW_PHASE: phase = PHASES[m.phase] ?? phase; break;
-        case M.NEW_TURN: turn++; turnPlayer = m.player; phase = 'DP'; bots.forEach(b => { b.acts = 0; b.attacks = 0; }); say(`Turn ${turn} · ${players[m.player]}`); break;
+        case M.NEW_TURN: turn++; turnPlayer = m.player; phase = 'DP'; columns = []; bots.forEach(b => { b.acts = 0; b.attacks = 0; }); say(`Turn ${turn} · ${players[m.player]}`); break;
         case M.DRAW: say(`${players[m.player]} draws ${m.drawn.length}`); break;
         case M.SUMMONING: highlight.push(zoneOf(m)); say(`${players[m.controller]} Normal Summons ${nameOf(m.code)}`); break;
         case M.SPSUMMONING: highlight.push(zoneOf(m)); say(`${players[m.controller]} Special Summons ${nameOf(m.code)}`); break;
         case M.FLIPSUMMONING: highlight.push(zoneOf(m)); say(`${players[m.controller]} Flip Summons ${nameOf(m.code)}`); break;
         case M.SET: say(`${players[m.controller]} Sets a card`); break;
-        case M.CHAINING: chain.push({ code: m.code, ...zoneOf(m) }); highlight.push(zoneOf(m)); say(`${players[m.controller]} activates ${nameOf(m.code)}${m.chain_size > 1 ? ` (chain link ${m.chain_size})` : ''}`); break;
-        case M.CHAIN_NEGATED: say(`Chain link ${m.chain_size}'s activation is negated`); break;
-        case M.CHAIN_DISABLED: say(`Chain link ${m.chain_size}'s effect is negated`); break;
-        case M.CHAIN_END: chain.length = 0; break;
+        case M.CHAINING: {
+          const zone = `${m.controller}:${m.sequence}`, wasSet = m.location === OcgLocation.SZONE && setInZone.get(zone) === m.code;
+          if (m.location === OcgLocation.SZONE) setInZone.delete(zone);
+          links.push({ code: m.code, p: m.controller, seq: m.sequence, columnFromSet: COLUMN_NEGATORS.has(m.code) && wasSet, negated: false });
+        }
+          chain.push({ code: m.code, ...zoneOf(m) }); highlight.push(zoneOf(m)); say(`${players[m.controller]} activates ${nameOf(m.code)}${m.chain_size > 1 ? ` (chain link ${m.chain_size})` : ''}`); break;
+        case M.CHAIN_NEGATED: if (links[m.chain_size - 1]) links[m.chain_size - 1].negated = true; say(`Chain link ${m.chain_size}'s activation is negated`); break;
+        case M.CHAIN_DISABLED: if (links[m.chain_size - 1]) links[m.chain_size - 1].negated = true; say(`Chain link ${m.chain_size}'s effect is negated`); break;
+        case M.CHAIN_SOLVED: {
+          const link = links[m.chain_size - 1];
+          if (link?.columnFromSet && !link.negated && link.seq < 5) { columns.push({ p: link.p, seq: link.seq }); say(`${nameOf(link.code)} negates its column for the rest of this turn`); }
+          break;
+        }
+        case M.CHAIN_END: chain.length = 0; links.length = 0; known[0].clear(); known[1].clear(); break;
+        case M.SHUFFLE_DECK: case M.SHUFFLE_HAND: case M.SHUFFLE_EXTRA: known[0].clear(); known[1].clear(); break;   // places changed
         case M.ATTACK: {
           attack = { from: zoneOf(m.card), to: m.target ? zoneOf(m.target) : null };
           const a = codeAt(m.card), d = m.target && codeAt(m.target);
@@ -191,7 +244,24 @@ async function run() {
           else if ((to === L.DECK || to === L.EXTRA) && (from === L.GRAVE || from === L.REMOVED || (from & L.ONFIELD))) say(`${nameOf(m.card)} returns to the ${to === L.DECK ? 'Deck' : 'Extra Deck'}`);
           break;
         }
-        case M.CONFIRM_CARDS:
+        case M.CONFIRM_DECKTOP:
+          // the top of a Deck turned over for both players to see
+          if (m.cards.length) {
+            say(`${players[m.player]} reveals the top of their Deck: ${m.cards.map((c: any) => nameOf(c.code)).join(', ')}`);
+            post({ type: 'reveal', side: 'all', title: `Top of ${players[m.player]}'s Deck`, cards: m.cards.map((c: any) => c.code), brief: true });
+          }
+          break;
+        case M.CONFIRM_CARDS: {
+          // show the player the cards the engine lets them see; a glimpse of a card the opponent just revealed closes
+          // itself, looking at hidden cards (an Extra Deck, a hand) stays open until closed
+          const to = m.player as Side, owner = m.cards[0]?.controller as Side, where = m.cards[0]?.location;
+          for (const c of m.cards) known[to].add(`${c.controller}:${c.location}:${c.sequence}`);
+          if (humans.has(to) && m.cards.length) {
+            const glimpse = owner !== to && where === OcgLocation.HAND && m.cards.length <= 2;
+            const title = glimpse ? `${players[owner]} reveals` : `${owner === to ? 'Your' : `${players[owner]}'s`} ${LOC_NAMES[where] ?? 'cards'}`;
+            post({ type: 'reveal', side: to, title, cards: m.cards.map((c: any) => c.code), brief: glimpse });
+          }
+        }
           // a player showing their own hand or Deck cards to the opponent (e.g. a searched card) is public;
           // a player privately looking at something (their Deck, a face-down card) isn't logged
           if (m.cards.length && m.cards.every((c: any) => c.controller !== m.player && (c.location === OcgLocation.HAND || c.location === OcgLocation.DECK))) say(`${players[m.cards[0].controller]} reveals ${m.cards.map((c: any) => nameOf(c.code)).join(', ')}`);
@@ -204,7 +274,7 @@ async function run() {
     if (status === OcgProcessResult.CONTINUE) continue;
     if (++responses > 20000 || turn > 80 || tries > 40) { post({ type: 'end', winner: null, reason: 'The duel was stopped (it went on too long)', turns: turn }); return; }
     const p = lastPrompt.player as Side;
-    lib.duelSetResponse(handle, humans.has(p) ? await ask(lastPrompt) : decide(lastPrompt, r, bots[p] ?? bots[0], tries, cards));
+    lib.duelSetResponse(handle, humans.has(p) ? await ask(lastPrompt) : bot(lastPrompt, p));
   }
   lib.destroyDuel(handle);
   post({ type: 'end', winner, reason: winReason || (winner === 2 ? 'Draw' : winner === null ? 'Ended' : `${players[winner]} wins`), turns: turn });

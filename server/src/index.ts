@@ -4,17 +4,21 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { ClientMessage, ServerMessage, Side } from '@arena/shared';
+import type { ClientMessage, ServerMessage, Side, Speed } from '@arena/shared';
 import { clientCardList, loadCards } from './cards.ts';
-import { BASE, CLIENT_DIST, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
+import { BASE, CLIENT_DIST, DEV, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
 import { loadDecks, summarise } from './decks.ts';
 import { DuelRoom, type Viewer } from './duel/room.ts';
+import { SCENARIOS, setupFor } from './duel/scenarios.ts';
 
 const t0 = performance.now();
 const cards = loadCards();
 const cardList = clientCardList(cards);
 const decks = loadDecks(cards);
 const rooms = new Set<DuelRoom>();
+const SPEEDS = new Set<Speed>(['slow', 'normal', 'fast', 'instant']);
+const speedOf = (s: unknown): Speed => (SPEEDS.has(s as Speed) ? (s as Speed) : 'normal');
+const TIMERS = new Set([0, 60, 90, 180]);
 console.log(`${cards.size} cards, ${decks.size} decks, engine ${ENGINE_NAME} (${(performance.now() - t0).toFixed(0)} ms)`);
 
 // ---------- HTTP ----------
@@ -58,7 +62,7 @@ wss.on('connection', (ws: WebSocket) => {
   ws.on('message', raw => {
     let msg: ClientMessage;
     try { msg = JSON.parse(String(raw)); } catch { return; }
-    if (msg.type === 'listDecks') viewer.send({ type: 'decks', decks: [...decks.values()].map(summarise) });
+    if (msg.type === 'listDecks') viewer.send({ type: 'decks', decks: [...decks.values()].map(summarise), ...(DEV ? { scenarios: Object.entries(SCENARIOS).map(([id, s]) => ({ id, name: s.name })) } : {}) });
     else if (msg.type === 'watch') {
       leave();
       const pair = msg.decks.map(id => decks.get(id));
@@ -66,7 +70,7 @@ wss.on('connection', (ws: WebSocket) => {
       if (full()) return;
       const mirror = pair[0].id === pair[1].id;
       const r = new DuelRoom([pair[0], pair[1]], mirror ? ['Bot A', 'Bot B'] : [`Bot (${pair[0].name})`, `Bot (${pair[1].name})`], [],
-        msg.fullView ?? true, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r));
+        msg.fullView ?? true, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r), { speed: speedOf(msg.speed) });
       rooms.add(r);
       room = r;
       r.join(viewer);
@@ -78,7 +82,8 @@ wss.on('connection', (ws: WebSocket) => {
       const name = String(msg.name ?? '').replace(/[^\p{L}\p{N} _.'-]/gu, '').trim().slice(0, 16) || 'Duelist';
       const side: Side = msg.first === 'me' ? 0 : msg.first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
       const r = new DuelRoom(side === 0 ? [mine, bot] : [bot, mine], side === 0 ? [name, 'Bot'] : ['Bot', name], [side],
-        false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r));
+        false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r),
+        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, setup: DEV ? setupFor(msg.scenario, side) : undefined });
       rooms.add(r);
       room = r;
       viewer.side = side;

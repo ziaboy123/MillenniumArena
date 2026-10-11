@@ -1,16 +1,32 @@
-// One duel: its worker thread, the people connected to it, paced delivery of frames, and prompts for players.
+// One duel: its worker thread, the people connected to it, paced delivery of frames, prompts for players and
+// their clocks.
 import { randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
-import type { DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Side } from '@arena/shared';
+import type { DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Side, Speed } from '@arena/shared';
 import { ENGINE_NAME, PACE } from '../config.ts';
 import type { Deck } from '../decks.ts';
+import type { BotLevel } from './bot.ts';
 import type { WorkerCommand, WorkerInput, WorkerOutput } from './duel-worker.ts';
 import { frameFor, seat, seatSide } from './visibility.ts';
 
 /** Someone connected to the duel: `side` is the engine side they play, or null when watching. */
 export interface Viewer { side: Side | null; send(msg: ServerMessage): void }
 
-type Queued = { frame: Frame } | { prompt: Prompt; side: Side };
+export interface RoomOptions {
+  /** How fast the bot's moves play out. */
+  speed?: Speed;
+  /** Seconds each player gets per turn; 0 = no timer. */
+  timer?: number;
+  bots?: [BotLevel, BotLevel];
+  setup?: WorkerInput['setup'];
+}
+
+const SPEED: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.45, instant: 0.12 };
+/** On the opponent's turn each response has its own limit, so the turn's time is only spent on your own turn. */
+const RESPONSE_MS = 30_000;
+
+type Reveal = Extract<ServerMessage, { type: 'reveal' }>;
+type Queued = { frame: Frame } | { prompt: Prompt; side: Side } | { reveal: Reveal; side: Side | 'all' };
 
 export class DuelRoom {
   readonly id = randomUUID().slice(0, 8);
@@ -21,16 +37,26 @@ export class DuelRoom {
   private pending: { prompt: Prompt; side: Side } | null = null;
   private ending: Extract<ServerMessage, { type: 'end' }> | null = null;
   private timer: NodeJS.Timeout | null = null;
+  // turn clocks: time left in the current turn per side (ms), and the running clock of the prompt on screen
+  private bank: [number, number] = [0, 0];
+  private turn = 0;
+  private turnPlayer: Side = 0;
+  private clock: { id: number; side: Side; started: number; limit: number; turn: boolean; timeout: NodeJS.Timeout } | null = null;
+  private readonly seconds: number;
+  private readonly speed: number;
   readonly startedAt = Date.now();
   closed = false;
 
   /** `decks` and `players` are in engine order: side 0 goes first. `humans` are the sides people play. */
-  constructor(private decks: [Deck, Deck], private players: [string, string], private humans: Side[], readonly fullView: boolean, seed: number, private onClose: () => void) {
-    const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed };
+  constructor(private decks: [Deck, Deck], private players: [string, string], private humans: Side[], readonly fullView: boolean, seed: number, private onClose: () => void, options: RoomOptions = {}) {
+    this.seconds = Math.max(0, Math.min(600, Math.round(options.timer ?? 0)));
+    this.speed = SPEED[options.speed ?? 'normal'] ?? 1;
+    const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup };
     this.worker = new Worker(new URL('./duel-worker.ts', import.meta.url), { workerData: input, execArgv: ['--import', 'tsx'] });
     this.worker.on('message', (msg: WorkerOutput) => {
       if (msg.type === 'frame') { this.queue.push({ frame: msg.frame }); this.pump(); }
       else if (msg.type === 'prompt') { this.queue.push({ prompt: msg.prompt, side: msg.side }); this.pump(); }
+      else if (msg.type === 'reveal') { this.queue.push({ reveal: { type: 'reveal', title: msg.title, cards: msg.cards, brief: msg.brief }, side: msg.side }); this.pump(); }
       else if (msg.type === 'end') { this.ending = { type: 'end', winner: msg.winner, reason: msg.reason, turns: msg.turns }; this.pump(); }
       else this.broadcast({ type: 'error', message: `The duel engine hit a problem: ${msg.message}` });
     });
@@ -38,14 +64,14 @@ export class DuelRoom {
   }
 
   info(side: Side | null): DuelInfo {
-    return { id: this.id, players: seat(this.players, side), decks: seat([this.decks[0].name, this.decks[1].name], side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME };
+    return { id: this.id, players: seat(this.players, side), decks: seat([this.decks[0].name, this.decks[1].name], side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME, timer: this.seconds };
   }
 
   join(viewer: Viewer) {
     this.viewers.add(viewer);
     viewer.send({ type: 'duel', duel: this.info(viewer.side) });
     if (this.latest) viewer.send({ type: 'frame', frame: frameFor(this.latest, viewer.side, this.fullView) });
-    if (this.pending && this.pending.side === viewer.side) viewer.send({ type: 'prompt', prompt: this.pending.prompt });
+    if (this.pending && this.pending.side === viewer.side) viewer.send({ type: 'prompt', prompt: this.timed(this.pending.prompt) });
   }
 
   leave(viewer: Viewer) {
@@ -57,6 +83,7 @@ export class DuelRoom {
   answer(viewer: Viewer, id: number, answer: PromptAnswer) {
     if (!this.pending || viewer.side !== this.pending.side || id !== this.pending.prompt.id) return;
     this.pending = null;
+    this.stopClock();
     for (const v of this.viewers) if (v.side === viewer.side && v !== viewer) v.send({ type: 'prompt', prompt: null });
     this.worker.postMessage({ type: 'answer', id, answer } satisfies WorkerCommand);
   }
@@ -65,6 +92,7 @@ export class DuelRoom {
     if (this.closed) return;
     this.closed = true;
     if (this.timer) clearTimeout(this.timer);
+    if (this.clock) clearTimeout(this.clock.timeout);
     this.worker.terminate();
     this.onClose();
   }
@@ -82,23 +110,57 @@ export class DuelRoom {
       }
       return;
     }
+    if ('reveal' in next) {
+      for (const v of this.viewers) if (next.side === 'all' || v.side === next.side) v.send(next.reveal);
+      return this.pump();
+    }
     if ('prompt' in next) {
       this.pending = next;
-      for (const v of this.viewers) if (v.side === next.side) v.send({ type: 'prompt', prompt: next.prompt });
+      this.startClock(next.prompt, next.side);
+      if (this.pending) for (const v of this.viewers) if (v.side === next.side) v.send({ type: 'prompt', prompt: this.timed(next.prompt) });
       return this.pump();
     }
     const f = next.frame;
     this.latest = f;
+    if (f.turn !== this.turn) { this.turn = f.turn; this.turnPlayer = f.turnPlayer; this.bank[f.turnPlayer] = this.seconds * 1000; }   // a fresh turn's time
     for (const v of this.viewers) v.send({ type: 'frame', frame: frameFor(f, v.side, this.fullView) });
     this.timer = setTimeout(() => { this.timer = null; this.pump(); }, this.pace(f) * PACE);
   }
 
-  /** How long a frame stays up: watching bots is unhurried; with a person playing, their own turn moves quicker. */
+  /** How long a frame stays up: watching bots is unhurried; with a person playing, their own turn moves quicker. Scaled by the chosen speed. */
   private pace(f: Frame) {
     const n = Math.min(f.lines.length, 5);
-    if (!this.humans.length) return n ? 650 + 380 * (n - 1) : 260;
-    if (this.humans.includes(f.turnPlayer)) return n ? 320 + 160 * (n - 1) : 90;
-    return n ? 520 + 300 * (n - 1) : 180;
+    if (!this.humans.length) return (n ? 650 + 380 * (n - 1) : 260) * this.speed;
+    if (this.humans.includes(f.turnPlayer)) return (n ? 320 + 160 * (n - 1) : 90) * Math.min(this.speed, 1);
+    return (n ? 520 + 300 * (n - 1) : 180) * this.speed;
+  }
+
+  // ---------- clocks ----------
+  /** Start timing a prompt: on your own turn it spends your turn's time, otherwise it has a response limit. */
+  private startClock(prompt: Prompt, side: Side) {
+    if (!this.seconds) return;
+    const turn = side === this.turnPlayer, limit = turn ? this.bank[side] : RESPONSE_MS;
+    if (limit <= 0) return this.expire(prompt.id, side);   // already out of time this turn
+    this.clock = { id: prompt.id, side, started: Date.now(), limit, turn, timeout: setTimeout(() => this.expire(prompt.id, side), limit) };
+  }
+  private stopClock() {
+    if (!this.clock) return;
+    clearTimeout(this.clock.timeout);
+    if (this.clock.turn) this.bank[this.clock.side] = Math.max(0, this.bank[this.clock.side] - (Date.now() - this.clock.started));
+    this.clock = null;
+  }
+  /** Time's up: the worker makes the choice (pass, move to the End Phase, or the bot's pick). */
+  private expire(id: number, side: Side) {
+    if (!this.pending || this.pending.prompt.id !== id) return;
+    this.stopClock();
+    this.pending = null;
+    for (const v of this.viewers) if (v.side === side) v.send({ type: 'prompt', prompt: null });
+    this.worker.postMessage({ type: 'timeout', id } satisfies WorkerCommand);
+  }
+  /** The prompt with the time left on its clock right now. */
+  private timed(prompt: Prompt): Prompt {
+    if (!this.clock || this.clock.id !== prompt.id) return prompt;
+    return { ...prompt, time: { left: Math.max(0, this.clock.limit - (Date.now() - this.clock.started)), turn: this.clock.turn } };
   }
 
   private broadcast(msg: ServerMessage) { for (const v of this.viewers) v.send(msg); }

@@ -15,6 +15,8 @@ export const DECK_DIRS = { mine: path.join(root, 'server/decks'), tournament: pa
 export const CLIENT_DIST = path.join(root, 'client/dist');
 /** Each duel runs in its own worker thread; this caps how many run at once (the homelab box has 2 cores, 4 GB). */
 export const MAX_DUELS = Number(process.env.MAX_DUELS ?? 8);
+/** Development server: test scenarios are available. Never set in production. */
+export const DEV = process.env.ARENA_DEV === '1';
 /** Speed of duel playback: 1 = normal, 0 = no pauses (automated tests). */
 export const PACE = Number(process.env.ARENA_PACE ?? 1);
 

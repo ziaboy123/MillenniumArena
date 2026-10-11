@@ -5,6 +5,11 @@ Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no paymen
 **Status:** in development.
 - Milestone 1 (done): the duel server runs real duels on the engine and streams them live to the duel screen.
 - Milestone 2 (done): you duel a simple bot in the browser. Cards you can use glow and open a menu. Battle Phase and End Turn are buttons. You choose zones, positions, cards and options, and respond to chains. You're only asked to respond when you have something to activate.
+- Since then:
+  - Bot speed (Slow / Normal / Fast / Instant) and a turn timer (Off / 60 / 90 / 180 s per turn, 30 s per response on the opponent's turn; when time runs out the turn moves on).
+  - Negated cards get an X, and a Set Infinite Impermanence marks its column as negated for the turn.
+  - Cards an effect shows you (e.g. Galaxy Hundred and the opponent's Extra Deck) open in a window and can be picked from.
+  - A smarter bot: it wins about 69% of duels against the old random bot over 1,000 test duels.
 - Next: the rarer choices (declaring a card name, Type, Attribute or number; Level sums; card order; counters). The bot picks these for you until then, and the log says so.
 
 ## Layout
@@ -39,7 +44,7 @@ npm run build       # builds the app into client/dist
 ARENA_PORT=3017 npm start
 ```
 
-Settings (environment variables): `ARENA_PORT` (default 3017), `BASE_PATH` (default `/millennium`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives), `ARENA_PACE` (duel playback speed, 1 = normal, 0 = no pauses for automated tests).
+Settings (environment variables): `ARENA_DEV=1` (development only: offers test scenarios in the lobby, see `server/src/duel/scenarios.ts`), `ARENA_PORT` (default 3017), `BASE_PATH` (default `/millennium`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives), `ARENA_PACE` (duel playback speed, 1 = normal, 0 = no pauses for automated tests).
 
 Behind a reverse proxy, pass `<BASE_PATH>/` through unchanged and allow WebSocket upgrades on `<BASE_PATH>/ws`.
 

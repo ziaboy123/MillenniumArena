@@ -2,7 +2,7 @@
 //   row 0  opp Deck | opp S/T 4..0 | opp Extra          row 3  your Field | your monsters 0..4 | your GY
 //   row 1  opp GY   | opp monsters 4..0 | opp Field     row 4  your Extra | your S/T 0..4 | your Deck
 //   row 2  opp banished | Extra Monster Zones (shared) | your banished
-import type { FieldCard, Frame, Side, ZoneRef } from '@arena/shared';
+import { NEGATED, type FieldCard, type Frame, type Side, type ZoneRef } from '@arena/shared';
 import { imageFallback, smallImage } from '../lib/cards.ts';
 import { EyeSvg } from '../lib/ui.tsx';
 
@@ -52,11 +52,12 @@ export type Mark = 'can' | 'pick' | 'picked';
 const sameCell = (z: ZoneRef, r: number, c: number) => { const g = gridOf(z); return !!g && g[0] === r && g[1] === c; };
 
 function CardFace({ card, monster }: { card: FieldCard; monster: boolean }) {
-  const [code, pos, atk, def, mats] = card;
-  const down = (pos & FACEDOWN) !== 0, sideways = monster && (pos & DEFENSE) !== 0;
+  const [code, pos, atk, def, mats, , flags] = card;
+  const down = (pos & FACEDOWN) !== 0, sideways = monster && (pos & DEFENSE) !== 0, negated = !down && ((flags ?? 0) & NEGATED) !== 0;
   return <>
     <div className={`card ${code ? '' : 'back'} ${sideways ? 'def' : ''}`} data-code={code || undefined}>
       {code ? <img src={smallImage(code)} alt="" loading="lazy" onError={e => imageFallback(e, code)} /> : <EyeSvg />}
+      {negated && <div className="negx" title="Effects negated" />}
     </div>
     {monster && !down && atk !== null && <div className="stat">{sideways ? <>{atk} / <b>{def}</b></> : <><b>{atk}</b>{def !== null && <> / {def}</>}</>}</div>}
     {mats > 0 && <div className="mats" title="Xyz materials">{mats}</div>}
@@ -117,6 +118,8 @@ export function Field({ frame, onPile, marks, onCell }: {
     <div className="field-wrap">
       <div className="field">
         {cells}
+        {/* a negated column (e.g. a Set Infinite Impermanence): your zone seq k is grid column k+1, theirs is 5-k */}
+        {frame.columns.map((c, i) => <div key={i} className="colneg" style={{ left: (c.p === 0 ? c.seq + 1 : 5 - c.seq) * COL - 6, width: W + 12 }}><span>Column negated</span></div>)}
         {frame.attack && <AttackArrow attack={frame.attack} />}
       </div>
     </div>
