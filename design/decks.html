@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millennium Arena · Decks Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Marcellus&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://images.ygoprodeck.com">
+<link rel="stylesheet" href="themes.css">
+<style>
+/* Decks mockup: your deck list (+ Public decks, coming soon) and the deck editor. */
+.ring{left:1320px;top:600px}
+.bigbtn.sm{padding:13px 20px;font-size:12px}
+[data-dir=c] .bigbtn.sm{font-size:14px}
+.seg small{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;opacity:.7;margin-left:4px}
+.seg .n{opacity:.7;margin-left:4px}
+.barR{position:absolute;right:40px;top:136px;display:flex;gap:12px;align-items:center}
+
+/* ---- deck list ---- */
+.dgrid{position:absolute;left:40px;right:40px;top:206px;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:316px;gap:22px}
+.dgrid .panel{position:relative}
+.dtile{overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+.dtile:hover{transform:translateY(-4px)}
+.dtile::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s;box-shadow:inset 0 0 0 1px var(--accent),inset 0 0 50px var(--glow)}
+.dtile:hover::after{opacity:.7}
+.cov{position:relative;height:150px;flex:none;overflow:hidden}
+.cov .art{position:absolute;inset:0;background:#000 center 25%/cover;transition:transform .8s cubic-bezier(.2,.8,.2,1)}
+.dtile:hover .cov .art{transform:scale(1.06)}
+.cov .tint{position:absolute;inset:0;background:var(--accent);mix-blend-mode:color;opacity:.28}
+[data-dir=c] .cov .tint{opacity:.12}
+.cov .shade{position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.85),transparent 70%)}
+.duelwith{position:absolute;left:14px;top:14px;z-index:2;font:700 10px/1 var(--font-ui);letter-spacing:.12em;text-transform:uppercase;padding:7px 10px;border-radius:999px;background:var(--accent);color:#140e05;box-shadow:0 0 16px var(--glow)}
+[data-dir=b] .duelwith,[data-dir=c] .duelwith{border-radius:3px}
+.acts{position:absolute;right:12px;top:12px;z-index:2;display:flex;gap:6px;opacity:0;transition:opacity .2s}
+.dtile:hover .acts{opacity:1}
+.acts button{width:34px;height:34px;border-radius:50%;border:1px solid var(--panel-border);background:rgba(0,0,0,.65);color:var(--text);display:grid;place-items:center;cursor:pointer}
+.acts button:hover{border-color:var(--accent);color:var(--accent)}
+.acts button.on{color:var(--accent)}
+.acts svg.i{width:16px;height:16px}
+.bd{padding:16px 20px 18px;display:flex;flex-direction:column;gap:8px;flex:1;min-height:0}
+.bd h3{font:700 22px/1.1 var(--font-display);letter-spacing:.02em}
+[data-dir=c] .bd h3{text-transform:uppercase}
+.bd .meta{font-size:12.5px;color:var(--muted)}
+.bd .meta .legal{margin-left:0;margin-right:8px}
+.strip{display:flex;margin-top:auto;padding-left:2px}
+.strip img{width:32px;height:47px;border-radius:2px;margin-right:-9px;box-shadow:0 3px 8px rgba(0,0,0,.6);border:1px solid rgba(0,0,0,.7)}
+.dtile.new{border-style:dashed;align-items:center;justify-content:center;text-align:center;gap:12px;color:var(--muted)}
+.dtile.new .ico{width:64px;height:64px}
+.dtile.new h3{font:700 22px/1 var(--font-display);color:var(--text)}
+.dtile.new p{font-size:13px;max-width:240px;line-height:1.5}
+.del{position:absolute;inset:0;z-index:5;background:rgba(0,0,0,.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px;cursor:default}
+.del.on{display:flex}
+.del p{font-size:14px;line-height:1.5}
+.del .line{display:flex;gap:8px}
+.pubsoon{position:absolute!important;left:40px;right:40px;top:206px;height:440px;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:14px;padding:40px}
+.pubsoon.on{display:flex}
+.pubsoon .ico{width:76px;height:76px}
+.pubsoon h2{font:700 34px/1.1 var(--font-display);letter-spacing:.04em}
+[data-dir=c] .pubsoon h2{text-transform:uppercase}
+.pubsoon p{font-size:15px;color:var(--muted);max-width:560px;line-height:1.6}
+.pubsoon ul{list-style:none;display:flex;gap:10px;margin-top:6px}
+.pubsoon li{font:600 12.5px/1 var(--font-ui);padding:10px 14px;border:1px solid var(--panel-border);border-radius:999px;background:rgba(0,0,0,.3)}
+.loading{position:absolute;left:40px;top:220px;color:var(--muted);font-size:14px}
+
+/* ---- editor ---- */
+.tmid{display:none;flex:1;align-items:center;gap:14px;margin:0 36px;min-width:0}
+body.in-editor .tmid{display:flex}
+.tcrumb{font:600 12px/1 var(--font-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);background:none;border:none;cursor:pointer;padding:0;white-space:nowrap}
+.tcrumb:hover{color:var(--accent-hi)}
+.slash{color:var(--muted);font-size:22px;font-weight:300;opacity:.6}
+.dname{font:700 32px/1 var(--font-display);letter-spacing:.05em;background:none;border:none;border-bottom:1px dashed transparent;color:var(--text);outline:none;padding:4px 0;
+  field-sizing:content;min-width:160px;max-width:560px;width:420px}
+.dname:hover,.dname:focus{border-bottom-color:var(--panel-border)}
+[data-dir=a] .dname{color:var(--accent-hi)}
+[data-dir=c] .dname{text-transform:uppercase}
+.probs{font:700 11px/1 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;padding:9px 12px;border-radius:999px;cursor:pointer;background:rgba(255,110,90,.14);color:#ff8a76;margin-right:4px}
+.probs.ok{background:rgba(80,200,120,.14);color:#6fdc9a;cursor:default}
+.saved{font-size:12px;color:var(--muted);margin-right:6px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.saved i{width:7px;height:7px;border-radius:50%;background:#6fdc9a}
+.saved.busy i{background:var(--accent);animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.3}}
+.egrid{position:absolute;left:40px;right:40px;top:110px;bottom:26px;display:grid;grid-template-columns:270px 1fr 400px;gap:18px}
+.ecol{display:flex;flex-direction:column;gap:10px;min-height:0}
+.ecol > .panel{position:relative;flex:1;min-height:0}
+.etools{display:flex;align-items:center;gap:10px;flex:none}
+.etools .hint{margin-right:auto;font-size:11.5px;color:var(--muted)}
+.egrid > .panel{position:relative;min-height:0}
+.cdetail{padding:18px;display:flex;flex-direction:column;gap:10px;overflow:auto}
+.cdetail .img{width:200px;height:292px;align-self:center;border-radius:6px;overflow:hidden;flex:none;box-shadow:0 12px 30px rgba(0,0,0,.6),0 0 0 1px var(--panel-border)}
+.cdetail .img img{width:100%;height:100%;object-fit:cover;display:block}
+.cdetail h2{font:700 19px/1.15 var(--font-display);color:var(--accent-hi)}
+[data-dir=c] .cdetail h2{text-transform:uppercase;color:var(--text)}
+.cdetail .meta{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;line-height:1.5}
+.cdetail .st{display:flex;gap:14px;font:700 16px/1 var(--font-display)}
+.cdetail .st span{color:var(--muted);font-size:11px;margin-right:4px}
+.cdetail p{font-size:12.5px;line-height:1.55;opacity:.9;white-space:pre-line}
+.cdetail .empty{color:var(--muted);font-size:13px;line-height:1.6;margin:auto 0;text-align:center}
+.banchip{align-self:flex-start;font:700 10px/1 var(--font-ui);letter-spacing:.1em;text-transform:uppercase;padding:5px 8px;border-radius:999px;background:rgba(255,110,90,.14);color:#ff8a76}
+
+.zones{padding:12px 18px;display:flex;flex-direction:column;gap:5px;overflow:auto}
+.zh{display:flex;align-items:baseline;gap:10px;margin-top:4px}
+.zh b{font:700 15px/1 var(--font-display);letter-spacing:.05em}
+[data-dir=c] .zh b{text-transform:uppercase}
+.zh .n{font:700 14px/1 var(--font-ui);color:var(--accent)}
+.zh .n.bad{color:#ff8a76}
+.zh .sub{font-size:12px;color:var(--muted)}
+.zh .hint{margin-left:auto;font-size:11px;color:var(--muted)}
+.zgrid{display:grid;gap:5px;align-content:start;padding:7px;border:1px solid rgba(255,255,255,.06);border-radius:calc(var(--r) * .7);background:rgba(0,0,0,.25)}
+.zgrid.main{grid-template-columns:repeat(10,1fr);min-height:400px}
+.zgrid.small{grid-template-columns:repeat(15,1fr);min-height:76px}
+.zgrid.drop{box-shadow:inset 0 0 0 1px var(--accent),inset 0 0 30px var(--glow)}
+.dc{position:relative;aspect-ratio:59/86;border-radius:3px;overflow:hidden;cursor:pointer;background:#111;transition:transform .15s}
+.dc img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.dc:hover{transform:translateY(-3px);box-shadow:0 0 0 2px var(--accent),0 6px 14px rgba(0,0,0,.6);z-index:2}
+.dc.pop{animation:pop-in .25s}
+@keyframes pop-in{from{transform:scale(.7);opacity:0}}
+.lim{position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;font:700 9px/15px var(--font-ui);text-align:center;color:#fff;background:#c0392b;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
+.lim.s{background:#d68910}
+.lim.f{background:#111;color:#ff6b5a;box-shadow:0 0 0 1px #c0392b}
+
+.sidep{padding:16px;display:flex;flex-direction:column;gap:12px}
+.sidep .seg{align-self:flex-start}
+.pane{display:none;flex:1;min-height:0;flex-direction:column;gap:10px}
+.pane.on{display:flex}
+.pane .sinput{width:100%}
+.fchips{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{font:600 12px/1 var(--font-ui);padding:8px 12px;border-radius:999px;border:1px solid var(--panel-border);background:rgba(0,0,0,.3);color:var(--muted);cursor:pointer}
+.fchip.on{color:#140e05;background:var(--accent);border-color:var(--accent)}
+[data-dir=b] .fchip,[data-dir=c] .fchip{border-radius:3px}
+.rhint{font-size:11.5px;color:var(--muted)}
+.results{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-content:start;padding-right:4px}
+.rc{position:relative;aspect-ratio:59/86;border-radius:4px;overflow:hidden;cursor:pointer;background:#111;transition:transform .15s}
+.rc img{position:relative;width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.dc img{position:relative}
+.ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;font:600 9px/1.25 var(--font-ui);color:var(--muted);
+  background:radial-gradient(circle at 50% 45%,var(--cb2),var(--cb1) 75%);border:1px solid var(--line);border-radius:inherit;overflow:hidden}
+.rc:hover{transform:translateY(-3px);box-shadow:0 0 0 2px var(--accent),0 0 16px var(--glow)}
+.rc .have{position:absolute;right:3px;bottom:3px;font:700 10px/1 var(--font-ui);background:rgba(0,0,0,.85);color:var(--accent);padding:3px 5px;border-radius:3px}
+.empty-note{grid-column:1/-1;color:var(--muted);font-size:13px;text-align:center;padding:40px 10px;line-height:1.6}
+
+.stat-block{display:flex;flex-direction:column;gap:8px}
+.stat-block h4{font:600 11px/1 var(--font-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-top:6px}
+.bar3{display:flex;height:12px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.06)}
+.bar3 i{display:block;height:100%}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.legend b{color:var(--text);font-weight:600}
+.legend span::before{content:'';display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:var(--c)}
+.odds{display:flex;flex-direction:column;gap:6px}
+.odd{display:grid;grid-template-columns:30px 1fr 52px;gap:10px;align-items:center;font-size:12.5px}
+.odd img{width:30px;height:44px;border-radius:2px;object-fit:cover}
+.odd .track{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:5px}
+.odd .track i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-hi))}
+.odd b{text-align:right;font-weight:700}
+
+.overlay{position:absolute;inset:0;z-index:50;display:none;place-items:center;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.overlay.on{display:grid}
+.modal{position:relative!important;padding:30px 34px;display:flex;flex-direction:column;gap:14px}
+.modal h3{font:700 24px/1.1 var(--font-display)}
+.hand{display:flex;gap:14px}
+.hand .dc{width:150px;cursor:default}
+.hand .dc:hover{transform:translateY(-6px)}
+.modal .line{display:flex;gap:10px;align-items:center}
+textarea.sinput{width:620px;height:260px;resize:none;font:13px/1.5 ui-monospace,Menlo,monospace;padding:12px}
+</style>
+</head>
+<body data-dir="c">
+
+<div class="chrome">
+  <div class="t"><b>Millennium Arena</b> &nbsp;·&nbsp; mockup</div>
+  <a href="welcome.html">Logged out</a><a href="home.html">Home</a><a href="duel.html">Duel page</a><a href="decks.html" class="on">Decks</a><a href="profile.html">Profile</a><a href="match.html">Duel screen</a><a href="replay.html">Replay</a>
+  <div class="sep"></div><span class="lbl">Preview theme</span><div id="themeBtns"></div>
+</div>
+
+<div class="viewport">
+  <div class="scaler" id="scaler">
+    <div class="stage">
+      <div class="env"></div>
+      <div class="shafts"></div>
+      <div class="mist"><i></i><i></i></div>
+      <div class="motes" id="motes"></div>
+      <div class="ring"></div>
+
+      <div class="top">
+        <div class="brand">
+          <button class="homebtn" onclick="location.href='home.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Home</button>
+          <div class="logo"><span class="eye"></span><div class="w">MILLENNIUM<small>ARENA</small></div></div>
+        </div>
+        <div class="tmid"><button class="tcrumb" id="backList">← Decks</button><span class="slash">/</span><input class="dname" id="dname" spellcheck="false" maxlength="40"><span class="probs" id="probs"></span></div>
+        <div class="chip" onclick="location.href='profile.html'"><div class="av">D</div><div><b>Daniyal</b><span>Unranked</span></div></div>
+      </div>
+
+      <!-- DECK LIST -->
+      <section class="screen on" id="list">
+        <div class="head"><div class="eyebrow">Build</div><h1>Decks</h1></div>
+        <div class="barR">
+          <div class="seg" id="tabs"><button data-tab="mine" class="on">My decks<span class="n" id="deckCount"></span></button><button data-tab="public">Public decks<small>Soon</small></button></div>
+          <button class="bigbtn ghost sm" id="importNew">Import .ydk</button>
+          <button class="bigbtn sm" id="newDeck">New deck</button>
+        </div>
+        <div class="loading" id="loading">Loading your decks…</div>
+        <div class="dgrid" id="dgrid"></div>
+        <div class="panel pubsoon" id="pubsoon">
+          <div class="ico" data-ic="globe"></div>
+          <h2>Public decks are coming soon</h2>
+          <p>Share any of your decks publicly, browse what everyone else is playing, and copy a deck into your own list in one click.</p>
+          <ul><li>Browse by archetype</li><li>Copy to my decks</li><li>See who made it</li></ul>
+        </div>
+      </section>
+
+      <!-- DECK EDITOR -->
+      <section class="screen" id="edit">
+        <div class="egrid">
+          <div class="panel cdetail" id="detail"><div class="empty">Hover any card to see it here.</div></div>
+          <div class="ecol">
+          <div class="etools">
+            <span class="hint">Click to remove · right-click for Side · drag to move</span>
+            <span class="saved" id="saved"><i></i><span>All changes saved</span></span>
+            <button class="sbtn" id="sortBtn">Sort</button>
+            <button class="sbtn" id="testBtn">Test hand</button>
+            <button class="sbtn" id="importBtn">Import</button>
+            <button class="sbtn" id="exportBtn">Export .ydk</button>
+          </div>
+          <div class="panel zones">
+            <div class="zh"><b>Main Deck</b><span class="n" id="n-main"></span><span class="sub" id="sub-main"></span></div>
+            <div class="zgrid main" id="z-main" data-zone="main"></div>
+            <div class="zh"><b>Extra Deck</b><span class="n" id="n-extra"></span><span class="sub" id="sub-extra"></span></div>
+            <div class="zgrid small" id="z-extra" data-zone="extra"></div>
+            <div class="zh"><b>Side Deck</b><span class="n" id="n-side"></span></div>
+            <div class="zgrid small" id="z-side" data-zone="side"></div>
+          </div>
+          </div>
+          <div class="panel sidep">
+            <div class="seg" id="sideTabs"><button data-p="search" class="on">Card search</button><button data-p="stats">Stats</button></div>
+            <div class="pane on" id="p-search">
+              <input class="sinput" id="q" placeholder="Search any card…" spellcheck="false">
+              <div class="fchips" id="fchips"><button class="fchip on" data-f="all">All</button><button class="fchip" data-f="monster">Monsters</button><button class="fchip" data-f="spell">Spells</button><button class="fchip" data-f="trap">Traps</button><button class="fchip" data-f="extra">Extra Deck</button></div>
+              <div class="rhint">Click to add · right-click to add to Side</div>
+              <div class="results" id="results"><div class="empty-note">Type at least 2 letters to search every card.</div></div>
+            </div>
+            <div class="pane" id="p-stats"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="overlay" id="handOv"><div class="panel modal">
+        <div class="eyebrow">Test hand · going first</div><h3>Your opening hand</h3>
+        <div class="hand" id="hand"></div>
+        <div class="line"><button class="bigbtn sm" id="newHand">New hand</button><button class="bigbtn ghost sm" id="draw1">Draw 1</button><button class="bigbtn ghost sm" id="closeHand">Close</button></div>
+      </div></div>
+      <div class="overlay" id="importOv"><div class="panel modal">
+        <div class="eyebrow" id="importEyebrow">Import</div><h3>Import a .ydk deck</h3>
+        <p style="font-size:13px;color:var(--muted)">The format EDOPro, Dueling Nexus and YGOPRODeck all export. Choose the file or paste its contents. It replaces this deck's cards.</p>
+        <div class="line"><button class="sbtn" id="ydkPick">Choose .ydk file…</button><span id="ydkFile" style="font-size:12.5px;color:var(--muted)"></span><input type="file" id="ydkInput" accept=".ydk,text/plain" hidden></div>
+        <textarea class="sinput" id="ydk" spellcheck="false" placeholder="#main&#10;46986414&#10;46986414&#10;…&#10;#extra&#10;…&#10;!side&#10;…"></textarea>
+        <div class="msg" id="importMsg"></div>
+        <div class="line"><button class="bigbtn sm" id="doImport">Import</button><button class="bigbtn ghost sm" id="closeImport">Cancel</button></div>
+      </div></div>
+      <div class="panel toast" id="toast"></div>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="cards.js"></script>
+<script src="decks-data.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const ICONS = {
+  globe:'<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  star:'<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  copy:'<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  trash:'<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+};
+const ic = n => `<svg class="i" viewBox="0 0 24 24">${ICONS[n]}</svg>`;
+document.querySelectorAll('[data-ic]').forEach(e => e.innerHTML = ic(e.dataset.ic));
+
+let toastTimer;
+function toast(msg){ $('toast').textContent = msg; $('toast').classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('on'), 2400); }
+function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); document.body.classList.toggle('in-editor', id === 'edit'); }
+
+// ---------- data ----------
+const cards = CARDS;       // id -> card, from the local index (cards.js)
+let decks = [];            // {name, cover, active, edited, zones:{main,extra,side}}
+let cur = null;            // deck open in the editor
+
+async function boot(){
+  try {
+    await loadCardIndex();
+    decks = DECK_LISTS.map(d => {
+      const z = k => d[k].flatMap(([n, k2]) => BY_NAME[n] ? Array(k2).fill(BY_NAME[n].id) : []);
+      return {name:d.name, cover:BY_NAME[d.cover]?.id, active:!!d.active, edited:d.edited, zones:{main:z('main'), extra:z('extra'), side:z('side')}};
+    });
+    $('loading').remove();
+    renderList();
+  } catch (e) { $('loading').textContent = 'Couldn\'t load card data. Refresh to try again.'; }
+}
+
+// ---------- deck list ----------
+const total = d => d.zones.main.length + ' · ' + d.zones.extra.length + ' · ' + d.zones.side.length;
+function renderList(){
+  $('deckCount').textContent = decks.length;
+  $('dgrid').innerHTML = decks.map((d, i) => {
+    const probs = deckProblems(d.zones, cards), legal = !probs.length;
+    const strip = [...new Set(d.zones.main)].slice(0, 7).map(id => `<img src="${SMALL(id)}" alt="">`).join('');
+    const cover = d.cover || d.zones.main[0];
+    return `<div class="panel dtile" data-i="${i}">
+      <div class="cov">${cover ? `<div class="art" style="background-image:url(${CROP(cover)})"></div>` : ''}<div class="tint"></div><div class="shade"></div>
+        ${d.active ? '<span class="duelwith">Dueling with</span>' : ''}
+        <div class="acts"><button data-a="active" class="${d.active ? 'on' : ''}" title="Duel with this deck">${ic('star')}</button><button data-a="dup" title="Duplicate">${ic('copy')}</button><button data-a="del" title="Delete">${ic('trash')}</button></div></div>
+      <div class="bd"><h3>${esc(d.name)}</h3>
+        <div class="meta">${legal ? '<span class="legal ok">Legal</span>' : '<span class="legal bad">Not legal</span>'}${d.zones.main.length} main · ${d.zones.extra.length} extra · ${d.zones.side.length} side</div>
+        <div class="meta">${legal ? 'TCG Advanced format' : esc(probs[0])} · edited ${d.edited}</div>
+        <div class="strip">${strip}</div></div>
+      <div class="del"><p>Delete <b>${esc(d.name)}</b>?<br>This can't be undone.</p><div class="line"><button class="sbtn p" data-a="delyes">Delete</button><button class="sbtn" data-a="delno">Cancel</button></div></div>
+    </div>`;
+  }).join('') + `<div class="panel dtile new" id="newTile"><div class="ico">${ic('plus')}</div><h3>New deck</h3><p>Start from scratch or import a .ydk from another sim.</p></div>`;
+
+  $('dgrid').querySelectorAll('.dtile[data-i]').forEach(t => t.onclick = e => {
+    const i = +t.dataset.i, a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'active') { decks.forEach((d, j) => d.active = j === i); renderList(); toast(`You'll duel with ${decks[i].name}`); return; }
+    if (a === 'dup') { decks.splice(i + 1, 0, {...structuredClone(decks[i]), name: decks[i].name + ' (copy)', active:false, edited:'just now'}); renderList(); return; }
+    if (a === 'del') { t.querySelector('.del').classList.add('on'); return; }
+    if (a === 'delno') { t.querySelector('.del').classList.remove('on'); return; }
+    if (a === 'delyes') { const was = decks[i].active; decks.splice(i, 1); if (was && decks[0]) decks[0].active = true; renderList(); toast('Deck deleted'); return; }
+    if (e.target.closest('.del')) return;
+    openDeck(i);
+  });
+  $('newTile').onclick = newDeck;
+}
+function newDeck(){
+  decks.push({name:'Untitled deck', cover:null, active:false, edited:'just now', zones:{main:[], extra:[], side:[]}});
+  openDeck(decks.length - 1);
+  setTimeout(() => { $('dname').focus(); $('dname').select(); }, 450);
+}
+$('newDeck').onclick = newDeck;
+$('importNew').onclick = () => { newDeck(); setTimeout(openImport, 450); };
+$('tabs').querySelectorAll('button').forEach(b => b.onclick = () => {
+  $('tabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  const pub = b.dataset.tab === 'public';
+  $('dgrid').style.display = pub ? 'none' : '';
+  $('pubsoon').classList.toggle('on', pub);
+});
+
+// ---------- editor ----------
+function openDeck(i){
+  cur = decks[i];
+  $('dname').value = cur.name;
+  renderZones(); renderStats();
+  $('detail').innerHTML = '<div class="empty">Hover any card to see it here.</div>';
+  show('edit');
+}
+$('backList').onclick = () => { renderList(); show('list'); };
+$('dname').oninput = () => { cur.name = $('dname').value || 'Untitled deck'; touch(); };
+
+let saveTimer;
+function touch(){
+  cur.edited = 'just now';
+  $('saved').classList.add('busy'); $('saved').querySelector('span').textContent = 'Saving…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { $('saved').classList.remove('busy'); $('saved').querySelector('span').textContent = 'All changes saved'; }, 700);
+}
+
+function limBadge(c){
+  const l = limitOf(c);
+  return l === 0 ? '<span class="lim f">✕</span>' : l === 1 ? '<span class="lim">1</span>' : l === 2 ? '<span class="lim s">2</span>' : '';
+}
+function renderZones(popZone, popIdx){
+  ['main','extra','side'].forEach(z => {
+    const el = $('z-' + z);
+    el.innerHTML = cur.zones[z].map((id, k) => `<div class="dc ${z === popZone && k === popIdx ? 'pop' : ''}" draggable="true" data-z="${z}" data-k="${k}" data-id="${id}"><span class="ph">${esc(cards[id].name)}</span><img src="${SMALL(id)}" alt="" decoding="async">${limBadge(cards[id])}</div>`).join('');
+  });
+  const n = z => cur.zones[z].length;
+  $('n-main').textContent = `${n('main')}`; $('n-main').className = 'n' + (n('main') < 40 || n('main') > 60 ? ' bad' : '');
+  $('n-extra').textContent = `${n('extra')} / 15`; $('n-extra').className = 'n' + (n('extra') > 15 ? ' bad' : '');
+  $('n-side').textContent = `${n('side')} / 15`; $('n-side').className = 'n' + (n('side') > 15 ? ' bad' : '');
+  const k = t => cur.zones.main.filter(id => kindOf(cards[id]) === t).length;
+  $('sub-main').textContent = `${k('monster')} monsters · ${k('spell')} spells · ${k('trap')} traps`;
+  const ft = f => cur.zones.extra.filter(id => cards[id].frameType.startsWith(f)).length;
+  $('sub-extra').textContent = ['fusion','synchro','xyz','link'].map(f => [f, ft(f)]).filter(([, v]) => v).map(([f, v]) => `${v} ${f === 'xyz' ? 'Xyz' : f[0].toUpperCase() + f.slice(1)}`).join(' · ');
+  const probs = deckProblems(cur.zones, cards);
+  $('probs').className = 'probs' + (probs.length ? '' : ' ok');
+  $('probs').textContent = probs.length ? `Not legal · ${probs.length} ${probs.length > 1 ? 'problems' : 'problem'}` : 'Legal · TCG Advanced';
+  $('probs').title = probs.join('\n');
+  $('probs').onclick = () => probs.length && toast(probs.join(' · '));
+  renderResults(); renderStats();
+}
+
+// card detail on hover (deck, results, hands)
+document.addEventListener('mouseover', e => {
+  const c = e.target.closest('[data-id]');
+  if (c && $('edit').classList.contains('on')) showDetail(+c.dataset.id);
+});
+function showDetail(id){
+  const c = cards[id]; if (!c) return;
+  const l = limitOf(c);
+  const meta = kindOf(c) === 'monster'
+    ? [c.attribute, c.level ? `Level ${c.level}` : c.linkval ? `Link ${c.linkval}` : '', `${c.race} / ${c.type.replace(' Monster', '')}`].filter(Boolean).join(' · ')
+    : `${c.race} ${kindOf(c) === 'spell' ? 'Spell' : 'Trap'}`;
+  $('detail').innerHTML = `<div class="img"><img src="${BIG(id)}" alt=""></div>
+    <h2>${esc(c.name)}</h2><div class="meta">${esc(meta)}</div>
+    ${l < 3 ? `<span class="banchip">${c.banlist_info.ban_tcg} in TCG</span>` : ''}
+    ${c.atk != null ? `<div class="st"><div><span>ATK</span>${c.atk}</div>${c.def != null ? `<div><span>DEF</span>${c.def}</div>` : ''}</div>` : ''}
+    <p>${c.desc ? esc(c.desc) : '<span style="color:var(--muted)">Loading card text…</span>'}</p>`;
+  if (!c.desc) loadCardText().then(() => { if ($('detail').querySelector('h2')?.textContent === c.name) showDetail(id); });
+}
+
+// adding / removing / moving cards
+const copiesOf = id => ['main','extra','side'].reduce((a, z) => a + cur.zones[z].filter(x => x === id).length, 0);
+function add(id, zone){
+  const c = cards[id], lim = limitOf(c);
+  if (!zone) zone = isExtra(c) ? 'extra' : 'main';
+  if (zone === 'main' && isExtra(c)) zone = 'extra';
+  if (zone === 'extra' && !isExtra(c)) zone = 'main';
+  if (lim === 0) return toast(`${c.name} is Forbidden in the TCG`);
+  if (copiesOf(id) >= lim) return toast(lim < 3 ? `${c.name} is ${c.banlist_info.ban_tcg}: ${lim} allowed` : `You already have 3 copies of ${c.name}`);
+  const max = zone === 'main' ? 60 : 15;
+  if (cur.zones[zone].length >= max) return toast(`The ${zone === 'main' ? 'Main' : zone === 'extra' ? 'Extra' : 'Side'} Deck is full`);
+  cur.zones[zone].push(id);
+  if (!cur.cover && kindOf(c) === 'monster') cur.cover = id;
+  renderZones(zone, cur.zones[zone].length - 1); touch();
+}
+function removeAt(zone, k){ cur.zones[zone].splice(k, 1); renderZones(); touch(); }
+function moveTo(fromZone, k, toZone){
+  const id = cur.zones[fromZone][k], c = cards[id];
+  if (toZone !== 'side' && isExtra(c)) toZone = 'extra';
+  if (toZone !== 'side' && !isExtra(c)) toZone = 'main';
+  if (toZone === fromZone) return;
+  if (cur.zones[toZone].length >= (toZone === 'main' ? 60 : 15)) return toast('That deck is full');
+  cur.zones[fromZone].splice(k, 1); cur.zones[toZone].push(id);
+  renderZones(toZone, cur.zones[toZone].length - 1); touch();
+}
+['main','extra','side'].forEach(z => {
+  const el = $('z-' + z);
+  el.onclick = e => { const d = e.target.closest('.dc'); if (d) removeAt(z, +d.dataset.k); };
+  el.oncontextmenu = e => { const d = e.target.closest('.dc'); if (!d) return; e.preventDefault(); moveTo(z, +d.dataset.k, z === 'side' ? 'main' : 'side'); };
+  el.ondragstart = e => { const d = e.target.closest('.dc'); if (d) e.dataTransfer.setData('text/plain', JSON.stringify({z, k:+d.dataset.k})); };
+  el.ondragover = e => { e.preventDefault(); el.classList.add('drop'); };
+  el.ondragleave = () => el.classList.remove('drop');
+  el.ondrop = e => {
+    e.preventDefault(); el.classList.remove('drop');
+    try { const {z:from, k, id} = JSON.parse(e.dataTransfer.getData('text/plain')); if (id) add(id, z); else moveTo(from, k, z); } catch (err) {}
+  };
+});
+$('sortBtn').onclick = () => {
+  const order = {monster:0, spell:1, trap:2};
+  ['main','extra','side'].forEach(z => cur.zones[z].sort((a, b) => order[kindOf(cards[a])] - order[kindOf(cards[b])]
+    || (cards[b].level || 0) - (cards[a].level || 0) || cards[a].name.localeCompare(cards[b].name)));
+  renderZones(); touch(); toast('Sorted: monsters, spells, traps');
+};
+
+// ---------- card search ----------
+let found = [], filter = 'all';
+const FILTERS = {all: () => true, monster: c => kindOf(c) === 'monster' && !isExtra(c), spell: c => kindOf(c) === 'spell', trap: c => kindOf(c) === 'trap', extra: isExtra};
+function runSearch(){
+  const q = $('q').value.trim();
+  if (q.length < 2) { found = []; return renderResults(); }
+  found = searchCards(q, FILTERS[filter]).map(c => c.id);
+  renderResults(found.length ? '' : `No cards match "${q}"`);
+}
+$('q').oninput = runSearch;
+$('fchips').querySelectorAll('.fchip').forEach(b => b.onclick = () => {
+  filter = b.dataset.f;
+  $('fchips').querySelectorAll('.fchip').forEach(x => x.classList.toggle('on', x === b));
+  runSearch();
+});
+function renderResults(note){
+  if (note) { $('results').innerHTML = `<div class="empty-note">${esc(note)}</div>`; return; }
+  if (!found.length) { $('results').innerHTML = '<div class="empty-note">Type at least 2 letters to search every card.</div>'; return; }
+  $('results').innerHTML = found.map(id => {
+    const have = cur ? copiesOf(id) : 0;
+    return `<div class="rc" data-id="${id}" draggable="true"><span class="ph">${esc(cards[id].name)}</span><img src="${SMALL(id)}" alt="" decoding="async">${limBadge(cards[id])}${have ? `<span class="have">×${have}</span>` : ''}</div>`;
+  }).join('');
+}
+$('results').onclick = e => { const r = e.target.closest('.rc'); if (r) add(+r.dataset.id); };
+$('results').oncontextmenu = e => { const r = e.target.closest('.rc'); if (!r) return; e.preventDefault(); add(+r.dataset.id, 'side'); };
+$('results').ondragstart = e => { const r = e.target.closest('.rc'); if (r) e.dataTransfer.setData('text/plain', JSON.stringify({id:+r.dataset.id})); };
+
+// ---------- stats ----------
+$('sideTabs').querySelectorAll('button').forEach(b => b.onclick = () => {
+  $('sideTabs').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + b.dataset.p));
+});
+const choose = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; };
+const openOdds = (deckSize, copies, hand = 5) => 1 - choose(deckSize - copies, hand) / choose(deckSize, hand);
+function renderStats(){
+  if (!cur) return;
+  const m = cur.zones.main, N = m.length;
+  const k = t => m.filter(id => kindOf(cards[id]) === t).length;
+  const counts = {}; m.forEach(id => counts[id] = (counts[id] || 0) + 1);
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1] || cards[a[0]].name.localeCompare(cards[b[0]].name)).slice(0, 7);
+  const pct = x => N ? Math.round(x / N * 100) : 0;
+  $('p-stats').innerHTML = N ? `
+    <div class="stat-block"><h4>Main Deck · ${N} cards</h4>
+      <div class="bar3"><i style="width:${pct(k('monster'))}%;background:#c8873a"></i><i style="width:${pct(k('spell'))}%;background:#1d9e74"></i><i style="width:${pct(k('trap'))}%;background:#b0306b"></i></div>
+      <div class="legend"><span style="--c:#c8873a">Monsters <b>${k('monster')}</b></span><span style="--c:#1d9e74">Spells <b>${k('spell')}</b></span><span style="--c:#b0306b">Traps <b>${k('trap')}</b></span></div></div>
+    <div class="stat-block"><h4>Chance to open with it · 5-card hand</h4><div class="odds">
+      ${top.map(([id, c]) => { const p = openOdds(N, c); return `<div class="odd" data-id="${id}"><img src="${SMALL(id)}" alt=""><div>${esc(cards[id].name)} <span style="color:var(--muted)">×${c}</span><div class="track"><i style="width:${p * 100}%"></i></div></div><b>${(p * 100).toFixed(1)}%</b></div>`; }).join('')}
+    </div></div>` : '<div class="empty-note">Add cards to your Main Deck to see stats.</div>';
+}
+
+// ---------- test hand ----------
+let pile = [], hand = [];
+function dealHand(){
+  pile = [...cur.zones.main].sort(() => Math.random() - .5);
+  hand = pile.splice(0, 5); renderHand();
+}
+function renderHand(){ $('hand').innerHTML = hand.map((id, i) => `<div class="dc pop" data-id="${id}" style="animation-delay:${i * 60}ms"><img src="${SMALL(id)}" alt=""></div>`).join(''); }
+$('testBtn').onclick = () => { if (cur.zones.main.length < 5) return toast('Add at least 5 cards to the Main Deck first'); dealHand(); $('handOv').classList.add('on'); };
+$('newHand').onclick = dealHand;
+$('draw1').onclick = () => { if (pile.length && hand.length < 8) { hand.push(pile.shift()); renderHand(); } };
+$('closeHand').onclick = () => $('handOv').classList.remove('on');
+
+// ---------- .ydk import / export ----------
+function toYdk(d){
+  return ['#created by Millennium Arena', '#main', ...d.zones.main, '#extra', ...d.zones.extra, '!side', ...d.zones.side].join('\n');
+}
+$('exportBtn').onclick = () => { try { navigator.clipboard.writeText(toYdk(cur)); } catch (e) {} toast(`Copied ${cur.name} as .ydk`); };
+function openImport(){ $('ydk').value = ''; $('ydkFile').textContent = ''; $('importMsg').textContent = ''; $('importEyebrow').textContent = `Import into ${cur.name}`; $('importOv').classList.add('on'); $('ydk').focus(); }
+$('importBtn').onclick = openImport;
+$('ydkPick').onclick = () => $('ydkInput').click();
+$('ydkInput').onchange = async () => {
+  const f = $('ydkInput').files[0]; if (!f) return;
+  $('ydkFile').textContent = f.name;
+  $('ydk').value = await f.text();
+  $('ydkInput').value = '';
+  $('doImport').click();
+};
+$('closeImport').onclick = () => $('importOv').classList.remove('on');
+$('doImport').onclick = async () => {
+  const z = {main:[], extra:[], side:[]}; let at = 'main';
+  $('ydk').value.split(/\r?\n/).forEach(line => {
+    const l = line.trim();
+    if (l === '#main') at = 'main'; else if (l === '#extra') at = 'extra'; else if (l === '!side') at = 'side';
+    else if (/^\d+$/.test(l)) z[at].push(cardIdOf(+l) ?? +l);   // alternate artworks map to the main card
+  });
+  const ids = [...new Set([...z.main, ...z.extra, ...z.side])];
+  if (!ids.length) { $('importMsg').className = 'msg bad'; $('importMsg').textContent = 'No card IDs found. Paste the contents of a .ydk file.'; return; }
+  $('importMsg').className = 'msg'; $('importMsg').textContent = 'Looking up cards…';
+  try {
+    ['main','extra','side'].forEach(k => cur.zones[k] = z[k].filter(id => cards[id]));
+    const named = $('ydk').value.match(/^#name (.+)$/m)?.[1] || $('ydkFile').textContent.replace(/\.ydk$/i, '');
+    if (named && cur.name === 'Untitled deck') { cur.name = named.trim(); $('dname').value = cur.name; }
+    if (!cur.cover) cur.cover = cur.zones.main.find(id => kindOf(cards[id]) === 'monster') ?? null;
+    $('importOv').classList.remove('on'); renderZones(); touch();
+    toast(`Imported ${ids.filter(id => cards[id]).length} different cards`);
+  } catch (e) { $('importMsg').className = 'msg bad'; $('importMsg').textContent = 'Couldn\'t look those cards up. Try again.'; }
+};
+
+function esc(s){ return String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+fillMotes($('motes'));
+boot();
+</script>
+</body>
+</html>

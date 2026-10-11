@@ -1,0 +1,204 @@
+Mirror match: MD The One True Master of The Galaxy-Eyes Competitive
+You: 40 main + 15 extra · legal on today's TCG list
+
+You vs Opponent · seed 4
+  You draws 5
+  Opponent draws 5
+
+— Turn 1 · You · LP 8000 / 8000
+  You Sets a card
+  You activates Galaxy Hundred
+  You Sets a card
+  You Sets a card
+  You Sets a card
+
+— Turn 2 · Opponent · LP 8000 / 8000
+  Opponent draws 1
+  Opponent activates Galaxy Hundred
+  Opponent Sets a card
+  Opponent Sets a card
+  Opponent Sets a card
+  Opponent Sets a card
+
+— Turn 3 · You · LP 8000 / 8000
+  You draws 1
+  You Normal Summons Photon Delta Wing
+  You activates Photon Delta Wing
+  Opponent activates Infinite Impermanence (chain link 2)
+  Infinite Impermanence goes to the GY
+  Photon Delta Wing attacks directly
+  Opponent takes 1800 damage → 6200 LP
+
+— Turn 4 · Opponent · LP 8000 / 6200
+  Opponent draws 1
+  Opponent activates Infinite Impermanence
+  Infinite Impermanence goes to the GY
+  Opponent Normal Summons Galaxy Wizard
+  Opponent activates Galaxy Wizard
+  Galaxy Wizard goes to the GY
+  Opponent Sets a card
+  Opponent activates Galaxy Hundred
+
+— Turn 5 · You · LP 8000 / 6200
+  You draws 1
+  Opponent activates Infinite Impermanence
+  Infinite Impermanence goes to the GY
+  You Normal Summons Photon Jumper
+  You Special Summons Starliege Lord Galaxion
+  You activates Starliege Lord Galaxion
+  Photon Delta Wing goes to the GY
+  Photon Jumper goes to the GY
+  You Special Summons Galaxy-Eyes Photon Dragon
+  Galaxy-Eyes Photon Dragon goes to the GY
+  Starliege Lord Galaxion goes to the GY
+  You Special Summons Galaxy-Eyes Solflare Dragon
+  You activates Galaxy-Eyes Solflare Dragon
+  Galaxy-Eyes Solflare Dragon attacks directly
+  Opponent takes 2000 damage → 4200 LP
+
+— Turn 6 · Opponent · LP 8000 / 4200
+  Opponent draws 1
+  Opponent activates Galaxy Soldier
+  You activates Tachyon Transmigration (chain link 2)
+  chain link 1 negated
+  Tachyon Transmigration goes to the GY
+
+— Turn 7 · You · LP 8000 / 4200
+  You draws 1
+  You activates Galaxy Soldier
+  You Special Summons Galaxy Soldier
+  Galaxy-Eyes Solflare Dragon attacks directly
+  Opponent takes 2000 damage → 2200 LP
+
+— Turn 8 · Opponent · LP 8000 / 2200
+  Opponent draws 1
+  Opponent Normal Summons Ghost Ogre & Snow Rabbit
+  You activates Infinite Impermanence
+  Infinite Impermanence goes to the GY
+  Ghost Ogre & Snow Rabbit attacks Galaxy Soldier
+
+— Turn 9 · You · LP 8000 / 2200
+  You draws 1
+  You activates Infinite Impermanence
+  You activates Infinite Impermanence (chain link 2)
+  Infinite Impermanence goes to the GY
+  Infinite Impermanence goes to the GY
+  You Normal Summons Photon Orbital
+  You activates Photon Orbital
+  Opponent activates Ghost Ogre & Snow Rabbit (chain link 2)
+  Ghost Ogre & Snow Rabbit goes to the GY
+  You activates Photon Orbital
+  Photon Orbital goes to the GY
+  Galaxy-Eyes Solflare Dragon attacks directly
+  Opponent takes 2000 damage → 200 LP
+
+— Turn 10 · Opponent · LP 8000 / 200
+  Opponent draws 1
+  Opponent activates Galaxy Soldier
+  Opponent Special Summons Galaxy Soldier
+  Opponent activates Galaxy Soldier
+  Opponent Normal Summons Galaxy Wizard
+  Galaxy Soldier goes to the GY
+  Galaxy Wizard goes to the GY
+  Opponent Special Summons Galaxy-Eyes Solflare Dragon
+  Opponent activates Galaxy-Eyes Solflare Dragon
+  Galaxy-Eyes Solflare Dragon attacks Galaxy Soldier
+  Galaxy Soldier goes to the GY
+
+— Turn 11 · You · LP 8000 / 200
+  You draws 1
+  You Normal Summons Galaxy Wizard
+  You activates Galaxy Wizard
+  Galaxy Wizard goes to the GY
+  Galaxy-Eyes Solflare Dragon attacks Galaxy-Eyes Solflare Dragon
+  Galaxy-Eyes Solflare Dragon goes to the GY
+  Galaxy-Eyes Solflare Dragon goes to the GY
+
+— Turn 12 · Opponent · LP 8000 / 200
+  Opponent draws 1
+  Opponent activates Seventh Tachyon
+  Seventh Tachyon goes to the GY
+  Opponent Normal Summons Photon Delta Wing
+  Opponent activates Photon Delta Wing
+  Opponent Special Summons Photon Delta Wing
+  Opponent Special Summons Starliege Photon Blast Dragon
+  Starliege Photon Blast Dragon attacks directly
+  You takes 1800 damage → 6200 LP
+
+— Turn 13 · You · LP 6200 / 200
+  You draws 1
+  You activates Galaxy Soldier
+  You Special Summons Galaxy Soldier
+  You activates Galaxy Soldier
+  You Normal Summons Galaxy Wizard
+  You activates Galaxy Wizard
+  Galaxy Wizard goes to the GY
+
+— Turn 14 · Opponent · LP 6200 / 200
+  Opponent draws 1
+  Opponent activates Numbers Last Hope
+  Opponent pays 100 LP → 100 LP
+  Opponent Special Summons Galaxy-Eyes Afterglow Dragon
+  Opponent Special Summons Galaxy-Eyes Tachyon Primal
+  Numbers Last Hope goes to the GY
+  Opponent Special Summons Number 38: Hope Harbinger Dragon Titanic Galaxy
+  Starliege Photon Blast Dragon attacks Galaxy Soldier
+  Galaxy Soldier goes to the GY
+  Number 38: Hope Harbinger Dragon Titanic Galaxy attacks directly
+  You takes 3000 damage → 3200 LP
+
+— Turn 15 · You · LP 3200 / 100
+  You draws 1
+  You activates Galaxy Soldier
+  You Special Summons Galaxy Soldier
+  You activates Galaxy Soldier
+  You Normal Summons Galaxy Wizard
+  You activates Galaxy Wizard
+  You activates Galaxy Wizard
+  Galaxy Wizard goes to the GY
+  You activates Galaxy-Eyes Tachyon Primal
+  You Special Summons Galaxy-Eyes Tachyon Primal
+  You activates Galaxy-Eyes Tachyon Primal
+  You activates Seventh Tachyon
+  Opponent activates Number 38: Hope Harbinger Dragon Titanic Galaxy (chain link 2)
+  Galaxy-Eyes Tachyon Primal attacks Number 38: Hope Harbinger Dragon Titanic Galaxy
+  Galaxy-Eyes Tachyon Primal goes to the GY
+  Number 38: Hope Harbinger Dragon Titanic Galaxy goes to the GY
+
+— Turn 16 · Opponent · LP 3200 / 100
+  Opponent draws 1
+  Opponent Normal Summons Photon Delta Wing
+  Starliege Photon Blast Dragon attacks Galaxy Soldier
+  Galaxy Soldier goes to the GY
+  Photon Delta Wing attacks directly
+  You takes 1800 damage → 1400 LP
+
+— Turn 17 · You · LP 1400 / 100
+  You draws 1
+  You Normal Summons Ash Blossom & Joyous Spring
+  Ash Blossom & Joyous Spring attacks Photon Delta Wing
+  You takes 1800 damage → 0 LP
+
+Opponent wins (turn 17, LP 0 / 100)
+
+=== 1 duel between 2 decks · 1 finished · 0 s total
+average 17.0 turns, 46 ms of engine time per duel (slowest duel 46 ms)
+slowest single engine step: 1.1 ms (You vs Opponent, seed 4, turn 14)
+engine: ygopro-core 93eff32a9bfc65cc3a748c7cf8a8774c10260b7f 2026-10-11 · cards in database: 14986
+decks: You 40+15, Opponent 40+15 · You 0 – 1 Opponent
+
+Prompts the engine asked for (the UI must handle each):
+  select_chain           476
+  select_idlecmd         77
+  select_card            42
+  select_place           41
+  select_battlecmd       29
+  select_effectyn        10
+  select_unselect_card   8
+  select_position        7
+  select_yesno           3
+  select_option          2
+
+Other message types seen: attack, battle, become_target, card_hint, chain_disabled, chain_end, chain_negated, chain_solved, chain_solving, chained, chaining, confirm_cards, damage, damage_step_end, damage_step_start, draw, equip, hint, move, new_phase, new_turn, pay_lpcost, player_hint, pos_change, set, shuffle_deck, shuffle_extra, shuffle_hand, spsummoned, spsummoning, summoned, summoning, win
+
+"Respond?" prompts: 459 with nothing to activate, 17 with real options

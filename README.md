@@ -1,0 +1,59 @@
+# Millennium Arena
+
+Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no payments. Built on EDOPro's rules engine (`ygopro-core`) and Project Ignis's card scripts.
+
+**Status:** in development. Milestone 1 is done: the duel server runs real duels on the engine and streams them live to the duel screen (two bots for now). Next: you play one side yourself.
+
+## Layout
+
+| Folder | What it is |
+|---|---|
+| `client/` | The browser app (React + Vite + TypeScript). The duel screen, carried over from the design mockups. |
+| `server/` | The duel server (Node + TypeScript + WebSockets). Each duel runs in its own worker thread. Hides each player's private information before anything is sent. |
+| `shared/` | Message types used by both the server and the app. |
+| `engine/` | Our build of the engine. `build-core.sh` compiles the latest `ygopro-core` to WebAssembly into `engine/ocgcore/` (committed, so servers don't need a compiler). `fetch-data.sh` downloads the card database and card scripts. |
+| `engine-test/` | Stress test: random bots play hundreds of duels between real tournament decks to catch engine, script and decoding problems. See its README. |
+| `design/` | The HTML design mockups (every page in four themes) and a replay viewer. |
+
+## Run it locally
+
+Needs Node 22.13 or newer.
+
+```bash
+npm install
+npm run data        # card database + card scripts (first time, and after new sets)
+npm run dev         # duel server on :3017 and the app on http://localhost:5185/millennium/
+```
+
+## Production
+
+One Node process serves everything under one path (default `/millennium`): the built app, the card data API and the duel WebSocket.
+
+```bash
+npm ci
+npm run data
+npm run build       # builds the app into client/dist
+ARENA_PORT=3017 npm start
+```
+
+Settings (environment variables): `ARENA_PORT` (default 3017), `BASE_PATH` (default `/millennium`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives).
+
+Behind a reverse proxy, pass `<BASE_PATH>/` through unchanged and allow WebSocket upgrades on `<BASE_PATH>/ws`.
+
+## Updating cards and the engine
+
+New sets arrive in Project Ignis's card scripts quickly, sometimes needing a newer engine. To update both together:
+
+```bash
+brew install emscripten   # once
+npm run engine            # rebuild engine/ocgcore from the latest ygopro-core
+npm run data              # latest card database + scripts
+cd engine-test && node duel.js --meta --games 870   # check everything still plays
+```
+
+## Licences and credits
+
+- The rules engine (`ygopro-core`) and Project Ignis's card scripts are licensed under the **AGPL-3.0**, so this project's source code will be public when the site goes live.
+- The WebAssembly wrapper is [`ocgcore-wasm`](https://github.com/n1xx1/ocgcore-wasm) (MIT), with our fixes in `engine/patches/`.
+- Card data from [Project Ignis](https://github.com/ProjectIgnis); card images from [YGOPRODeck](https://ygoprodeck.com).
+- Millennium Arena is a free fan project. It is not affiliated with or endorsed by Konami. Yu-Gi-Oh! card names, artwork and game mechanics belong to their owners.

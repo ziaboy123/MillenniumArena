@@ -1,0 +1,105 @@
+diff --git a/src/index.ts b/src/index.ts
+index f7ed682..057cd1b 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -428,7 +428,19 @@ function createMethodsBase(
+       while (reader.avail > 0) {
+         const length = reader.i32();
+         const subReader = reader.sub(length);
+-        const message = readMessage(subReader);
++        // A decoder whose layout doesn't match the engine either runs past the end of its message or leaves
++        // bytes unread. Report both (as type -1 diagnostics) instead of throwing away the whole batch.
++        let message: OcgMessage | null;
++        try {
++          message = readMessage(subReader);
++        } catch (e) {
++          subReader.reset();
++          messages.push({ type: -1, failedType: subReader.u8(), problem: `decoder ran past the end (${length} bytes)` } as unknown as OcgMessage);
++          continue;
++        }
++        if (message && subReader.avail > 0) {
++          messages.push({ type: -1, failedType: message.type, problem: `decoder left ${subReader.avail} of ${length} bytes unread` } as unknown as OcgMessage);
++        }
+         if (!message) {
+           subReader.reset();
+           console.warn(`failed to parse a message: ${subReader.u8()}`);
+diff --git a/src/messages.ts b/src/messages.ts
+index fbef2fd..543c87e 100644
+--- a/src/messages.ts
++++ b/src/messages.ts
+@@ -344,15 +344,14 @@ export function readMessage(reader: BufferReader): OcgMessage | null {
+           return ret;
+         })(),
+       };
+-    case OcgMessageType.SHUFFLE_SET_CARD:
+-      return {
+-        type,
+-        location: reader.u8() as OcgLocation,
+-        cards: Array.from({ length: reader.u32() }, () => ({
+-          from: parseInfoLocation(reader),
+-          to: parseInfoLocation(reader),
+-        })),
+-      };
++    case OcgMessageType.SHUFFLE_SET_CARD: {
++      // engine: location (u8), count (u8), every card's old location, then every card's new location
++      const location = reader.u8() as OcgLocation;
++      const count = reader.u8();
++      const from = Array.from({ length: count }, () => parseInfoLocation(reader));
++      const to = Array.from({ length: count }, () => parseInfoLocation(reader));
++      return { type, location, cards: from.map((f, i) => ({ from: f, to: to[i] })) };
++    }
+     case OcgMessageType.REVERSE_DECK:
+       return {
+         type,
+@@ -398,6 +397,7 @@ export function readMessage(reader: BufferReader): OcgMessage | null {
+         card: reader.u32(),
+         from: parseInfoLocation(reader),
+         to: parseInfoLocation(reader),
++        reason: reader.u32(), // why it moved (destroyed, banished, by effect...), sent by the engine since 2026
+       };
+     case OcgMessageType.POS_CHANGE:
+       return {
+@@ -688,7 +688,7 @@ export function readMessage(reader: BufferReader): OcgMessage | null {
+         type,
+         player: reader.u8(),
+         count: reader.u8(),
+-        available: reader.u8() as OcgAttribute,
++        available: reader.u32() as OcgAttribute, // the engine sends 4 bytes
+       };
+     case OcgMessageType.ANNOUNCE_CARD:
+       return {
+diff --git a/src/queries.ts b/src/queries.ts
+index 9fc7c68..04e8eb5 100644
+--- a/src/queries.ts
++++ b/src/queries.ts
+@@ -30,6 +30,8 @@ export function readQuery(reader: BufferReader) {
+       break;
+     } else if (flag === OcgQueryFlags.CODE && size === 4) {
+       result.code = reader.u32();
++    } else if (flag === OcgQueryFlags.TYPE && size === 4) {
++      result.type = reader.u32();
+     } else if (flag === OcgQueryFlags.POSITION && size === 4) {
+       result.position = reader.u32() as OcgPosition;
+     } else if (flag === OcgQueryFlags.ALIAS && size === 4) {
+@@ -106,6 +108,9 @@ export function readQuery(reader: BufferReader) {
+         rating,
+         marker,
+       };
++    } else {
++      // a flag we don't decode (or an unexpected size): skip its data so the next entry still lines up
++      reader.bytes(size);
+     }
+   }
+   return result;
+diff --git a/src/type_message.ts b/src/type_message.ts
+index 6c52923..bda4294 100644
+--- a/src/type_message.ts
++++ b/src/type_message.ts
+@@ -510,6 +510,7 @@ export interface OcgMessageMove {
+   card: number;
+   from: OcgLocPos;
+   to: OcgLocPos;
++  reason: number;
+ }
+ 
+ export interface OcgMessagePosChange {

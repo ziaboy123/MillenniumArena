@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millennium Arena · Duel Page Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Marcellus&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="themes.css">
+<style>
+/* Duel page mockup: mode select, Host (room rules), Join, and the room lobby. */
+.ring{left:1280px;top:520px}
+
+
+.grid{position:absolute;left:40px;right:40px;top:200px;bottom:40px;display:grid;grid-template-columns:1fr 440px;gap:22px}
+.grid > .panel,.col-stack > .panel{position:relative}
+.col-stack{display:flex;flex-direction:column;gap:22px;min-height:0}
+.col-stack > .panel{flex:1}
+
+h3.t{font:700 22px/1.2 var(--font-display);margin:16px 0 8px;letter-spacing:.02em}
+[data-dir=c] h3.t{text-transform:uppercase}
+p.d{font-size:14px;color:var(--muted);line-height:1.55}
+
+
+/* ---- menu ---- */
+.private{padding:34px 38px;display:flex;flex-direction:column}
+.live{display:inline-flex;align-items:center;gap:8px;font:600 11px/1 var(--font-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:blink 2s ease-in-out infinite}
+@keyframes blink{50%{opacity:.35}}
+.private h2{font:700 34px/1.1 var(--font-display);margin:12px 0 8px;letter-spacing:.03em}
+[data-dir=c] .private h2{text-transform:uppercase}
+.split{flex:1;display:grid;grid-template-columns:1fr 70px 1fr;margin-top:26px;min-height:0}
+.split .col{display:flex;flex-direction:column;align-items:flex-start;padding-top:6px}
+.split .col .bigbtn{margin-top:22px}
+.or{position:relative;display:grid;place-items:center}
+.or::before{content:'';position:absolute;top:10px;bottom:10px;left:50%;width:1px;background:var(--panel-border)}
+.or span{position:relative;font:600 11px/1 var(--font-ui);letter-spacing:.2em;text-transform:uppercase;color:var(--muted);background:var(--bg0);padding:10px 4px;border-radius:999px}
+.code{margin:18px 0 0}
+.code input{text-transform:uppercase}
+.join .msg{max-width:360px}
+.found{display:none;width:100%}
+.found.on{display:block}
+.join.found-on .pre{display:none}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.rchip{font:600 12.5px/1 var(--font-ui);padding:9px 12px;border-radius:999px;border:1px solid var(--panel-border);background:rgba(0,0,0,.35);color:var(--text)}
+[data-dir=b] .rchip,[data-dir=c] .rchip{border-radius:3px}
+.rchip.lock{color:var(--accent)}
+.line{display:flex;gap:10px;align-items:center}
+
+.deckbar{display:flex;align-items:center;gap:18px;margin-top:22px;padding-top:22px;border-top:1px solid var(--panel-border)}
+.deckbar .lbl{font:600 11px/1 var(--font-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.deckchip{position:relative;display:flex;align-items:center;gap:14px;padding:8px 14px 8px 8px;border:1px solid var(--panel-border);border-radius:calc(var(--r) * .9);
+  background:rgba(0,0,0,.35);cursor:pointer;min-width:340px;transition:border-color .2s}
+.deckchip:hover{border-color:var(--accent)}
+.deckchip img{width:38px;height:56px;border-radius:3px;object-fit:cover;flex:none}
+.deckchip .nm{font-size:15px;font-weight:600;margin-bottom:5px}
+.deckchip .ct{font-size:12px;color:var(--muted)}
+.deckchip .chev{margin-left:auto;color:var(--muted)}
+.decklist{position:absolute;left:0;top:calc(100% + 8px);z-index:40;width:100%;min-width:380px;padding:8px;display:none;cursor:default}
+.decklist.up{top:auto;bottom:calc(100% + 8px)}
+.decklist.on{display:block}
+.drow{display:flex;align-items:center;gap:12px;padding:8px;border-radius:calc(var(--r) * .7);cursor:pointer}
+.drow:hover{background:rgba(255,255,255,.06)}
+.drow.sel{box-shadow:inset 3px 0 0 var(--accent);background:rgba(255,255,255,.04)}
+.drow img{width:32px;height:47px;border-radius:3px;object-fit:cover}
+.drow .nm{font-size:14px;font-weight:600;margin-bottom:4px}
+.drow .ct{font-size:11.5px;color:var(--muted)}
+
+.soon{padding:26px 28px;display:flex;gap:20px;align-items:flex-start;opacity:.6}
+.soon h3.t{margin:4px 0 6px;font-size:20px}
+.soon .badge{position:absolute;right:20px;top:20px;font:700 10px/1 var(--font-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  border:1px solid var(--panel-border);padding:6px 9px;border-radius:999px}
+[data-dir=b] .soon .badge,[data-dir=c] .soon .badge{border-radius:3px}
+
+/* ---- host ---- */
+.rules{padding:30px 36px;overflow:auto}
+.rules .srow{padding:14px 0}
+.summary{padding:30px 32px;display:flex;flex-direction:column;gap:14px}
+.sumlist{list-style:none;display:flex;flex-direction:column;gap:2px;margin-bottom:auto}
+.sumlist li{display:flex;justify-content:space-between;font-size:14px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.sumlist li span{color:var(--muted)}
+.sumlist li b{font-weight:600}
+.summary .bigbtn{width:100%}
+
+/* ---- lobby ---- */
+.room{padding:30px 38px;display:flex;flex-direction:column;align-items:center}
+.codebox{text-align:center}
+.bigcode{font:700 64px/1 var(--font-display);letter-spacing:.22em;margin:12px 0 16px;padding-left:.22em}
+[data-dir=a] .bigcode{color:var(--accent-hi);text-shadow:0 0 30px rgba(217,173,85,.35)}
+[data-dir=b] .bigcode,[data-dir=d] .bigcode{color:var(--accent-hi);text-shadow:0 0 24px var(--glow)}
+.codebox .line{justify-content:center}
+.players{width:100%;display:grid;grid-template-columns:1fr 130px 1fr;align-items:center;margin:30px 0 22px}
+.pcard{height:250px;border:1px solid var(--panel-border);border-radius:var(--r);background:rgba(0,0,0,.3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px}
+.pcard .av{width:84px;height:84px;font-size:32px;margin-bottom:6px}
+.pcard .nm{font:700 22px/1 var(--font-display)}
+.pcard .rk{font-size:12px;color:var(--muted)}
+.pcard .dk{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.pcard .dk img{width:22px;height:32px;border-radius:2px;object-fit:cover}
+.pill{font:700 11px/1 var(--font-ui);letter-spacing:.12em;text-transform:uppercase;padding:7px 11px;border-radius:999px;border:1px solid var(--panel-border);color:var(--muted)}
+.pill.ready{border-color:#4fbf7f;color:#6fdc9a;background:rgba(80,200,120,.1)}
+.pill.wait{color:var(--accent);border-color:var(--panel-border)}
+.pcard.empty{border-style:dashed;color:var(--muted)}
+.pcard.empty .nm{color:var(--muted);font-size:18px}
+.dots i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin:0 3px;animation:dot 1.2s ease-in-out infinite}
+.dots i:nth-child(2){animation-delay:.2s}.dots i:nth-child(3){animation-delay:.4s}
+@keyframes dot{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:1;transform:translateY(-4px)}}
+.pcard.joined{animation:pop-in .5s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop-in{from{transform:scale(.92);opacity:0}}
+.vs{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--accent)}
+.vs .eye svg{width:70px;stroke-width:4}
+.vs b{font:700 22px/1 var(--font-display);letter-spacing:.2em}
+[data-dir=b] .vs,[data-dir=d] .vs{filter:drop-shadow(0 0 10px var(--glow))}
+
+.spect{padding:26px 28px;display:flex;flex-direction:column;gap:12px}
+.spect .top-row{display:flex;justify-content:space-between;align-items:center}
+.spect .count{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.spect .count .eye svg{width:26px;stroke-width:5}
+.req{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--panel-border);border-radius:calc(var(--r) * .8);background:rgba(0,0,0,.3);animation:pop-in .4s}
+.req .av{width:36px;height:36px;font-size:14px;border-width:1px}
+.req .w{flex:1;font-size:13px;line-height:1.4}
+.req .w span{color:var(--muted);font-size:12px}
+.actions{padding:26px 28px;display:flex;flex-direction:column;gap:12px;justify-content:flex-end}
+.actions .bigbtn{width:100%}
+
+/* ---- coin toss ---- */
+.overlay{position:absolute;inset:0;z-index:50;display:none;place-items:center;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.overlay.on{display:grid}
+.toss{position:relative!important;width:520px;padding:40px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px}
+.coin{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;color:#140e05;background:radial-gradient(circle at 35% 30%,var(--accent-hi),var(--accent) 60%);
+  box-shadow:0 0 40px var(--glow);margin-bottom:10px}
+.coin .eye svg{width:76px;stroke-width:5}
+.coin.flip{animation:flip 1.4s cubic-bezier(.3,.6,.3,1)}
+@keyframes flip{0%{transform:rotateY(0) translateY(0)}50%{transform:rotateY(900deg) translateY(-40px)}100%{transform:rotateY(1800deg) translateY(0)}}
+.toss h3.t{margin:0}
+.toss .line{margin-top:10px}
+</style>
+</head>
+<body data-dir="c">
+
+<div class="chrome">
+  <div class="t"><b>Millennium Arena</b> &nbsp;·&nbsp; mockup</div>
+  <a href="welcome.html">Logged out</a><a href="home.html">Home</a><a href="duel.html" class="on">Duel page</a><a href="decks.html">Decks</a><a href="profile.html">Profile</a><a href="match.html">Duel screen</a><a href="replay.html">Replay</a>
+  <div class="sep"></div><span class="lbl">Preview theme</span><div id="themeBtns"></div>
+</div>
+
+<div class="viewport">
+  <div class="scaler" id="scaler">
+    <div class="stage">
+      <div class="env"></div>
+      <div class="shafts"></div>
+      <div class="mist"><i></i><i></i></div>
+      <div class="motes" id="motes"></div>
+      <div class="ring"></div>
+
+      <div class="top">
+        <div class="brand">
+          <button class="homebtn" onclick="location.href='home.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Home</button>
+          <div class="logo"><span class="eye"></span><div class="w">MILLENNIUM<small>ARENA</small></div></div>
+        </div>
+        <div class="chip" onclick="location.href='profile.html'"><div class="av">D</div><div><b>Daniyal</b><span>Unranked</span></div></div>
+      </div>
+
+      <!-- MODE SELECT -->
+      <section class="screen on" id="menu">
+        <div class="head"><div class="eyebrow">Play</div><h1>Duel</h1></div>
+        <div class="grid">
+          <div class="panel private">
+            <span class="live"><i></i>Private duels</span>
+            <h2>Play with friends</h2>
+            <p class="d">Host a room and send your friend the code, or join their room with theirs.</p>
+            <div class="split">
+              <div class="col host">
+                <div class="ico" data-ic="crown"></div>
+                <h3 class="t">Host a room</h3>
+                <p class="d">Pick the rules (best of 3, turn timer, banlist and more), then send your friend the code.</p>
+                <button class="bigbtn" data-to="host">Host a room</button>
+              </div>
+              <div class="or"><span>or</span></div>
+              <div class="col join" id="joinCol">
+                <div class="pre">
+                  <div class="ico" data-ic="join"></div>
+                  <h3 class="t">Join a room</h3>
+                  <p class="d">Enter the 6-character code your friend sent you.</p>
+                  <div class="code" id="joinCode"></div>
+                  <button class="bigbtn ghost" id="joinBtn" disabled>Join</button>
+                  <div class="msg" id="joinMsg">If their duel has already started, you can ask to watch instead.</div>
+                </div>
+                <div class="found" id="found">
+                  <div class="eyebrow">Room found · <span id="foundCode"></span></div>
+                  <h3 class="t">Kaze's room</h3>
+                  <p class="d">Waiting for an opponent. These are the host's rules:</p>
+                  <div class="chips" id="foundChips"></div>
+                  <div class="line"><input class="sinput" type="password" placeholder="Room password" id="foundPw" style="width:220px"></div>
+                  <div class="line" style="margin-top:16px"><button class="bigbtn" id="joinRoom">Join room</button><button class="bigbtn ghost" id="joinBack">Back</button></div>
+                  <div class="msg" id="foundMsg"></div>
+                </div>
+              </div>
+            </div>
+            <div class="deckbar"><span class="lbl">Dueling with</span><div class="deckchip" data-deckchip></div></div>
+          </div>
+
+          <div class="col-stack">
+            <div class="panel soon"><div class="ico" data-ic="trophy"></div><div><h3 class="t">Ranked</h3><p class="d">Rated matchmaking. Climb the ladder and earn your rank.</p></div><span class="badge">Coming soon</span></div>
+            <div class="panel soon"><div class="ico" data-ic="swords"></div><div><h3 class="t">Unranked</h3><p class="d">Quick matchmaking against anyone, no rating on the line.</p></div><span class="badge">Coming soon</span></div>
+            <div class="panel soon"><div class="ico" data-ic="bot"></div><div><h3 class="t">Solo vs bot</h3><p class="d">Practise a deck against the AI, any time.</p></div><span class="badge">Coming soon</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- HOST: ROOM RULES -->
+      <section class="screen" id="host">
+        <div class="head"><button class="crumb" data-to="menu">← Duel</button><h1>Host a room</h1></div>
+        <div class="grid">
+          <div class="panel rules">
+            <div class="eyebrow">Room rules</div>
+            <div class="hint" style="font-size:13px;color:var(--muted);margin:8px 0 10px">Your friend sees these before they join.</div>
+            <div class="srow"><div class="l"><b>Match</b><span>Best of 3 adds side decking between games.</span></div>
+              <div class="r"><div class="seg" data-key="bo"><button data-v="1">Best of 1</button><button data-v="3">Best of 3</button></div></div></div>
+            <div class="srow"><div class="l"><b>Turn timer</b><span>Time each player gets per turn.</span></div>
+              <div class="r"><div class="seg" data-key="timer"><button data-v="0">Off</button><button data-v="60">60s</button><button data-v="90">90s</button><button data-v="180">180s</button></div></div></div>
+            <div class="srow"><div class="l"><b>Banlist</b><span>Which Forbidden &amp; Limited list applies.</span></div>
+              <div class="r"><div class="seg" data-key="ban"><button data-v="TCG">TCG</button><button data-v="OCG">OCG</button><button data-v="None">No banlist</button></div></div></div>
+            <div class="srow"><div class="l"><b>Starting life points</b><span>8000 is standard.</span></div>
+              <div class="r"><div class="seg" data-key="lp"><button data-v="4000">4000</button><button data-v="8000">8000</button><button data-v="16000">16000</button></div></div></div>
+            <div class="srow"><div class="l"><b>Deck check</b><span>Off lets friends test decks that break the banlist.</span></div>
+              <div class="r"><button class="tog on" id="checkTog"></button></div></div>
+            <div class="srow"><div class="l"><b>Spectators</b><span>Both duelists must accept each watch request.</span></div>
+              <div class="r"><div class="seg" data-key="spec"><button data-v="ask">Ask me</button><button data-v="off">Off</button></div></div></div>
+            <div class="srow"><div class="l"><b>Room password</b><span>Optional. Only people with it can join.</span></div>
+              <div class="r"><input class="sinput" id="pwInput" type="text" placeholder="None" style="width:200px"></div></div>
+          </div>
+          <div class="panel summary">
+            <div class="eyebrow">Your deck</div>
+            <div class="deckchip" data-deckchip></div>
+            <div class="eyebrow" style="margin-top:12px">Summary</div>
+            <ul class="sumlist" id="sumList"></ul>
+            <div class="msg" id="createMsg"></div>
+            <button class="bigbtn" id="createRoom">Create room</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROOM LOBBY -->
+      <section class="screen" id="lobby">
+        <div class="head"><button class="crumb" id="leaveCrumb">← Leave room</button><h1 id="lobbyTitle">Your room</h1></div>
+        <div class="grid">
+          <div class="panel room">
+            <div class="codebox">
+              <div class="eyebrow">Room code</div>
+              <div class="bigcode" id="bigCode">K7Q2XM</div>
+              <div class="line">
+                <button class="sbtn" id="copyCode"><svg class="i" style="width:14px;height:14px;vertical-align:-2px;margin-right:6px" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy code</button>
+                <button class="sbtn" id="copyLink"><svg class="i" style="width:14px;height:14px;vertical-align:-2px;margin-right:6px" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Copy invite link</button>
+              </div>
+            </div>
+            <div class="players">
+              <div class="pcard" id="p1"></div>
+              <div class="vs"><span class="eye"></span><b>VS</b></div>
+              <div class="pcard" id="p2"></div>
+            </div>
+            <div class="chips" id="roomChips"></div>
+          </div>
+          <div class="col-stack">
+            <div class="panel spect">
+              <div class="top-row"><div class="eyebrow">Spectators</div><div class="count"><span class="eye"></span><span id="watchCount">0 watching</span></div></div>
+              <p class="d" style="font-size:13px" id="spectNote">Watch requests appear here. Spectators only see public cards, never your hand.</p>
+              <div id="reqs" style="display:flex;flex-direction:column;gap:10px"></div>
+            </div>
+            <div class="panel actions" id="actions"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="overlay" id="overlay"><div class="panel toss" id="toss"></div></div>
+      <div class="panel toast" id="toast"></div>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const ICONS = {
+  crown:'<path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/>',
+  join:'<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
+  trophy:'<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+  swords:'<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/>',
+  bot:'<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+};
+document.querySelectorAll('[data-ic]').forEach(e => e.innerHTML = `<svg class="i" viewBox="0 0 24 24">${ICONS[e.dataset.ic]}</svg>`);
+
+let toastTimer;
+function toast(msg){
+  $('toast').textContent = msg; $('toast').classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('on'), 2200);
+}
+function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+document.querySelectorAll('[data-to]').forEach(b => b.onclick = () => show(b.dataset.to));
+
+// ---------- decks (from the player's deck list) ----------
+const DECKS = [
+  {name:'Dark Magician', cover:46986414, m:40, x:15, s:15, legal:true},
+  {name:'Blue-Eyes', cover:89631139, m:40, x:15, s:15, legal:true},
+  {name:'Red-Eyes Fusion', cover:74677422, m:13, x:3, s:0, legal:false, why:'Main Deck has 13 cards (minimum 40)'},
+  {name:'HERO', cover:89943723, m:40, x:9, s:0, legal:false, why:'Triple Tactics Talent: 2 copies (limit 1)'},
+  {name:'Stardust Synchro', cover:44508094, m:16, x:4, s:0, legal:false, why:'Main Deck has 16 cards (minimum 40)'},
+  {name:'Exodia (testing)', cover:33396948, m:15, x:0, s:0, legal:false, why:'Pot of Greed is Forbidden'},
+];
+let deck = 0;
+const counts = d => `${d.m} main · ${d.x} extra · ${d.s} side`;
+const badge = d => d.legal ? '<span class="legal ok">Legal</span>' : '<span class="legal bad">Not legal</span>';
+function renderDeckChips(){
+  document.querySelectorAll('[data-deckchip]').forEach(chip => {
+    const d = DECKS[deck];
+    chip.innerHTML = `<img src="${SMALL(d.cover)}" alt=""><div><div class="nm">${d.name}${badge(d)}</div><div class="ct">${counts(d)}</div></div>
+      <svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+      <div class="panel decklist">${DECKS.map((x, i) => `<div class="drow ${i === deck ? 'sel' : ''}" data-i="${i}"><img src="${SMALL(x.cover)}" alt="">
+        <div><div class="nm">${x.name}${badge(x)}</div><div class="ct">${x.legal ? counts(x) : x.why}</div></div></div>`).join('')}</div>`;
+    chip.onclick = e => {
+      const row = e.target.closest('.drow');
+      if (row) { deck = +row.dataset.i; renderDeckChips(); validate(); return; }
+      const list = chip.querySelector('.decklist');
+      list.classList.toggle('up', chip.getBoundingClientRect().top > innerHeight / 2);
+      list.classList.toggle('on');
+    };
+  });
+}
+document.addEventListener('click', e => { if (!e.target.closest('[data-deckchip]')) document.querySelectorAll('.decklist').forEach(l => l.classList.remove('on')); });
+
+// ---------- host: room rules ----------
+const rules = {bo:'1', timer:'90', ban:'TCG', lp:'8000', spec:'ask', check:true, pw:''};
+const LABEL = {
+  bo: v => v === '3' ? 'Best of 3' : 'Best of 1',
+  timer: v => v === '0' ? 'No turn timer' : `${v}s turns`,
+  ban: v => v === 'None' ? 'No banlist' : `${v} banlist`,
+  lp: v => `${(+v).toLocaleString('en-GB')} LP`,
+  spec: v => v === 'ask' ? 'Spectators: ask' : 'No spectators',
+};
+document.querySelectorAll('.seg').forEach(seg => {
+  const key = seg.dataset.key;
+  seg.querySelectorAll('button').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === rules[key]);
+    b.onclick = () => { rules[key] = b.dataset.v; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); summarise(); };
+  });
+});
+$('checkTog').onclick = e => { rules.check = !rules.check; e.target.classList.toggle('on', rules.check); summarise(); };
+$('pwInput').oninput = e => { rules.pw = e.target.value; summarise(); };
+function ruleChips(r){
+  return [LABEL.bo(r.bo), LABEL.timer(r.timer), LABEL.ban(r.ban), LABEL.lp(r.lp), LABEL.spec(r.spec), r.check ? 'Deck check on' : 'Deck check off']
+    .map(t => `<span class="rchip">${t}</span>`).join('') + (r.pw ? '<span class="rchip lock">Password protected</span>' : '');
+}
+function summarise(){
+  const rows = [['Match', LABEL.bo(rules.bo)], ['Turn timer', rules.timer === '0' ? 'Off' : rules.timer + ' seconds'], ['Banlist', rules.ban === 'None' ? 'None' : rules.ban],
+    ['Life points', (+rules.lp).toLocaleString('en-GB')], ['Deck check', rules.check ? 'On' : 'Off'], ['Spectators', rules.spec === 'ask' ? 'Ask me' : 'Off'], ['Password', rules.pw ? 'Yes' : 'None']];
+  $('sumList').innerHTML = rows.map(([k, v]) => `<li><span>${k}</span><b>${v}</b></li>`).join('');
+  validate();
+}
+function validate(){
+  const d = DECKS[deck], bad = rules.check && rules.ban !== 'None' && !d.legal;
+  $('createRoom').disabled = bad;
+  $('createMsg').className = bad ? 'msg bad' : 'msg';
+  $('createMsg').textContent = bad ? `${d.name} isn't legal: ${d.why}. Pick another deck or turn off Deck check.` : '';
+}
+$('createRoom').onclick = () => openLobby('host');
+
+// ---------- join ----------
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const boxes = [];
+for (let i = 0; i < 6; i++) {
+  const b = document.createElement('input');
+  b.maxLength = 1; b.spellcheck = false;
+  b.oninput = () => { b.value = b.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (b.value && boxes[i+1]) boxes[i+1].focus(); $('joinBtn').disabled = boxes.some(x => !x.value); };
+  b.onkeydown = e => { if (e.key === 'Backspace' && !b.value && boxes[i-1]) boxes[i-1].focus(); if (e.key === 'Enter' && !$('joinBtn').disabled) $('joinBtn').click(); };
+  b.onpaste = e => {
+    const t = e.clipboardData.getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    if (t) { e.preventDefault(); boxes.forEach((x, j) => x.value = t[j] || ''); boxes[Math.min(t.length, 5)].focus(); $('joinBtn').disabled = boxes.some(x => !x.value); }
+  };
+  boxes.push(b); $('joinCode').appendChild(b);
+}
+const KAZE_RULES = {bo:'3', timer:'90', ban:'TCG', lp:'8000', spec:'ask', check:true, pw:'x'};
+$('joinBtn').onclick = () => {
+  $('joinMsg').className = 'msg'; $('joinMsg').textContent = 'Looking for the room…';
+  setTimeout(() => {
+    $('foundCode').textContent = boxes.map(b => b.value).join('');
+    $('foundChips').innerHTML = ruleChips(KAZE_RULES);
+    $('joinCol').classList.add('found-on'); $('found').classList.add('on');
+    $('foundPw').focus();
+  }, 600);
+};
+$('joinBack').onclick = () => { $('joinCol').classList.remove('found-on'); $('found').classList.remove('on'); $('joinMsg').textContent = 'If their duel has already started, you can ask to watch instead.'; };
+$('joinRoom').onclick = () => {
+  if (!$('foundPw').value) { $('foundMsg').className = 'msg bad'; $('foundMsg').textContent = 'This room needs a password.'; return; }
+  if (!DECKS[deck].legal) { $('foundMsg').className = 'msg bad'; $('foundMsg').textContent = `${DECKS[deck].name} isn't legal for this room's TCG banlist.`; return; }
+  openLobby('guest');
+};
+
+// ---------- lobby ----------
+let timers = [], role = 'host', watching = 0, oppReady = false, meReady = false;
+const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+function genCode(){ return Array.from({length:6}, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join(''); }
+
+function playerCard(p){
+  if (!p) return `<div class="av" style="opacity:.35">?</div><div class="nm">Waiting for a friend</div><div class="dots"><i></i><i></i><i></i></div><div class="rk">Send them the room code above</div>`;
+  const deckLine = p.you ? `<div class="dk"><img src="${SMALL(DECKS[deck].cover)}" alt="">${DECKS[deck].name}</div>` : `<div class="dk">${p.deck ? 'Deck chosen' : 'Choosing a deck…'}</div>`;
+  const pill = p.ready ? '<span class="pill ready">Ready</span>' : `<span class="pill wait">${p.you ? 'Not ready' : 'Getting ready'}</span>`;
+  return `<div class="av">${p.name[0]}</div><div class="nm">${p.name}</div><div class="rk">${p.host ? 'Host · ' : ''}${p.rank}</div>${deckLine}${pill}`;
+}
+function setCard(el, p, joined){
+  el.className = 'pcard' + (p ? '' : ' empty') + (joined ? ' joined' : '');
+  el.innerHTML = playerCard(p);
+}
+function hostActions(){
+  $('actions').innerHTML = `<div class="msg" id="actMsg">${oppReady ? 'Both duelists are ready.' : 'Waiting for your opponent to be ready.'}</div>
+    <button class="bigbtn" id="startBtn" ${oppReady ? '' : 'disabled'}>Start duel</button>
+    <button class="bigbtn ghost" id="closeBtn">Close room</button>`;
+  $('startBtn').onclick = () => coinToss('host');
+  $('closeBtn').onclick = leaveLobby;
+}
+function guestActions(){
+  $('actions').innerHTML = `<div class="msg" id="actMsg">${meReady ? 'Waiting for Kaze to start the duel…' : 'Press Ready when you\'re set. The host starts the duel.'}</div>
+    <button class="bigbtn" id="readyBtn">${meReady ? 'Not ready' : 'Ready'}</button>
+    <button class="bigbtn ghost" id="closeBtn">Leave room</button>`;
+  $('readyBtn').onclick = () => {
+    meReady = !meReady;
+    setCard($('p2'), {name:'Daniyal', rank:'Unranked', you:true, ready:meReady});
+    guestActions();
+    if (meReady) later(2600, () => meReady && coinToss('guest'));
+  };
+  $('closeBtn').onclick = leaveLobby;
+}
+function openLobby(r){
+  role = r; watching = 0; oppReady = false; meReady = false;
+  timers.forEach(clearTimeout); timers = [];
+  $('reqs').innerHTML = ''; $('watchCount').textContent = '0 watching';
+  if (role === 'host') {
+    $('lobbyTitle').textContent = 'Your room';
+    $('bigCode').textContent = genCode();
+    $('roomChips').innerHTML = ruleChips(rules);
+    setCard($('p1'), {name:'Daniyal', rank:'Unranked', host:true, you:true, ready:true});
+    setCard($('p2'), null);
+    hostActions();
+    // mockup: a friend joins, picks a deck, then someone asks to watch
+    later(3500, () => setCard($('p2'), {name:'Kaze', rank:'Unranked'}, true));
+    later(5800, () => { oppReady = true; setCard($('p2'), {name:'Kaze', rank:'Unranked', deck:true, ready:true}); hostActions(); });
+    later(7800, () => watchRequest('Joey_W'));
+  } else {
+    $('lobbyTitle').textContent = "Kaze's room";
+    $('bigCode').textContent = $('foundCode').textContent;
+    $('roomChips').innerHTML = ruleChips(KAZE_RULES);
+    setCard($('p1'), {name:'Kaze', rank:'Unranked', host:true, deck:true, ready:true});
+    setCard($('p2'), {name:'Daniyal', rank:'Unranked', you:true, ready:false}, true);
+    guestActions();
+  }
+  show('lobby');
+}
+function watchRequest(name){
+  const r = document.createElement('div');
+  r.className = 'req';
+  r.innerHTML = `<div class="av">${name[0]}</div><div class="w"><b>${name}</b> wants to watch<br><span>Both duelists need to accept.</span></div>
+    <button class="sbtn p">Accept</button><button class="sbtn">Decline</button>`;
+  const [acc, dec] = r.querySelectorAll('button');
+  acc.onclick = () => {
+    r.querySelector('.w').innerHTML = `<b>${name}</b><br><span>You accepted. Waiting for Kaze…</span>`;
+    acc.remove(); dec.remove();
+    later(1600, () => {
+      watching++; $('watchCount').textContent = `${watching} watching`;
+      r.querySelector('.w').innerHTML = `<b>${name}</b> is watching<br><span>Accepted by both duelists.</span>`;
+      const rm = document.createElement('button'); rm.className = 'sbtn'; rm.textContent = 'Remove';
+      rm.onclick = () => { r.remove(); watching--; $('watchCount').textContent = `${watching} watching`; };
+      r.appendChild(rm);
+    });
+  };
+  dec.onclick = () => r.remove();
+  $('reqs').appendChild(r);
+}
+function leaveLobby(){ timers.forEach(clearTimeout); timers = []; $('overlay').classList.remove('on'); show('menu'); }
+$('leaveCrumb').onclick = leaveLobby;
+$('copyCode').onclick = () => { try { navigator.clipboard.writeText($('bigCode').textContent); } catch (e) {} toast('Room code copied'); };
+$('copyLink').onclick = () => { try { navigator.clipboard.writeText(`https://daniyalzia.co.uk/millennium/join/${$('bigCode').textContent}`); } catch (e) {} toast('Invite link copied'); };
+
+// ---------- coin toss: the winner picks who goes first ----------
+function coinToss(r){
+  $('toss').innerHTML = `<div class="coin flip"><span class="eye"></span></div><div class="eyebrow">Coin toss</div><h3 class="t">Tossing…</h3>`;
+  $('toss').querySelector('.eye').innerHTML = EYE;
+  $('overlay').classList.add('on');
+  later(1500, () => {
+    const h = $('toss').querySelector('h3');
+    if (r === 'host') {
+      h.textContent = 'You won the toss';
+      $('toss').insertAdjacentHTML('beforeend', `<p class="d">Choose whether to go first or second.</p>
+        <div class="line"><button class="bigbtn" onclick="location.href='match.html'">Go first</button><button class="bigbtn ghost" onclick="location.href='match.html'">Go second</button></div>`);
+    } else {
+      h.textContent = 'Kaze won the toss';
+      $('toss').insertAdjacentHTML('beforeend', `<p class="d">Kaze chose to go first. You'll draw on your first turn.</p>
+        <div class="line"><button class="bigbtn" onclick="location.href='match.html'">Enter duel</button></div>`);
+    }
+  });
+}
+
+renderDeckChips(); summarise();
+fillMotes($('motes'));
+</script>
+</body>
+</html>

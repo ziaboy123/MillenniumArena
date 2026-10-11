@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millennium Arena · Welcome Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Marcellus&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="themes.css">
+<style>
+/* Logged-out mockup: Welcome, Sign up (account → email code → username), Log in (+ code on new devices), Forgot password, Privacy, Terms. */
+.ring{left:1160px;top:360px}
+.topR{display:flex;gap:10px}
+.bigbtn.sm{padding:13px 20px;font-size:12px}
+[data-dir=c] .bigbtn.sm{font-size:14px}
+.logo{cursor:pointer}
+
+/* ---- welcome ---- */
+.hero{position:absolute;left:80px;top:146px;width:640px}
+.hero h1{font:700 64px/1.04 var(--font-display);letter-spacing:.03em;margin:16px 0 20px}
+[data-dir=a] .hero h1{color:var(--accent-hi);text-shadow:0 0 34px rgba(217,173,85,.3)}
+[data-dir=b] .hero h1,[data-dir=d] .hero h1{text-shadow:0 0 26px var(--glow)}
+[data-dir=c] .hero h1{text-transform:uppercase;letter-spacing:.01em;font-size:70px}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p{font-size:18px;line-height:1.6;color:var(--muted);max-width:560px}
+.hero .line{display:flex;gap:12px;margin-top:30px}
+.hero .fine{margin-top:18px;font-size:13px;color:var(--muted);display:flex;gap:16px}
+.hero .fine span::before{content:'✓';color:var(--accent);margin-right:6px;font-weight:700}
+.shot{position:absolute;left:770px;top:132px;width:780px;height:439px;perspective:1800px}
+.shot .frame{position:absolute;inset:0;transform:rotateY(-13deg) rotateX(5deg);transform-origin:left center;border-radius:calc(var(--r) * 1.5);overflow:hidden;
+  border:1px solid var(--panel-border);box-shadow:0 40px 90px rgba(0,0,0,.7),0 0 60px var(--glow)}
+.shot iframe{width:1600px;height:900px;border:0;transform:scale(.4875);transform-origin:0 0;pointer-events:none;display:block}
+.feats{position:absolute;left:80px;right:80px;top:668px;display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.feats .panel{position:relative;padding:22px 24px;display:flex;flex-direction:column;gap:8px}
+.feats .ico{width:44px;height:44px}
+.feats h3{font:700 19px/1.2 var(--font-display);margin-top:6px}
+[data-dir=c] .feats h3{text-transform:uppercase}
+.feats p{font-size:13.5px;color:var(--muted);line-height:1.55}
+
+/* ---- auth card ---- */
+.auth{position:absolute!important;left:50%;top:128px;width:500px;margin-left:-250px;padding:34px 38px;display:flex;flex-direction:column;gap:16px}
+.auth h2{font:700 30px/1.1 var(--font-display);letter-spacing:.03em}
+[data-dir=a] .auth h2{color:var(--accent-hi)}
+[data-dir=c] .auth h2{text-transform:uppercase}
+.auth .sub{font-size:14px;color:var(--muted);line-height:1.55;margin-top:-6px}
+.auth .sub b{color:var(--text)}
+.steps{display:flex;gap:8px;margin-bottom:2px}
+.steps i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.1)}
+.steps i.on{background:var(--accent);box-shadow:0 0 10px var(--glow)}
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;display:flex;justify-content:space-between}
+.field label a{color:var(--accent);cursor:pointer;font-weight:600}
+.sinput.full{width:100%;padding:13px 14px;font-size:15px}
+.pw{position:relative}
+.pw .sinput{padding-right:64px}
+.pw button{position:absolute;right:8px;top:50%;transform:translateY(-50%);font:600 11px/1 var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:none;border:none;cursor:pointer;padding:8px}
+.pw button:hover{color:var(--accent)}
+.meter{display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--muted)}
+.meter i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.1)}
+.meter i.on{background:var(--c)}
+.meter span{width:56px;text-align:right}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--muted);line-height:1.5;cursor:pointer}
+.check input{margin-top:3px;accent-color:var(--accent);width:16px;height:16px;flex:none}
+.check a{color:var(--accent);cursor:pointer}
+.auth .bigbtn{width:100%}
+.auth .code{justify-content:space-between;margin:4px 0}
+.auth .code input{width:62px;height:70px;font-size:30px}
+.alt{font-size:13.5px;color:var(--muted);text-align:center}
+.alt a{color:var(--accent);cursor:pointer;font-weight:600}
+.err{font-size:13px;color:#ff8a76;min-height:0}
+.err:empty{display:none}
+.okbox{display:flex;gap:12px;align-items:center;padding:14px;border-radius:calc(var(--r) * .8);background:rgba(80,200,120,.1);color:#6fdc9a;font-size:14px;line-height:1.5}
+.step{display:none;flex-direction:column;gap:16px}
+.step.on{display:flex}
+
+/* ---- privacy / terms ---- */
+.doc{position:absolute!important;left:50%;top:118px;bottom:36px;width:860px;margin-left:-430px;padding:36px 52px;overflow:auto}
+.doc h1{font:700 40px/1.1 var(--font-display);letter-spacing:.03em;margin:10px 0 6px}
+[data-dir=c] .doc h1{text-transform:uppercase}
+.doc .upd{font-size:13px;color:var(--muted);margin-bottom:6px}
+.doc .draft{display:inline-block;font:700 10.5px/1 var(--font-ui);letter-spacing:.12em;text-transform:uppercase;padding:6px 9px;border-radius:999px;background:rgba(255,190,80,.14);color:#ffc76b;margin-bottom:22px}
+.doc h3{font:700 18px/1.3 var(--font-display);margin:24px 0 8px;color:var(--accent)}
+[data-dir=a] .doc h3{color:var(--accent-hi)}
+.doc p,.doc li{font-size:15px;line-height:1.7;color:var(--text);opacity:.88}
+.doc ul{padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.doc a{color:var(--accent)}
+.foot a.on{color:var(--accent)}
+</style>
+</head>
+<body data-dir="c">
+
+<div class="chrome">
+  <div class="t"><b>Millennium Arena</b> &nbsp;·&nbsp; mockup</div>
+  <a href="welcome.html" class="on">Logged out</a><a href="home.html">Home</a><a href="duel.html">Duel page</a><a href="decks.html">Decks</a><a href="profile.html">Profile</a><a href="match.html">Duel screen</a><a href="replay.html">Replay</a>
+  <div class="sep"></div><span class="lbl">Preview theme</span><div id="themeBtns"></div>
+</div>
+
+<div class="viewport">
+  <div class="scaler" id="scaler">
+    <div class="stage">
+      <div class="env"></div>
+      <div class="shafts"></div>
+      <div class="mist"><i></i><i></i></div>
+      <div class="motes" id="motes"></div>
+      <div class="ring"></div>
+
+      <div class="top">
+        <div class="brand"><div class="logo" data-go="welcome"><span class="eye"></span><div class="w">MILLENNIUM<small>ARENA</small></div></div></div>
+        <div class="topR"><button class="bigbtn ghost sm" data-go="login">Log in</button><button class="bigbtn sm" data-go="signup">Sign up</button></div>
+      </div>
+
+      <!-- WELCOME -->
+      <section class="screen on" id="welcome">
+        <div class="hero">
+          <div class="eyebrow">Free Yu-Gi-Oh! duels in your browser</div>
+          <h1>Every card.<br>Every duel.<br><em>No grind.</em></h1>
+          <p>Build any deck from every card ever printed, then duel your friends with the rules handled for you. Nothing to download, no packs to open.</p>
+          <div class="line"><button class="bigbtn" data-go="signup">Create free account</button><button class="bigbtn ghost" data-go="login">Log in</button></div>
+          <div class="fine"><span>Every card, free</span><span>Automatic rulings</span><span>No ads, ever</span></div>
+        </div>
+        <div class="shot"><div class="frame"><iframe src="match.html?embed" title="Duel screen preview" tabindex="-1" loading="lazy"></iframe></div></div>
+        <div class="feats">
+          <div class="panel"><div class="ico" data-ic="cards"></div><h3>Every card, unlocked</h3><p>All 14,000+ cards from day one. No packs, no crafting, no waiting for a reprint.</p></div>
+          <div class="panel"><div class="ico" data-ic="bolt"></div><h3>Rules handled for you</h3><p>Chains, timing and effects resolve automatically, so you just play.</p></div>
+          <div class="panel"><div class="ico" data-ic="users"></div><h3>Duel your friends</h3><p>Host a private room, set the rules, share the code. Friends can ask to watch.</p></div>
+          <div class="panel"><div class="ico" data-ic="layers"></div><h3>Build decks anywhere</h3><p>A full deck builder with the live banlist. Import your .ydk from any other sim.</p></div>
+        </div>
+        <div class="foot">
+          <div><a data-go="privacy">Privacy</a> &nbsp;·&nbsp; <a data-go="terms">Terms</a></div>
+          <div>Card data and images from YGOPRODeck &nbsp;·&nbsp; Not affiliated with Konami</div>
+        </div>
+      </section>
+
+      <!-- SIGN UP -->
+      <section class="screen" id="signup">
+        <div class="panel auth">
+          <div class="steps" id="suSteps"><i class="on"></i><i></i><i></i></div>
+          <div class="step on" data-s="1">
+            <div class="eyebrow">Step 1 of 3 · Account</div>
+            <h2>Create your account</h2>
+            <div class="field"><label for="suEmail">Email</label><input class="sinput full" id="suEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+            <div class="field"><label for="suPw">Password</label><div class="pw"><input class="sinput full" id="suPw" type="password" autocomplete="new-password" placeholder="At least 8 characters"><button type="button" data-show="suPw">Show</button></div>
+              <div class="meter" id="suMeter"><i></i><i></i><i></i><i></i><span></span></div></div>
+            <label class="check"><input type="checkbox" id="suAgree"><span>I agree to the <a data-go="terms">Terms</a> and have read the <a data-go="privacy">Privacy Policy</a>.</span></label>
+            <div class="err" id="suErr"></div>
+            <button class="bigbtn" id="suNext">Create account</button>
+            <div class="alt">Already have an account? <a data-go="login">Log in</a></div>
+          </div>
+          <div class="step" data-s="2">
+            <div class="eyebrow">Step 2 of 3 · Verify</div>
+            <h2>Check your email</h2>
+            <p class="sub">We sent a 6-digit code to <b id="suTo"></b>. It expires in 10 minutes.</p>
+            <div class="code" id="suCode"></div>
+            <div class="err" id="suCodeErr"></div>
+            <button class="bigbtn" id="suVerify" disabled>Verify email</button>
+            <div class="alt">No email? Check spam, or <a id="suResend">resend the code</a> · <a data-back="1">use a different email</a></div>
+          </div>
+          <div class="step" data-s="3">
+            <div class="eyebrow">Step 3 of 3 · Username</div>
+            <h2>Pick a username</h2>
+            <p class="sub">This is what opponents see. You can change it later in Settings, once every 30 days.</p>
+            <div class="field"><label for="suName">Username</label><input class="sinput full" id="suName" maxlength="16" spellcheck="false" placeholder="3–16 letters, numbers or underscores"></div>
+            <div class="msg" id="suNameMsg"></div>
+            <button class="bigbtn" id="suDone" disabled>Enter the Arena</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- LOG IN -->
+      <section class="screen" id="login">
+        <div class="panel auth">
+          <div class="step on" data-s="1">
+            <div class="eyebrow">Welcome back</div>
+            <h2>Log in</h2>
+            <div class="field"><label for="liEmail">Email</label><input class="sinput full" id="liEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+            <div class="field"><label for="liPw">Password <a data-go="forget">Forgot password?</a></label><div class="pw"><input class="sinput full" id="liPw" type="password" autocomplete="current-password"><button type="button" data-show="liPw">Show</button></div></div>
+            <div class="err" id="liErr"></div>
+            <button class="bigbtn" id="liNext">Log in</button>
+            <div class="alt">New here? <a data-go="signup">Create an account</a></div>
+          </div>
+          <div class="step" data-s="2">
+            <div class="eyebrow">New device</div>
+            <h2>Confirm it's you</h2>
+            <p class="sub">You're logging in from a device we haven't seen before. We sent a 6-digit code to <b id="liTo"></b>.</p>
+            <div class="code" id="liCode"></div>
+            <label class="check"><input type="checkbox" id="liTrust" checked><span>Trust this device for 30 days</span></label>
+            <button class="bigbtn" id="liVerify" disabled>Log in</button>
+            <div class="alt"><a data-back="1">Back</a></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FORGOT PASSWORD -->
+      <section class="screen" id="forget">
+        <div class="panel auth">
+          <div class="step on" data-s="1">
+            <div class="eyebrow">Forgot password</div>
+            <h2>Reset your password</h2>
+            <p class="sub">Enter your account's email and we'll send you a code to set a new password.</p>
+            <div class="field"><label for="fpEmail">Email</label><input class="sinput full" id="fpEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+            <div class="err" id="fpErr"></div>
+            <button class="bigbtn" id="fpSend">Send reset code</button>
+            <div class="alt">Remembered it? <a data-go="login">Log in</a></div>
+          </div>
+          <div class="step" data-s="2">
+            <div class="eyebrow">Forgot password</div>
+            <h2>Set a new password</h2>
+            <p class="sub">If an account exists for <b id="fpTo"></b>, we've sent it a 6-digit code.</p>
+            <div class="code" id="fpCode"></div>
+            <div class="field"><label for="fpPw">New password</label><div class="pw"><input class="sinput full" id="fpPw" type="password" autocomplete="new-password" placeholder="At least 8 characters"><button type="button" data-show="fpPw">Show</button></div>
+              <div class="meter" id="fpMeter"><i></i><i></i><i></i><i></i><span></span></div></div>
+            <div class="err" id="fpErr2"></div>
+            <button class="bigbtn" id="fpReset">Reset password</button>
+            <div class="alt"><a data-back="1">Back</a></div>
+          </div>
+          <div class="step" data-s="3">
+            <div class="eyebrow">Forgot password</div>
+            <h2>Password changed</h2>
+            <div class="okbox">✓ Your password is updated, and you've been logged out everywhere else.</div>
+            <button class="bigbtn" data-go="login">Log in</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- PRIVACY -->
+      <section class="screen" id="privacy">
+        <div class="panel doc">
+          <button class="crumb" data-go="welcome">← Back</button>
+          <h1>Privacy Policy</h1>
+          <div class="upd">Last updated October 2026</div>
+          <div class="draft">Draft · to be reviewed before launch</div>
+          <p>Millennium Arena is a free fan project. It has no ads, no trackers, and never sells or shares your data. This page explains what it keeps and why, in plain English.</p>
+          <h3>What we store</h3>
+          <ul>
+            <li><b>Your account:</b> email address, username, and your password (stored only as a secure hash, never the password itself).</li>
+            <li><b>What you build and play:</b> your decks, settings, match history and stats.</li>
+            <li><b>Chat:</b> messages sent during duels, kept for 30 days so reports of abuse can be checked, then deleted.</li>
+            <li><b>Security:</b> the devices you've chosen to trust, so we know when to ask for a login code.</li>
+          </ul>
+          <h3>How we use your email</h3>
+          <p>Only for verification codes, password resets and important account notices. No newsletters and no marketing.</p>
+          <h3>Cookies</h3>
+          <p>One cookie keeps you logged in. There are no analytics or advertising cookies.</p>
+          <h3>Who can see what</h3>
+          <p>Your username, rank, stats and match history appear on your public profile. Your email and decks stay private unless you choose to share a deck publicly.</p>
+          <h3>Your rights</h3>
+          <p>You can download or delete your data at any time. Deleting your account in Settings removes everything above. For anything else, email <a href="mailto:daniyal@daniyalzia.co.uk">daniyal@daniyalzia.co.uk</a>.</p>
+        </div>
+      </section>
+
+      <!-- TERMS -->
+      <section class="screen" id="terms">
+        <div class="panel doc">
+          <button class="crumb" data-go="welcome">← Back</button>
+          <h1>Terms of Use</h1>
+          <div class="upd">Last updated October 2026</div>
+          <div class="draft">Draft · to be reviewed before launch</div>
+          <p>By creating an account you agree to these terms. They're short on purpose.</p>
+          <h3>A free fan project</h3>
+          <p>Millennium Arena is free and non-commercial. It is not affiliated with, endorsed by, or sponsored by Konami. Yu-Gi-Oh! card names, artwork and game mechanics belong to their owners and are used here for non-commercial play only.</p>
+          <h3>Your account</h3>
+          <ul>
+            <li>You must be 13 or older.</li>
+            <li>One account per person. Keep your password to yourself.</li>
+            <li>Usernames must not impersonate others or be offensive.</li>
+          </ul>
+          <h3>Playing fair</h3>
+          <ul>
+            <li>No cheating, bots, exploiting bugs, or deliberately disrupting duels.</li>
+            <li>No harassment, hate or spam in chat or usernames.</li>
+            <li>Accounts that break these rules can be suspended or removed.</li>
+          </ul>
+          <h3>No guarantees</h3>
+          <p>The site is provided as-is. It may change, go offline for maintenance, or reset data during testing. We'll give notice where we can.</p>
+          <h3>Contact</h3>
+          <p>Questions or reports: <a href="mailto:daniyal@daniyalzia.co.uk">daniyal@daniyalzia.co.uk</a>.</p>
+        </div>
+      </section>
+
+      <div class="panel toast" id="toast"></div>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const ICONS = {
+  cards:'<rect width="12" height="16" x="8" y="4" rx="2"/><path d="M4 7v11a2 2 0 0 0 2 2h9"/>',
+  bolt:'<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  layers:'<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>',
+};
+document.querySelectorAll('[data-ic]').forEach(e => e.innerHTML = `<svg class="i" viewBox="0 0 24 24">${ICONS[e.dataset.ic]}</svg>`);
+
+let toastTimer;
+function toast(msg){ $('toast').textContent = msg; $('toast').classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('on'), 2400); }
+
+// screens (welcome.html#login etc. opens a screen directly)
+function go(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+  history.replaceState(null, '', id === 'welcome' ? location.pathname : '#' + id);
+  const first = document.querySelector(`#${id} .step.on input, #${id} .step.on .code input`);
+  if (first) setTimeout(() => first.focus(), 350);
+}
+document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) { e.preventDefault(); go(g.dataset.go); } });
+function step(screen, n){
+  document.querySelectorAll(`#${screen} .step`).forEach(s => s.classList.toggle('on', +s.dataset.s === n));
+  document.querySelectorAll(`#${screen} .steps i`).forEach((b, i) => b.classList.toggle('on', i < n));
+  const first = document.querySelector(`#${screen} .step.on input`);
+  if (first) setTimeout(() => first.focus(), 50);
+}
+document.querySelectorAll('[data-back]').forEach(a => a.onclick = () => step(a.closest('.screen').id, 1));
+
+// show / hide password
+document.querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
+  const i = $(b.dataset.show); i.type = i.type === 'password' ? 'text' : 'password'; b.textContent = i.type === 'password' ? 'Show' : 'Hide';
+});
+// password strength
+function strength(pw){
+  if (!pw) return 0;
+  let s = pw.length >= 8 ? 1 : 0;
+  if (pw.length >= 12) s++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
+  if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) s++;
+  return pw.length < 8 ? 0 : Math.max(1, s);
+}
+function meter(input, box){
+  input.addEventListener('input', () => {
+    const s = strength(input.value), cols = ['#ff8a76', '#ff8a76', '#ffc76b', '#6fdc9a', '#6fdc9a'];
+    box.querySelectorAll('i').forEach((b, i) => { b.classList.toggle('on', i < Math.max(s, input.value ? 1 : 0)); b.style.setProperty('--c', cols[s]); });
+    box.querySelector('span').textContent = !input.value ? '' : input.value.length < 8 ? 'Too short' : ['', 'Weak', 'OK', 'Good', 'Strong'][s];
+  });
+}
+meter($('suPw'), $('suMeter')); meter($('fpPw'), $('fpMeter'));
+
+// 6-digit code boxes (typing, backspace, paste)
+function codeBoxes(el, onChange){
+  el.innerHTML = Array.from({length:6}, () => '<input inputmode="numeric" maxlength="1" autocomplete="one-time-code">').join('');
+  const b = [...el.querySelectorAll('input')];
+  const done = () => onChange(b.every(x => x.value));
+  b.forEach((x, i) => {
+    x.oninput = () => { x.value = x.value.replace(/\D/g, ''); if (x.value && b[i+1]) b[i+1].focus(); done(); };
+    x.onkeydown = e => { if (e.key === 'Backspace' && !x.value && b[i-1]) b[i-1].focus(); };
+    x.onpaste = e => { const d = (e.clipboardData.getData('text').match(/\d/g) || []).slice(0, 6); if (d.length) { e.preventDefault(); b.forEach((y, j) => y.value = d[j] || ''); b[Math.min(d.length, 5)].focus(); done(); } };
+  });
+}
+const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+// ---------- sign up ----------
+$('suNext').onclick = () => {
+  const email = $('suEmail').value.trim(), pw = $('suPw').value;
+  $('suErr').textContent = !validEmail(email) ? 'Enter a valid email address.' : pw.length < 8 ? 'Your password needs at least 8 characters.' : !$('suAgree').checked ? 'Please agree to the Terms to continue.' : '';
+  if ($('suErr').textContent) return;
+  $('suTo').textContent = email;
+  codeBoxes($('suCode'), ok => $('suVerify').disabled = !ok);
+  step('signup', 2);
+};
+$('suResend').onclick = () => toast('New code sent');
+$('suVerify').onclick = () => step('signup', 3);
+const TAKEN = ['kaze', 'admin', 'pharaoh', 'yugi', 'kaiba', 'joey', 'daniyal'];
+$('suName').oninput = () => {
+  const v = $('suName').value, m = $('suNameMsg');
+  let ok = false;
+  if (!v) { m.className = 'msg'; m.textContent = ''; }
+  else if (!/^[A-Za-z0-9_]{3,16}$/.test(v)) { m.className = 'msg bad'; m.textContent = '3–16 characters: letters, numbers and underscores only.'; }
+  else if (TAKEN.includes(v.toLowerCase())) { m.className = 'msg bad'; m.textContent = `"${v}" is taken.`; }
+  else { m.className = 'msg good'; m.textContent = `"${v}" is available.`; ok = true; }
+  $('suDone').disabled = !ok;
+};
+$('suDone').onclick = () => location.href = 'home.html';
+
+// ---------- log in ----------
+$('liNext').onclick = () => {
+  const email = $('liEmail').value.trim(), pw = $('liPw').value;
+  $('liErr').textContent = !validEmail(email) ? 'Enter a valid email address.' : !pw ? 'Enter your password.' : pw === 'wrong' ? 'That email and password don\'t match.' : '';
+  if ($('liErr').textContent) return;
+  $('liTo').textContent = email;
+  codeBoxes($('liCode'), ok => $('liVerify').disabled = !ok);
+  step('login', 2);   // mockup: always a "new device", to show the code step
+};
+$('liVerify').onclick = () => location.href = 'home.html';
+
+// ---------- forgot password ----------
+$('fpSend').onclick = () => {
+  const email = $('fpEmail').value.trim();
+  $('fpErr').textContent = validEmail(email) ? '' : 'Enter a valid email address.';
+  if ($('fpErr').textContent) return;
+  $('fpTo').textContent = email;
+  codeBoxes($('fpCode'), () => {});
+  step('forget', 2);
+};
+$('fpReset').onclick = () => {
+  const filled = [...$('fpCode').querySelectorAll('input')].every(x => x.value);
+  $('fpErr2').textContent = !filled ? 'Enter the 6-digit code from the email.' : $('fpPw').value.length < 8 ? 'Your new password needs at least 8 characters.' : '';
+  if (!$('fpErr2').textContent) step('forget', 3);
+};
+
+// Enter submits the visible step
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const btn = document.querySelector('.screen.on .step.on .bigbtn:not(:disabled)');
+  if (btn && e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') btn.click();
+});
+
+const start = location.hash.slice(1);
+if (['signup', 'login', 'forget', 'privacy', 'terms'].includes(start)) go(start);
+fillMotes($('motes'));
+</script>
+</body>
+</html>

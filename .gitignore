@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.*
+.DS_Store
+*.log
+
+# engine: build tree and downloaded card data (rebuild with npm run engine / npm run data)
+engine/core-build/
+engine/data/
+# ...but the built engine is committed, so servers never need a compiler
+!engine/ocgcore/dist/
+
+# design mockups: generated card data (python3 design/build-cards.py)
+design/cards-index.json
+design/cards-text.json
+design/cards-alts.json

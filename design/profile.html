@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millennium Arena · Profile Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Marcellus&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://images.ygoprodeck.com">
+<link rel="stylesheet" href="themes.css">
+<style>
+/* Profile mockup: identity + rank, stats (win rate, W/L ratio, streaks), decks played, match history. */
+.ring{left:200px;top:700px}
+.pgrid{position:absolute;left:40px;right:40px;top:112px;bottom:30px;display:grid;grid-template-columns:430px 1fr;gap:22px}
+.col{display:flex;flex-direction:column;gap:22px;min-height:0}
+.col > .panel{position:relative}
+
+/* identity */
+.ident{overflow:hidden;flex:none}
+.banner{position:relative;height:132px;background:#000 center 30%/cover}
+.banner .tint{position:absolute;inset:0;background:var(--accent);mix-blend-mode:color;opacity:.3}
+[data-dir=c] .banner .tint{opacity:.12}
+.banner .shade{position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.9),transparent 75%)}
+.idbody{position:relative;padding:0 26px 24px;margin-top:-58px}
+.idbody .av{width:116px;height:116px;font-size:46px;border-width:3px;box-shadow:0 0 0 6px rgba(0,0,0,.55),0 0 34px var(--glow)}
+.idbody h1{font:700 36px/1.05 var(--font-display);letter-spacing:.04em;margin:16px 0 8px}
+[data-dir=a] .idbody h1{color:var(--accent-hi)}
+[data-dir=c] .idbody h1{text-transform:uppercase}
+.idline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.rankpill{display:inline-flex;align-items:center;gap:8px;font:700 11px/1 var(--font-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--text);
+  padding:7px 12px 7px 9px;border:1px solid var(--panel-border);border-radius:999px;background:rgba(0,0,0,.35)}
+.rankpill .eye svg{width:22px;stroke-width:6;color:var(--accent)}
+[data-dir=b] .rankpill,[data-dir=c] .rankpill{border-radius:3px}
+.idbody .note{font-size:12.5px;color:var(--muted);margin-top:12px;line-height:1.5}
+.idbody .line{display:flex;gap:8px;margin-top:16px}
+
+/* decks played */
+.dplayed{flex:1;padding:22px 24px;display:flex;flex-direction:column;gap:12px;min-height:0}
+.drow{display:grid;grid-template-columns:36px 1fr 54px;gap:12px;align-items:center}
+.drow img{width:36px;height:53px;border-radius:3px;object-fit:cover}
+.drow b{display:block;font-size:14px;font-weight:600;margin-bottom:3px}
+.drow span{font-size:12px;color:var(--muted)}
+.drow .track{height:5px;border-radius:3px;background:rgba(255,110,90,.35);overflow:hidden;margin-top:6px}
+.drow .track i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-hi))}
+.drow .pct{font:700 18px/1 var(--font-display);text-align:right}
+
+/* stats */
+.stats{flex:none;padding:24px 28px;display:grid;grid-template-columns:190px 1fr;gap:30px;align-items:center}
+.donut{position:relative;width:190px;height:190px}
+.donut svg{width:100%;height:100%;transform:rotate(-90deg)}
+.donut .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.donut .mid b{font:700 46px/1 var(--font-display)}
+[data-dir=a] .donut .mid b{color:var(--accent-hi)}
+.donut .mid span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.st{padding:14px 16px;border:1px solid var(--panel-border);border-radius:calc(var(--r) * .9);background:rgba(0,0,0,.28)}
+.st b{display:block;font:700 28px/1 var(--font-display);margin-bottom:6px}
+.st span{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.st.win b{color:#6fdc9a}.st.loss b{color:#ff8a76}
+.form{display:flex;align-items:center;gap:6px;margin-top:14px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.form .lbl{margin-right:8px}
+.form i{width:24px;height:24px;border-radius:4px;display:grid;place-items:center;font:700 11px/1 var(--font-ui);font-style:normal;letter-spacing:0}
+.form i.W{background:rgba(80,200,120,.16);color:#6fdc9a;box-shadow:inset 0 0 0 1px rgba(80,200,120,.35)}
+.form i.L{background:rgba(255,110,90,.14);color:#ff8a76;box-shadow:inset 0 0 0 1px rgba(255,110,90,.3)}
+
+/* match history */
+.hist{flex:1;padding:20px 24px 12px;display:flex;flex-direction:column;min-height:0}
+.hhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.hhead h2{font:700 20px/1 var(--font-display);letter-spacing:.04em}
+[data-dir=c] .hhead h2{text-transform:uppercase}
+.trow{display:grid;grid-template-columns:76px 1.3fr 130px 64px 1.3fr 120px 60px;gap:14px;align-items:center;padding:9px 10px;border-radius:calc(var(--r) * .7)}
+.thead{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding-top:0;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.07);border-radius:0}
+.rows{overflow:auto;min-height:0;padding-top:4px}
+.rows .trow{font-size:13.5px;transition:background .15s}
+.rows .trow:hover{background:rgba(255,255,255,.04)}
+.res{font:700 10.5px/1 var(--font-ui);letter-spacing:.12em;text-transform:uppercase;padding:6px 0;border-radius:999px;text-align:center}
+.res.W{background:rgba(80,200,120,.14);color:#6fdc9a}
+.res.L{background:rgba(255,110,90,.14);color:#ff8a76}
+.opp{display:flex;align-items:center;gap:10px;font-weight:600}
+.opp .av{width:30px;height:30px;font-size:12px;border-width:1px;flex:none}
+.muted{color:var(--muted)}
+.score{font:700 15px/1 var(--font-display)}
+.dk{display:flex;align-items:center;gap:9px}
+.dk img{width:22px;height:32px;border-radius:2px;object-fit:cover}
+</style>
+</head>
+<body data-dir="c">
+
+<div class="chrome">
+  <div class="t"><b>Millennium Arena</b> &nbsp;·&nbsp; mockup</div>
+  <a href="welcome.html">Logged out</a><a href="home.html">Home</a><a href="duel.html">Duel page</a><a href="decks.html">Decks</a><a href="profile.html" class="on">Profile</a><a href="match.html">Duel screen</a><a href="replay.html">Replay</a>
+  <div class="sep"></div><span class="lbl">Preview theme</span><div id="themeBtns"></div>
+</div>
+
+<div class="viewport">
+  <div class="scaler" id="scaler">
+    <div class="stage">
+      <div class="env"></div>
+      <div class="shafts"></div>
+      <div class="mist"><i></i><i></i></div>
+      <div class="motes" id="motes"></div>
+      <div class="ring"></div>
+
+      <div class="top">
+        <div class="brand">
+          <button class="homebtn" onclick="location.href='home.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Home</button>
+          <div class="logo"><span class="eye"></span><div class="w">MILLENNIUM<small>ARENA</small></div></div>
+        </div>
+        <div class="chip"><div class="av">D</div><div><b>Daniyal</b><span>Unranked</span></div></div>
+      </div>
+
+      <div class="pgrid">
+        <div class="col">
+          <div class="panel ident">
+            <div class="banner" id="banner"><div class="tint"></div><div class="shade"></div></div>
+            <div class="idbody">
+              <div class="av">D</div>
+              <h1>Daniyal</h1>
+              <div class="idline"><span class="rankpill"><span class="eye"></span>Unranked</span><span>Member since October 2026</span></div>
+              <p class="note">Ranked duels are coming soon. Your rank will show here once they open.</p>
+              <div class="line">
+                <button class="sbtn" id="copyLink">Copy profile link</button>
+                <button class="sbtn" onclick="location.href='home.html#settings'">Edit in Settings</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel dplayed">
+            <div class="eyebrow">Decks played</div>
+            <div id="decksPlayed" style="display:flex;flex-direction:column;gap:14px"></div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="panel stats">
+            <div class="donut" id="donut"></div>
+            <div>
+              <div class="tiles" id="tiles"></div>
+              <div class="form" id="form"></div>
+            </div>
+          </div>
+          <div class="panel hist">
+            <div class="hhead">
+              <h2>Match history</h2>
+              <div class="seg" id="hfilter"><button data-f="all" class="on">All</button><button data-f="W">Wins</button><button data-f="L">Losses</button></div>
+            </div>
+            <div class="trow thead"><span>Result</span><span>Opponent</span><span>Format</span><span>Score</span><span>Your deck</span><span>When</span><span>Length</span></div>
+            <div class="rows" id="rows"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel toast" id="toast"></div>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const DECKS = [{name:'Dark Magician', cover:46986414}, {name:'Blue-Eyes', cover:89631139}, {name:'HERO', cover:89943723}];
+// newest first: result, opponent, best of, score, deck, when, length
+const MATCHES = [
+  ['W','Kaze',3,'2–1',0,'Today, 18:42','24m'], ['W','Nyx',1,'1–0',0,'Today, 17:10','9m'], ['W','Orion_77',3,'2–0',1,'Yesterday, 22:05','17m'],
+  ['L','Kaze',3,'1–2',0,'Yesterday, 21:14','31m'], ['W','Valkyr',1,'1–0',0,'Yesterday, 20:02','11m'], ['L','Seren',1,'0–1',2,'2 days ago','12m'],
+  ['W','Joey_W',3,'2–1',1,'2 days ago','26m'], ['W','Draxx',1,'1–0',0,'3 days ago','8m'], ['L','Kaze',1,'0–1',1,'3 days ago','14m'],
+  ['W','Nyx',3,'2–0',0,'4 days ago','19m'], ['W','Orion_77',1,'1–0',0,'5 days ago','10m'], ['W','Valkyr',1,'1–0',1,'5 days ago','13m'],
+  ['W','Seren',3,'2–1',0,'6 days ago','28m'], ['W','Kaze',1,'1–0',0,'1 week ago','15m'], ['W','Draxx',1,'1–0',1,'1 week ago','7m'],
+  ['L','Joey_W',3,'0–2',2,'1 week ago','18m'], ['L','Kaze',1,'0–1',0,'2 weeks ago','16m'], ['W','Nyx',1,'1–0',2,'2 weeks ago','12m'],
+  ['L','Seren',3,'1–2',1,'2 weeks ago','33m'], ['L','Valkyr',1,'0–1',0,'2 weeks ago','9m'], ['L','Orion_77',1,'0–1',1,'3 weeks ago','11m'],
+  ['W','Draxx',1,'1–0',0,'3 weeks ago','10m'], ['L','Kaze',3,'1–2',0,'3 weeks ago','29m'],
+];
+
+// banner uses the card art picked in Settings > Home artwork
+let art = 89631139;
+try { const a = JSON.parse(localStorage.getItem('ma-art')); if (a && a.id) art = a.id; } catch (e) {}
+$('banner').style.backgroundImage = `url(${CROP(art)})`;
+
+// stats
+const W = MATCHES.filter(m => m[0] === 'W').length, L = MATCHES.length - W, rate = W / MATCHES.length;
+let cur = 0; for (const m of MATCHES) { if (m[0] === MATCHES[0][0]) cur++; else break; }
+let best = 0, run = 0; for (const m of [...MATCHES].reverse()) { run = m[0] === 'W' ? run + 1 : 0; best = Math.max(best, run); }
+const C = 2 * Math.PI * 80;
+$('donut').innerHTML = `<svg viewBox="0 0 190 190"><circle cx="95" cy="95" r="80" fill="none" stroke="rgba(255,110,90,.35)" stroke-width="16"/>
+  <circle cx="95" cy="95" r="80" fill="none" stroke="var(--accent)" stroke-width="16" stroke-linecap="round" stroke-dasharray="${C * rate - 6} ${C}" style="filter:drop-shadow(0 0 8px var(--glow))"/></svg>
+  <div class="mid"><b>${Math.round(rate * 100)}%</b><span>Win rate</span></div>`;
+$('tiles').innerHTML = [
+  ['', MATCHES.length, 'Duels played'], ['win', W, 'Wins'], ['loss', L, 'Losses'],
+  ['', (W / L).toFixed(2), 'Win / loss ratio'], ['', `${cur}${MATCHES[0][0]}`, 'Current streak'], ['', `${best}W`, 'Best win streak'],
+].map(([cls, v, k]) => `<div class="st ${cls}"><b>${v}</b><span>${k}</span></div>`).join('');
+$('form').innerHTML = '<span class="lbl">Last 10</span>' + MATCHES.slice(0, 10).map(m => `<i class="${m[0]}">${m[0]}</i>`).join('');
+
+// decks played
+$('decksPlayed').innerHTML = DECKS.map((d, i) => {
+  const ms = MATCHES.filter(m => m[4] === i), w = ms.filter(m => m[0] === 'W').length;
+  return { d, n: ms.length, w, l: ms.length - w };
+}).sort((a, b) => b.n - a.n).map(({d, n, w, l}) => `<div class="drow"><img src="${SMALL(d.cover)}" alt="">
+  <div><b>${d.name}</b><span>${n} duels · ${w}–${l}</span><div class="track"><i style="width:${w / n * 100}%"></i></div></div>
+  <div class="pct">${Math.round(w / n * 100)}%</div></div>`).join('');
+
+// match history
+function renderRows(f){
+  $('rows').innerHTML = MATCHES.filter(m => f === 'all' || m[0] === f).map(([r, opp, bo, score, deck, when, len]) => `
+    <div class="trow"><span class="res ${r}">${r === 'W' ? 'Win' : 'Loss'}</span>
+      <span class="opp"><span class="av">${opp[0]}</span>${opp}</span>
+      <span class="muted">Private · Bo${bo}</span><span class="score">${score}</span>
+      <span class="dk"><img src="${SMALL(DECKS[deck].cover)}" alt="">${DECKS[deck].name}</span>
+      <span class="muted">${when}</span><span class="muted">${len}</span></div>`).join('');
+}
+$('hfilter').querySelectorAll('button').forEach(b => b.onclick = () => {
+  $('hfilter').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderRows(b.dataset.f);
+});
+renderRows('all');
+
+let toastTimer;
+$('copyLink').onclick = () => {
+  try { navigator.clipboard.writeText('https://daniyalzia.co.uk/millennium/u/Daniyal'); } catch (e) {}
+  $('toast').textContent = 'Profile link copied'; $('toast').classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('on'), 2200);
+};
+fillMotes($('motes'));
+</script>
+</body>
+</html>

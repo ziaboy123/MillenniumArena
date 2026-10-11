@@ -1,0 +1,15 @@
+{
+  "name": "millennium-engine-test",
+  "private": true,
+  "type": "module",
+  "description": "Engine test: our own build of EDOPro's ygopro-core (WASM) plays full duels between real tournament decks in Node",
+  "scripts": {
+    "engine": "sh ../engine/build-core.sh",
+    "data": "sh ../engine/fetch-data.sh",
+    "duel": "node duel.js",
+    "meta-decks": "node fetch-meta-decks.js"
+  },
+  "dependencies": {
+    "ocgcore-wasm": "file:../engine/ocgcore"
+  }
+}

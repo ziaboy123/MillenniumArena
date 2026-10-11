@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millennium Arena · Duel Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Marcellus&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="themes.css">
+<style>
+/* Mockup of the duel screen. Themes come from themes.css.
+   The field tilt here is faked with CSS 3D; the real build renders that layer with Three.js. */
+
+/* ---------- duel stage (3D tilt + exploded view) ---------- */
+.stage{position:absolute;inset:0;transform-style:preserve-3d;transition:transform 1s cubic-bezier(.2,.8,.2,1)}
+.layer{position:absolute;inset:0;transition:transform 1s cubic-bezier(.2,.8,.2,1),background .6s,outline-color .6s;outline:1px dashed transparent}
+.layer-3d{overflow:clip;background:var(--bg0)}
+.layer-ui{pointer-events:none}
+.layer-ui>*{pointer-events:auto}
+body.exploded .stage{transform:translateY(-10px) rotateX(56deg) rotateZ(-34deg) scale(.6)}
+body.exploded .layer-3d{transform:translateZ(-210px);outline-color:rgba(255,255,255,.35)}
+body.exploded .layer-ui{transform:translateZ(210px);background:rgba(255,255,255,.02);outline-color:rgba(255,255,255,.55)}
+.layer-label{position:absolute;opacity:0;transition:opacity .5s;pointer-events:none!important;z-index:50;
+  padding:16px 20px;background:rgba(0,0,0,.78);border:1px solid rgba(255,255,255,.3);border-radius:10px;
+  font-family:-apple-system,system-ui,sans-serif;color:#fff;max-width:520px}
+.layer-label b{display:block;font-size:26px;letter-spacing:.04em;margin-bottom:6px}
+.layer-label span{font-size:16px;line-height:1.45;color:#cfcfcf}
+.layer-3d .layer-label{left:40px;top:40px}
+.layer-ui .layer-label{left:380px;top:250px}
+body.exploded .layer-label{opacity:1}
+
+/* ---------- field (3D layer) ---------- */
+.field-wrap{position:absolute;left:330px;width:900px;top:34px;height:700px;perspective:2100px;perspective-origin:50% 15%}
+.field{position:absolute;left:50%;top:50%;width:728px;height:726px;margin:-363px 0 0 -364px;
+  transform:scale(.88) rotateX(40deg) translateY(-30px);display:grid;grid-template-columns:repeat(7,92px);grid-template-rows:repeat(5,134px);gap:14px}
+.field::before{content:'';position:absolute;inset:-28px;border-radius:calc(var(--r) * 2)}
+[data-dir=a] .field::before{background:linear-gradient(180deg,#1d150c,#0d0906);border:2px solid #5e4620;
+  box-shadow:inset 0 0 0 6px #120d07,inset 0 0 0 7px rgba(217,173,85,.3),0 40px 80px rgba(0,0,0,.8)}
+[data-dir=b] .field::before{background:repeating-linear-gradient(0deg,rgba(54,226,230,.05) 0 1px,transparent 1px 4px),rgba(4,20,26,.55);
+  border:1px solid rgba(54,226,230,.7);box-shadow:0 0 50px rgba(54,226,230,.25),inset 0 0 60px rgba(54,226,230,.1)}
+[data-dir=d] .field::before{background:rgba(18,8,32,.55);border:1px solid rgba(181,123,255,.55);
+  box-shadow:0 0 60px rgba(160,90,255,.25),inset 0 0 80px rgba(160,90,255,.1)}
+[data-dir=c] .field::before{background:#101419;border:1px solid #2a3038;box-shadow:0 40px 80px rgba(0,0,0,.7)}
+[data-dir=c] .field::after{content:'';position:absolute;left:-28px;right:-28px;top:50%;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.6}
+
+.zone{position:relative;border-radius:4px}
+.zone.none{border:none!important;background:none!important;box-shadow:none!important}
+[data-dir=a] .zone{border:1px solid var(--line);background:linear-gradient(180deg,rgba(217,173,85,.07),rgba(0,0,0,.3));box-shadow:inset 0 0 18px rgba(0,0,0,.65)}
+[data-dir=b] .zone{border:1px solid var(--line);background:rgba(54,226,230,.04);border-radius:2px;box-shadow:0 0 10px rgba(54,226,230,.22),inset 0 0 10px rgba(54,226,230,.12)}
+[data-dir=d] .zone{border:1px solid var(--line);background:rgba(181,123,255,.04);border-radius:8px;box-shadow:0 0 14px rgba(160,90,255,.2),inset 0 0 14px rgba(160,90,255,.12)}
+[data-dir=c] .zone{border:1px solid var(--line);background:rgba(255,255,255,.015);border-radius:0}
+[data-dir=c] .zone::after{content:attr(data-label);position:absolute;left:7px;top:6px;font:600 11px/1 'Rajdhani',sans-serif;letter-spacing:.14em;color:#56606b}
+.zone.emz{border-style:dashed!important}
+.zone.emblem{display:grid;place-items:center;color:var(--accent);opacity:.4}
+.zone.emblem svg{width:150px;stroke-width:3}
+[data-dir=b] .zone.emblem,[data-dir=d] .zone.emblem{opacity:.7;filter:drop-shadow(0 0 10px var(--glow))}
+[data-dir=c] .zone.emblem{opacity:.25}
+[data-dir=c] .zone.emblem svg{width:90px;stroke-width:2.5}
+
+
+.card.def{transform:rotate(90deg) scale(.8)}
+.zone:not(.none):hover .card{box-shadow:0 0 0 2px var(--accent),0 0 26px var(--glow)}
+.pile .card:nth-child(1){transform:translate(4px,4px);filter:brightness(.5)}
+.pile .card:nth-child(2){transform:translate(2px,2px);filter:brightness(.7)}
+.count{position:absolute;right:-8px;bottom:-8px;z-index:3;min-width:28px;height:22px;padding:0 6px;border-radius:11px;background:var(--accent);color:#111;font:700 12px/22px var(--font-ui);text-align:center}
+.zone.ban .count{background:rgba(0,0,0,.7);color:var(--muted);border:1px solid var(--line)}
+.stat{position:absolute;left:50%;bottom:-22px;transform:translateX(-50%);z-index:3;white-space:nowrap;
+  font:700 14px/1 var(--font-display);color:var(--muted);background:rgba(0,0,0,.78);padding:4px 9px;border-radius:999px;border:1px solid var(--line)}
+.stat b{color:var(--text)}
+.zone.can .card{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px var(--accent-hi),0 0 14px 2px var(--glow)}50%{box-shadow:0 0 0 2px var(--accent-hi),0 0 34px 8px var(--glow)}}
+.zone.attacker .card,.zone.target .card{box-shadow:0 0 0 2px var(--atk),0 0 30px rgba(255,90,60,.55)}
+.link{position:absolute;top:-16px;right:-16px;z-index:4;width:34px;height:34px;border-radius:50%;background:var(--accent);color:#111;
+  font:700 17px/34px var(--font-display);text-align:center;box-shadow:0 0 24px var(--glow);animation:pop .4s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(0)}}
+.arrow{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:5}
+
+
+/* ---------- interface layer ---------- */
+
+.detail{left:24px;top:84px;width:320px;height:640px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.detail .img{width:206px;height:300px;align-self:center;border-radius:6px;overflow:hidden;flex:none;box-shadow:0 12px 30px rgba(0,0,0,.6),0 0 0 1px var(--panel-border)}
+.detail .img img,.detail .img .card{width:100%;height:100%;object-fit:cover;display:block;position:relative}
+.detail h2{font:700 21px/1.15 var(--font-display);color:var(--accent-hi);letter-spacing:.02em}
+[data-dir=c] .detail h2{text-transform:uppercase;font-size:23px;color:var(--text)}
+.detail .meta{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+.detail .stats{display:flex;gap:16px;font:700 18px/1 var(--font-display)}
+.detail .stats span{color:var(--muted);font-size:12px;margin-right:4px}
+.detail p{font-size:13px;line-height:1.55;opacity:.92}
+
+.me{left:24px;bottom:24px;width:320px;height:122px;padding:16px;display:flex;gap:14px;align-items:center}
+.opp{right:24px;top:20px;width:340px;height:100px;padding:14px 16px;display:flex;gap:14px;align-items:center}
+.opp .av{border-color:var(--atk);color:var(--atk)}
+.who{flex:1;min-width:0}
+.who .name{font-weight:600;font-size:14px;display:flex;justify-content:space-between;align-items:baseline}
+.who .rank{font-size:11px;color:var(--muted);font-weight:500}
+.lp{font:700 36px/1.1 var(--font-display);letter-spacing:.03em;margin:2px 0 6px}
+.lp small{font-size:13px;color:var(--accent);margin-right:6px;letter-spacing:.1em}
+.bar{height:6px;background:rgba(255,255,255,.09);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-hi))}
+.opp .bar i{background:linear-gradient(90deg,#c2402a,var(--atk))}
+
+.opp-hand{position:absolute;left:780px;top:0;width:0;height:0}
+.opp-hand .card{position:absolute;width:60px;height:88px;left:-30px;top:-40px;inset:auto;box-shadow:0 6px 14px rgba(0,0,0,.7)}
+
+.phase{right:24px;top:296px;width:78px;padding:12px 8px;display:flex;flex-direction:column;gap:6px}
+.phase .turn{text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.phase .turn b{display:block;font:700 24px/1.1 var(--font-display);color:var(--text)}
+.phase .whose{color:var(--atk)}
+.ph{font:700 14px/1 var(--font-display);text-align:center;padding:8px 0;border-radius:calc(var(--r) * .6);color:var(--muted)}
+.ph.on{color:#140e05;background:var(--accent);box-shadow:0 0 18px var(--glow)}
+
+.prompt{right:114px;top:232px;width:300px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.prompt h3{font:700 18px/1.25 var(--font-display);letter-spacing:.01em}
+[data-dir=c] .prompt h3{font-size:20px}
+.prompt h3 em{font-style:normal;color:var(--atk)}
+.prompt .sub{font-size:13px;color:var(--muted)}
+.opt{display:flex;gap:12px;align-items:center;padding:8px;border:1px solid var(--panel-border);border-radius:calc(var(--r) * .8);cursor:pointer;transition:all .2s;background:rgba(0,0,0,.2)}
+.opt:hover{border-color:var(--accent)}
+.opt.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 20px var(--glow)}
+.opt img{width:42px;height:61px;border-radius:3px;object-fit:cover;flex:none}
+.opt b{display:block;font-size:14px;margin-bottom:3px}
+.opt span{font-size:11px;color:var(--muted)}
+.timer{height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+.timer i{display:block;height:100%;background:var(--accent);animation:countdown 20s linear infinite}
+@keyframes countdown{from{width:100%}to{width:0}}
+.chain{right:114px;top:232px;width:300px;padding:18px;display:none;flex-direction:column;gap:10px}
+.chain .row{display:flex;gap:12px;align-items:center}
+.chain .n{width:30px;height:30px;flex:none;border-radius:50%;background:var(--accent);color:#111;font:700 15px/30px var(--font-display);text-align:center}
+.chain .sub{font-size:13px;color:var(--muted);line-height:1.5}
+
+.hand{position:absolute;left:780px;bottom:0;width:0;height:0}
+.hcard{position:absolute;width:132px;height:193px;left:-66px;bottom:-46px;border-radius:6px;overflow:hidden;cursor:pointer;
+  box-shadow:0 12px 28px rgba(0,0,0,.75);transform-origin:50% 130%;
+  transform:translate(var(--x),var(--y)) rotate(var(--a));transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s}
+.hcard img{width:100%;height:100%;object-fit:cover;display:block}
+.hcard:hover{transform:translate(var(--x),calc(var(--y) - 76px)) rotate(0deg) scale(1.14);z-index:10;box-shadow:0 0 0 2px var(--accent),0 18px 40px rgba(0,0,0,.8)}
+
+/* chat + duel log share one tabbed panel */
+.talk{right:24px;bottom:24px;width:360px;height:272px;display:flex;flex-direction:column;overflow:hidden}
+.talk .tabs{display:flex;align-items:stretch;border-bottom:1px solid var(--panel-border);flex:none}
+.talk .tabs button{flex:1;font:600 11px/1 var(--font-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);background:none;border:none;padding:13px 0;cursor:pointer}
+.talk .tabs button.on{color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+.talk .tabs .mute{flex:none;width:44px;display:grid;place-items:center;letter-spacing:0}
+.talk .tabs .mute svg{width:16px;height:16px}
+.talk .tabs .mute.on{color:var(--atk);box-shadow:none}
+.unread{display:inline-block;min-width:17px;height:17px;border-radius:9px;background:var(--atk);color:#fff;font:700 10px/17px var(--font-ui);letter-spacing:0;margin-left:6px;padding:0 5px}
+.unread[hidden]{display:none}
+.talk .body{flex:1;overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.45;min-height:0}
+.talk .body[hidden]{display:none}
+.cm b{font-weight:600;margin-right:6px}
+.cm.k-me b{color:var(--accent)}
+.cm.k-opp b{color:var(--atk)}
+.cm.k-spec b{color:var(--muted)}
+.cm.k-spec b::after{content:' · watching';font-weight:400;font-size:11px}
+.cm.k-sys{color:var(--muted);font-size:11.5px;font-style:italic}
+.cm.new{animation:cin .25s ease-out}
+.talk .quick{display:flex;gap:6px;padding:2px 12px 8px;flex:none}
+.talk .quick button{font:600 11px/1 var(--font-ui);padding:6px 9px;border-radius:999px;border:1px solid var(--panel-border);background:rgba(0,0,0,.3);color:var(--text);cursor:pointer;white-space:nowrap}
+.talk .quick button:hover{border-color:var(--accent);color:var(--accent)}
+[data-dir=b] .talk .quick button,[data-dir=c] .talk .quick button{border-radius:3px}
+.talk .send{display:flex;gap:8px;padding:0 12px 12px;flex:none}
+.chatin{flex:1;min-width:0;font:13px/1 var(--font-ui);color:var(--text);background:rgba(0,0,0,.4);border:1px solid var(--panel-border);border-radius:calc(var(--r) * .8);padding:9px 11px;outline:none}
+.chatin:focus{border-color:var(--accent)}
+.talk .chatonly[hidden]{display:none}
+.log-e{display:flex;gap:10px;color:var(--muted);font-size:12px}
+.log-e i{font-style:normal;color:var(--accent);font-weight:600;width:22px;flex:none}
+.log-e:last-child{color:var(--text)}
+
+
+/* ---------- leaving + surrender (always behind an "are you sure") ---------- */
+.layer-ui .homebtn{position:absolute;left:24px;top:24px}
+.layer-ui .logo{left:132px}
+.zone.mydeck{cursor:pointer}
+.zone.mydeck:hover .card{box-shadow:0 0 0 2px var(--accent),0 0 26px var(--glow)}
+.deckpop{width:240px;padding:16px;display:none;flex-direction:column;gap:12px;z-index:65}
+.deckpop.on{display:flex;animation:cin .2s ease-out}
+.deckpop .t{display:flex;justify-content:space-between;align-items:baseline}
+.deckpop .t b{font:700 16px/1 var(--font-display)}
+.deckpop .t span{font-size:12px;color:var(--muted)}
+.deckpop .bigbtn{width:100%;padding:13px 0}
+.confirm{position:absolute;inset:0;z-index:70;display:none;place-items:center;background:rgba(0,0,0,.62);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.confirm.on{display:grid}
+.confirm .panel{position:relative;width:470px;padding:30px 32px;display:flex;flex-direction:column;gap:12px;animation:cin .25s cubic-bezier(.2,1.2,.4,1)}
+.confirm h3{font:700 26px/1.15 var(--font-display)}
+[data-dir=c] .confirm h3{text-transform:uppercase}
+.confirm p{font-size:14px;color:var(--muted);line-height:1.55}
+.confirm .line{display:flex;gap:10px;margin-top:10px}
+.confirm .line .bigbtn{flex:1;padding:15px 0}
+.confirm .defeat{font:700 84px/1 var(--font-display);letter-spacing:.1em;color:var(--atk);text-shadow:0 0 40px rgba(255,90,60,.45);text-align:center;margin:6px 0}
+@keyframes cin{from{opacity:0;transform:translateY(10px) scale(.97)}}
+</style>
+</head>
+<body data-dir="c">
+
+<div class="chrome">
+  <div class="t"><b>Millennium Arena</b> &nbsp;·&nbsp; mockup</div>
+  <a href="welcome.html">Logged out</a><a href="home.html">Home</a><a href="duel.html">Duel page</a><a href="decks.html">Decks</a><a href="profile.html">Profile</a><a href="match.html" class="on">Duel screen</a><a href="replay.html">Replay</a>
+  <div class="sep"></div><span class="lbl">Preview theme</span><div id="themeBtns"></div>
+  <div class="sep"></div>
+  <button id="explode">Explode layers</button>
+  <button id="reset">Reset</button>
+</div>
+
+<div class="viewport">
+  <div class="scaler" id="scaler">
+    <div class="stage">
+
+      <!-- 3D LAYER: in the real build this whole section is one Three.js canvas -->
+      <section class="layer layer-3d">
+        <div class="env"></div>
+        <div class="shafts"></div>
+        <div class="mist"><i></i><i></i></div>
+        <div class="motes" id="motes"></div>
+        <div class="field-wrap"><div class="field" id="field"></div></div>
+        <div class="layer-label"><b>3D layer · Three.js</b><span>The field, cards on it, lighting, camera moves, attack arrows, summon and chain effects.</span></div>
+      </section>
+
+      <!-- INTERFACE LAYER: plain HTML on top -->
+      <section class="layer layer-ui">
+        <button class="homebtn" id="leaveBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+        <div class="logo"><span class="eye"></span><div class="w">MILLENNIUM<small>ARENA</small></div></div>
+
+        <div class="panel detail" id="detail"></div>
+
+        <div class="panel opp">
+          <div class="av">K</div>
+          <div class="who">
+            <div class="name">Kaze <span class="rank">Unranked</span></div>
+            <div class="lp"><small>LP</small>6100</div>
+            <div class="bar"><i style="width:76%"></i></div>
+          </div>
+        </div>
+        <div class="opp-hand" id="oppHand"></div>
+
+        <div class="panel phase">
+          <div class="turn">Turn<b>5</b><span class="whose">Opponent</span></div>
+          <div class="ph">DP</div><div class="ph">SP</div><div class="ph">M1</div>
+          <div class="ph on">BP</div><div class="ph">M2</div><div class="ph">EP</div>
+        </div>
+
+        <div class="panel prompt" id="prompt">
+          <div class="eyebrow">Attack declared</div>
+          <h3><em>Blue-Eyes White Dragon</em> attacks Dark Magician</h3>
+          <div class="sub">Activate a card or effect?</div>
+          <div id="opts"></div>
+          <div class="btns"><button class="btn primary" id="activate">Activate</button><button class="btn ghost" id="pass">Pass</button></div>
+          <div class="timer"><i></i></div>
+        </div>
+        <div class="panel chain" id="chain"></div>
+
+        <div class="hand" id="hand"></div>
+
+        <div class="panel me">
+          <div class="av">D</div>
+          <div class="who">
+            <div class="name"><span id="meName">Daniyal</span> <span class="rank">Unranked</span></div>
+            <div class="lp"><small>LP</small>4200</div>
+            <div class="bar"><i style="width:52.5%"></i></div>
+          </div>
+        </div>
+
+        <div class="panel talk">
+          <div class="tabs">
+            <button data-t="chat" class="on">Chat<span class="unread" id="unread" hidden></span></button>
+            <button data-t="log">Duel log</button>
+            <button class="mute" id="muteBtn" title="Mute chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg></button>
+          </div>
+          <div class="body" id="chatBody"></div>
+          <div class="body" id="logBody" hidden>
+            <div class="log-e"><i>T5</i>Kaze drew 1 card</div>
+            <div class="log-e"><i>T5</i>Kaze Tribute Summoned Blue-Eyes White Dragon</div>
+            <div class="log-e"><i>T5</i>Blue-Eyes White Dragon attacks Dark Magician</div>
+          </div>
+          <div class="chatonly" id="chatOnly">
+            <div class="quick"><button>GG</button><button>Good luck!</button><button>Nice play</button><button>Thinking…</button></div>
+            <div class="send"><input class="chatin" id="chatIn" maxlength="200" placeholder="Message Kaze…" spellcheck="false"><button class="sbtn p" id="sendBtn">Send</button></div>
+          </div>
+        </div>
+
+        <div class="panel deckpop" id="deckpop"><div class="t"><b>Your Deck</b><span id="deckLeft"></span></div><button class="bigbtn danger" id="surrenderBtn">Surrender</button></div>
+        <div class="confirm" id="confirm"><div class="panel">
+          <div class="eyebrow" id="cfEyebrow"></div><h3 id="cfTitle"></h3><p id="cfText"></p>
+          <div class="line"><button class="bigbtn ghost" id="cfNo"></button><button class="bigbtn danger" id="cfYes"></button></div>
+        </div></div>
+        <div class="confirm" id="over"><div class="panel" style="text-align:center;align-items:center">
+          <div class="eyebrow">Duel over</div><div class="defeat">Defeat</div><p>You surrendered, so Kaze wins this duel.</p>
+          <div class="line" style="width:100%"><button class="bigbtn" onclick="location.href='duel.html'">Back to the room</button><button class="bigbtn ghost" onclick="location.href='home.html'">Home</button></div>
+        </div></div>
+
+        <div class="layer-label"><b>Interface layer · HTML</b><span>Your hand, card details, prompts, life points, phase bar, duel log, menus. Always sharp text, always easy to click.</span></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script>
+
+// Card text is paraphrased for the mockup; the real site pulls it from the card database.
+const CARDS = {
+  89631139:{name:'Blue-Eyes White Dragon',meta:'LIGHT · Level 8 · Dragon / Normal',atk:3000,def:2500,text:'Normal Monster. A legendary white dragon whose raw power is almost unmatched.'},
+  46986414:{name:'Dark Magician',meta:'DARK · Level 7 · Spellcaster / Normal',atk:2500,def:2100,text:'Normal Monster. The most skilled spellcaster of them all.'},
+  70781052:{name:'Summoned Skull',meta:'DARK · Level 6 · Fiend / Normal',atk:2500,def:1200,text:'Normal Monster. A fiend wreathed in lightning, called up from the dark.'},
+  74677422:{name:'Red-Eyes Black Dragon',meta:'DARK · Level 7 · Dragon / Normal',atk:2400,def:2000,text:'Normal Monster. A ferocious black dragon with burning red eyes.'},
+  44095762:{name:'Mirror Force',meta:'Trap · Normal',text:'When an opponent\'s monster declares an attack: destroy all Attack Position monsters your opponent controls.'},
+  14315573:{name:'Negate Attack',meta:'Trap · Counter',text:'When an opponent\'s monster declares an attack: target the attacking monster; negate the attack, then end the Battle Phase.'},
+  40640057:{name:'Kuriboh',meta:'DARK · Level 1 · Fiend / Effect',atk:300,def:200,text:'During damage calculation, if your opponent\'s monster attacks (Quick Effect): you can discard this card; you take no battle damage from that battle.'},
+  38033121:{name:'Dark Magician Girl',meta:'DARK · Level 6 · Spellcaster / Effect',atk:2000,def:1700,text:'Gains 300 ATK for each "Dark Magician" or "Magician of Black Chaos" in the GYs.'},
+  83764718:{name:'Monster Reborn',meta:'Spell · Normal',text:'Target 1 monster in either GY; Special Summon it.'},
+  12580477:{name:'Raigeki',meta:'Spell · Normal',text:'Destroy all monsters your opponent controls.'},
+  72302403:{name:'Swords of Revealing Light',meta:'Spell · Normal',text:'Flip all monsters your opponent controls face-up. Stays on the field for 3 of your opponent\'s turns; while it does, their monsters cannot declare an attack.'},
+  55144522:{name:'Pot of Greed',meta:'Spell · Normal',text:'Draw 2 cards.'},
+};
+
+const LABELS = {m:'MZ',st:'S/T',emz:'EMZ',fieldz:'FIELD',gy:'GY',ban:'BAN',deck:'DECK',extra:'EXTRA'};
+let state;
+function freshState(){
+  return {revealed:null, layout:[
+    [{k:'deck',n:28},{k:'st'},{k:'st',c:{set:1}},{k:'st'},{k:'st',c:{set:1}},{k:'st'},{k:'extra',n:15}],
+    [{k:'gy',n:3,top:74677422},{k:'m'},{k:'m',c:{set:1,def:1}},{k:'m',c:{id:89631139},tag:'attacker'},{k:'m'},{k:'m'},{k:'fieldz'}],
+    [{k:'ban',n:0},{k:'none'},{k:'emz'},{k:'none',emblem:1},{k:'emz'},{k:'none'},{k:'ban',n:0}],
+    [{k:'fieldz'},{k:'m'},{k:'m',c:{id:70781052,def:1}},{k:'m'},{k:'m',c:{id:46986414},tag:'target'},{k:'m'},{k:'gy',n:4,top:55144522}],
+    [{k:'extra',n:15},{k:'st'},{k:'st',c:{set:1,own:44095762},tag:'can',key:'mf'},{k:'st'},{k:'st',c:{set:1,own:14315573},tag:'can',key:'na'},{k:'st'},{k:'deck',n:27,me:1}],
+  ]};
+}
+
+function cardEl(c){
+  const d = document.createElement('div');
+  d.className = 'card' + (c.def ? ' def' : '');
+  if (c.set) { d.classList.add('back'); d.innerHTML = EYE; }
+  else d.innerHTML = `<img src="${SMALL(c.id)}" alt="">`;
+  return d;
+}
+
+function renderField(){
+  const field = document.getElementById('field');
+  field.innerHTML = '';
+  state.layout.forEach(row => row.forEach(z => {
+    const el = document.createElement('div');
+    el.className = 'zone ' + z.k;
+    el.dataset.label = LABELS[z.k] || '';
+    let showId = null;
+    if (z.emblem) { el.classList.add('emblem'); el.innerHTML = EYE; }
+    if (z.k === 'deck' || z.k === 'extra') {
+      el.className += ' pile';
+      for (let i = 0; i < 3; i++) el.appendChild(cardEl({set:1}));
+      el.insertAdjacentHTML('beforeend', `<div class="count">${z.n}</div>`);
+    }
+    if (z.k === 'gy') {
+      el.className += ' pile';
+      el.appendChild(cardEl({id:z.top})); el.appendChild(cardEl({id:z.top})); el.appendChild(cardEl({id:z.top}));
+      el.insertAdjacentHTML('beforeend', `<div class="count">${z.n}</div>`);
+      showId = z.top;
+    }
+    if (z.k === 'ban') el.insertAdjacentHTML('beforeend', `<div class="count">${z.n}</div>`);
+    if (z.c) {
+      const revealed = z.key && state.revealed === z.key;
+      const c = revealed ? {id:z.c.own} : z.c;
+      el.appendChild(cardEl(c));
+      if (z.tag && !(z.tag === 'can' && state.revealed)) el.classList.add(z.tag);
+      if (revealed) el.insertAdjacentHTML('beforeend', '<div class="link">1</div>');
+      const id = c.id || z.c.own;
+      const info = c.id && CARDS[c.id];
+      if (info && info.atk != null) {
+        el.insertAdjacentHTML('beforeend', c.def
+          ? `<div class="stat">${info.atk} / <b>${info.def}</b></div>`
+          : `<div class="stat"><b>${info.atk}</b> / ${info.def}</div>`);
+      }
+      showId = id || 'back';
+    }
+    if (showId) el.addEventListener('mouseenter', () => showDetail(showId));
+    if (z.me) { el.classList.add('mydeck'); el.onclick = e => { e.stopPropagation(); openDeckPop(el, z.n); }; }
+    field.appendChild(el);
+  }));
+  requestAnimationFrame(drawArrow);
+}
+
+function drawArrow(){
+  const field = document.getElementById('field');
+  const a = field.querySelector('.attacker'), t = field.querySelector('.target');
+  if (!a || !t) return;
+  const ax = a.offsetLeft + a.offsetWidth/2, ay = a.offsetTop + a.offsetHeight/2 + 30;
+  const tx = t.offsetLeft + t.offsetWidth/2, ty = t.offsetTop + 10;
+  const mx = (ax+tx)/2 + 60, my = (ay+ty)/2;
+  field.insertAdjacentHTML('beforeend', `<svg class="arrow" viewBox="0 0 ${field.offsetWidth} ${field.offsetHeight}">
+    <defs>
+      <linearGradient id="ag" gradientUnits="userSpaceOnUse" x1="${ax}" y1="${ay}" x2="${tx}" y2="${ty}">
+        <stop offset="0" stop-color="#ff6b4a" stop-opacity="0"/><stop offset="1" stop-color="#ff6b4a"/></linearGradient>
+      <marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10z" fill="#ff6b4a"/></marker>
+    </defs>
+    <path d="M${ax} ${ay} Q${mx} ${my} ${tx} ${ty}" stroke="url(#ag)" stroke-width="12" fill="none" stroke-linecap="round" marker-end="url(#ah)"
+      style="filter:drop-shadow(0 0 10px rgba(255,90,60,.8))"/>
+    <path d="M${ax} ${ay} Q${mx} ${my} ${tx} ${ty}" stroke="#ffd2c4" stroke-width="3" fill="none" stroke-dasharray="6 18" stroke-linecap="round">
+      <animate attributeName="stroke-dashoffset" from="48" to="0" dur=".9s" repeatCount="indefinite"/></path>
+  </svg>`);
+}
+
+function showDetail(id){
+  const el = document.getElementById('detail');
+  if (id === 'back') {
+    el.innerHTML = `<div class="img"><div class="card back">${EYE}</div></div>
+      <div class="eyebrow">Face-down</div><h2>Set card</h2><p class="meta">Opponent's card</p>
+      <p>You can't see this card until it's flipped or activated.</p>`;
+    return;
+  }
+  const c = CARDS[id];
+  el.innerHTML = `<div class="img"><img src="${BIG(id)}" alt=""></div>
+    <h2>${c.name}</h2><div class="meta">${c.meta}</div>
+    ${c.atk != null ? `<div class="stats"><div><span>ATK</span>${c.atk}</div><div><span>DEF</span>${c.def}</div></div>` : ''}
+    <p>${c.text}</p>`;
+}
+
+const OPTS = [
+  {key:'mf', id:44095762, where:'Set · Spell & Trap Zone'},
+  {key:'na', id:14315573, where:'Set · Spell & Trap Zone'},
+];
+let selected = 'mf';
+function renderOpts(){
+  document.getElementById('opts').innerHTML = OPTS.map(o =>
+    `<div class="opt ${o.key===selected?'sel':''}" data-k="${o.key}" style="margin-bottom:8px">
+      <img src="${SMALL(o.id)}" alt=""><div><b>${CARDS[o.id].name}</b><span>${o.where}</span></div></div>`).join('');
+  document.querySelectorAll('.opt').forEach(o => {
+    o.onclick = () => { selected = o.dataset.k; renderOpts(); };
+    o.onmouseenter = () => showDetail(OPTS.find(x => x.key === o.dataset.k).id);
+  });
+}
+
+function renderHand(){
+  const ids = [40640057, 38033121, 83764718, 72302403, 12580477];
+  const h = document.getElementById('hand');
+  h.innerHTML = '';
+  ids.forEach((id, i) => {
+    const off = i - (ids.length-1)/2;
+    const d = document.createElement('div');
+    d.className = 'hcard';
+    d.style.setProperty('--x', off*112 + 'px');
+    d.style.setProperty('--y', Math.abs(off)*Math.abs(off)*7 + 'px');
+    d.style.setProperty('--a', off*5 + 'deg');
+    d.innerHTML = `<img src="${SMALL(id)}" alt="">`;
+    d.onmouseenter = () => showDetail(id);
+    h.appendChild(d);
+  });
+  const oh = document.getElementById('oppHand');
+  oh.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const off = i - 1.5;
+    const c = cardEl({set:1});
+    c.style.transform = `translate(${off*40}px, ${-Math.abs(off)*4}px) rotate(${180 - off*5}deg)`;
+    oh.appendChild(c);
+  }
+}
+
+function respond(kind){
+  document.getElementById('prompt').style.display = 'none';
+  const ch = document.getElementById('chain');
+  if (kind === 'pass') {
+    ch.innerHTML = `<div class="eyebrow">No response</div><h3 style="font:700 18px/1.25 var(--font-display)">Damage Step</h3>
+      <div class="sub">Blue-Eyes White Dragon (3000) battles Dark Magician (2500). You take 500 damage.</div>`;
+  } else {
+    state.revealed = selected;
+    renderField();
+    const c = CARDS[OPTS.find(o => o.key === selected).id];
+    ch.innerHTML = `<div class="eyebrow">Chain</div>
+      <div class="row"><div class="n">1</div><div><b>${c.name}</b><div class="sub">Activated by you</div></div></div>
+      <div class="sub">Waiting for Kaze to respond…</div><div class="timer"><i></i></div>`;
+  }
+  ch.style.display = 'flex';
+}
+
+function reset(){
+  state = freshState(); selected = 'mf';
+  document.getElementById('prompt').style.display = 'flex';
+  document.getElementById('chain').style.display = 'none';
+  renderField(); renderOpts(); showDetail(89631139);
+}
+
+document.getElementById('explode').onclick = e => {
+  document.body.classList.toggle('exploded');
+  e.target.classList.toggle('on');
+};
+document.getElementById('reset').onclick = reset;
+document.getElementById('activate').onclick = () => respond('activate');
+document.getElementById('pass').onclick = () => respond('pass');
+
+
+// ---------- leaving / surrendering: both need an "are you sure" ----------
+const $ = id => document.getElementById(id);
+function confirmBox({eyebrow, title, text, no, yes, onYes}){
+  $('cfEyebrow').textContent = eyebrow; $('cfTitle').textContent = title; $('cfText').textContent = text;
+  $('cfNo').textContent = no; $('cfYes').textContent = yes;
+  $('cfYes').onclick = () => { $('confirm').classList.remove('on'); onYes(); };
+  $('confirm').classList.add('on');
+  $('cfNo').focus();   // the safe choice is the default, so a stray Enter doesn't end the duel
+}
+$('cfNo').onclick = () => $('confirm').classList.remove('on');
+$('confirm').onclick = e => { if (e.target === $('confirm')) $('confirm').classList.remove('on'); };
+$('leaveBtn').onclick = () => confirmBox({
+  eyebrow:'Leave duel', title:'Return to Home?', text:'The duel is still going. Leaving now counts as a surrender, and Kaze wins.',
+  no:'Stay in the duel', yes:'Leave duel', onYes: () => location.href = 'home.html'});
+
+function openDeckPop(zoneEl, left){
+  const pop = $('deckpop'), sr = document.querySelector('.stage').getBoundingClientRect(), zr = zoneEl.getBoundingClientRect(), k = sr.width / 1600;
+  $('deckLeft').textContent = `${left} cards left`;
+  pop.classList.add('on');
+  pop.style.left = Math.min(1600 - 260, (zr.left - sr.left + zr.width / 2) / k - 120) + 'px';
+  pop.style.top = Math.max(20, (zr.top - sr.top) / k - pop.offsetHeight - 14) + 'px';
+}
+document.addEventListener('click', e => { if (!e.target.closest('#deckpop')) $('deckpop').classList.remove('on'); });
+$('surrenderBtn').onclick = () => {
+  $('deckpop').classList.remove('on');
+  confirmBox({eyebrow:'Surrender', title:'Surrender this duel?', text:'Kaze wins this duel. This can\'t be undone.',
+    no:'Keep playing', yes:'Surrender', onYes: () => $('over').classList.add('on')});
+};
+addEventListener('keydown', e => { if (e.key === 'Escape') { $('confirm').classList.remove('on'); $('deckpop').classList.remove('on'); } });
+
+// ---------- chat ----------
+let chatTab = 'chat', unread = 0, muted = false;
+const escHtml = t => t.replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+function say(who, text, kind){
+  if (muted && (kind === 'opp' || kind === 'spec')) return;
+  const line = document.createElement('div');
+  line.className = `cm k-${kind} new`;
+  line.innerHTML = kind === 'sys' ? escHtml(text) : `<b>${escHtml(who)}</b>${escHtml(text)}`;
+  $('chatBody').appendChild(line);
+  $('chatBody').scrollTop = $('chatBody').scrollHeight;
+  if (chatTab !== 'chat' && kind !== 'me') { unread++; $('unread').textContent = unread; $('unread').hidden = false; }
+}
+function logLine(turn, text){
+  $('logBody').insertAdjacentHTML('beforeend', `<div class="log-e"><i>${turn}</i>${escHtml(text)}</div>`);
+  $('logBody').scrollTop = $('logBody').scrollHeight;
+}
+document.querySelectorAll('.talk .tabs [data-t]').forEach(b => b.onclick = () => {
+  chatTab = b.dataset.t;
+  document.querySelectorAll('.talk .tabs [data-t]').forEach(x => x.classList.toggle('on', x === b));
+  $('chatBody').hidden = chatTab !== 'chat'; $('logBody').hidden = chatTab !== 'log'; $('chatOnly').hidden = chatTab !== 'chat';
+  if (chatTab === 'chat') { unread = 0; $('unread').hidden = true; $('chatBody').scrollTop = $('chatBody').scrollHeight; }
+  else $('logBody').scrollTop = $('logBody').scrollHeight;
+});
+$('muteBtn').onclick = () => {
+  muted = !muted;
+  $('muteBtn').classList.toggle('on', muted);
+  $('muteBtn').title = muted ? 'Unmute chat' : 'Mute chat';
+  say('', muted ? 'Chat muted. You won\'t see messages from Kaze or spectators.' : 'Chat unmuted.', 'sys');
+};
+function send(text){
+  text = text.trim();
+  if (!text) return;
+  say('You', text, 'me');
+  $('chatIn').value = '';
+}
+$('sendBtn').onclick = () => send($('chatIn').value);
+$('chatIn').onkeydown = e => { if (e.key === 'Enter') send($('chatIn').value); };
+document.querySelectorAll('.talk .quick button').forEach(b => b.onclick = () => send(b.textContent));
+
+// mockup: the conversation so far, plus reactions to what you do
+say('', 'Duel started · Best of 3 · Game 1', 'sys');
+say('Kaze', 'gl hf', 'opp');
+say('You', 'you too', 'me');
+say('', 'Joey_W is now watching', 'sys');
+say('Joey_W', 'this is gonna be close', 'spec');
+const respondOrig = respond;
+respond = kind => {
+  respondOrig(kind);
+  if (kind === 'activate') {
+    logLine('T5', `Daniyal activated ${CARDS[OPTS.find(o => o.key === selected).id].name}`);
+    setTimeout(() => say('Kaze', selected === 'mf' ? 'nooo my dragon' : 'ugh, fine', 'opp'), 1400);
+    setTimeout(() => say('Joey_W', 'called it', 'spec'), 2600);
+  } else {
+    logLine('T5', 'Blue-Eyes White Dragon battles Dark Magician');
+  }
+};
+
+fillMotes(document.getElementById('motes')); renderHand(); reset();
+</script>
+</body>
+</html>

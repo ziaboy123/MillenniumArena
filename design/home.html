@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millennium Arena · Home Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Marcellus&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="themes.css">
+<style>
+/* Home + Settings mockup. Settings is only reachable from Home, never mid-duel. */
+body:not(.in-settings) .homebtn{display:none}
+
+/* home tiles */
+.tiles{position:absolute;left:40px;right:40px;top:124px;bottom:84px;display:grid;grid-template-columns:1.5fr 1fr;grid-template-rows:repeat(3,1fr);gap:22px}
+.tiles .tile{position:relative;overflow:hidden;cursor:pointer;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.tiles .tile.duel{grid-row:1 / 4}
+.tile:hover{transform:translateY(-4px)}
+.tile::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s;
+  box-shadow:inset 0 0 0 1px var(--accent),inset 0 0 70px var(--glow)}
+.tile:hover::after{opacity:.75}
+.tile .art{position:absolute;inset:0;background-size:cover;background-position:70% 30%;opacity:.6;transition:transform 1s cubic-bezier(.2,.8,.2,1)}
+.tile:hover .art{transform:scale(1.05)}
+.tile .tint{position:absolute;inset:0;background:var(--accent);mix-blend-mode:color;opacity:.32}
+[data-dir=c] .tile .tint{opacity:.15}
+.tile .shade{position:absolute;inset:0;background:linear-gradient(80deg,var(--bg0) 12%,transparent 78%),linear-gradient(0deg,var(--bg0) 0%,transparent 45%)}
+.tile .emb{position:absolute;left:30px;top:28px;width:180px;color:var(--accent);opacity:.18}
+.tile .emb svg{width:100%;stroke-width:3}
+.txt{position:absolute;left:38px;right:38px;bottom:34px;z-index:2}
+.tile.sm .txt{top:50%;bottom:auto;transform:translateY(-50%);right:auto}
+.tile h2{font:700 56px/1 var(--font-display);letter-spacing:.08em;margin:12px 0 10px;color:var(--text)}
+.tile.duel h2{font-size:128px;letter-spacing:.07em;margin:16px 0 14px}
+[data-dir=a] .tile h2{color:var(--accent-hi);text-shadow:0 0 34px rgba(217,173,85,.35)}
+[data-dir=b] .tile h2,[data-dir=d] .tile h2{text-shadow:0 0 26px var(--glow)}
+[data-dir=c] .tile h2{text-transform:uppercase;letter-spacing:.04em}
+.tile p{font-size:15px;color:var(--muted);line-height:1.5;max-width:460px}
+.tile.sm p{font-size:13.5px}
+.go{position:absolute;right:28px;bottom:28px;z-index:2;width:48px;height:48px;border-radius:50%;border:1px solid var(--panel-border);
+  display:grid;place-items:center;color:var(--accent);background:rgba(0,0,0,.3);transition:transform .3s,background .3s,color .3s}
+.go svg{width:20px;height:20px}
+.tile:hover .go{transform:translateX(6px);background:var(--accent);color:#140e05}
+[data-dir=b] .go,[data-dir=c] .go{border-radius:4px}
+.modes{display:flex;gap:8px;margin-top:24px;flex-wrap:wrap}
+.mode{font:600 12.5px/1 var(--font-ui);padding:10px 14px;border-radius:999px;border:1px solid var(--panel-border);color:var(--muted);
+  background:rgba(0,0,0,.4);display:flex;align-items:center;gap:8px}
+.mode i{width:7px;height:7px;border-radius:50%;background:var(--muted);opacity:.5}
+.mode small{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
+.mode.live{color:var(--text);border-color:var(--accent)}
+.mode.live i{background:var(--accent);opacity:1;box-shadow:0 0 10px var(--accent)}
+[data-dir=b] .mode,[data-dir=c] .mode{border-radius:3px}
+
+.fan{position:absolute;right:190px;top:50%;width:0;height:0}
+.fan .card{position:absolute;inset:auto;width:100px;height:146px;left:-50px;top:-73px;border-radius:5px;box-shadow:0 12px 26px rgba(0,0,0,.7);
+  transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+.fanhint{font-size:11.5px!important;color:var(--accent)!important;opacity:.85;margin-top:6px;max-width:250px}
+.fan .card.back{border-radius:5px}
+.stats{display:flex;gap:24px;margin-top:4px}
+.stats b{display:block;font:700 24px/1 var(--font-display);margin-bottom:6px}
+.stats span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.14em}
+.big-av{position:absolute;right:100px;top:50%;width:104px;height:104px;margin-top:-52px;border-radius:50%;display:grid;place-items:center;
+  font:700 44px/1 var(--font-display);color:var(--accent);border:2px solid var(--accent);background:radial-gradient(circle,#25221d,#0a0a0a);
+  box-shadow:0 0 0 8px rgba(0,0,0,.25),0 0 0 9px var(--line),0 0 40px var(--glow)}
+[data-dir=b] .big-av,[data-dir=c] .big-av{border-radius:8px}
+.big-gear{position:absolute;right:100px;top:50%;width:140px;height:140px;margin-top:-70px;color:var(--accent);opacity:.3;transition:transform 1.2s cubic-bezier(.2,.8,.2,1),opacity .3s}
+.big-gear svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.tile:hover .big-gear{transform:rotate(90deg);opacity:.5}
+
+
+/* ---------- settings ---------- */
+.settings{position:relative!important;width:900px;height:620px;display:grid;grid-template-columns:210px 1fr;overflow:hidden;animation:rise-in .3s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise-in{from{opacity:0;transform:translateY(16px) scale(.98)}}
+.snav{padding:26px 14px;border-right:1px solid var(--panel-border);display:flex;flex-direction:column;gap:4px}
+.snav .title{font:700 22px/1 var(--font-display);color:var(--accent);letter-spacing:.06em;margin:0 10px 22px}
+.snav button{font:500 14px/1 var(--font-ui);text-align:left;color:var(--muted);background:none;border:none;padding:12px;border-radius:calc(var(--r) * .8);cursor:pointer}
+.snav button:hover{color:var(--text)}
+.snav button.on{color:var(--text);background:rgba(255,255,255,.06);box-shadow:inset 3px 0 0 var(--accent)}
+.snav button:disabled{opacity:.35;cursor:default}
+.snav button small{font-size:9.5px;margin-left:6px;letter-spacing:.1em;text-transform:uppercase}
+.sbody{padding:28px 32px;overflow:auto;position:relative}
+.sclose{position:absolute;right:16px;top:14px;width:32px;height:32px;border-radius:50%;border:1px solid var(--panel-border);background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer}
+.sclose:hover{color:var(--text);border-color:var(--accent)}
+.sbody h3{font:700 19px/1.2 var(--font-display);margin-bottom:4px}
+[data-dir=c] .sbody h3{text-transform:uppercase;letter-spacing:.06em}
+.sbody .hint{font-size:12.5px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+.tab{display:none}.tab.on{display:block}
+.themes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.tcard{position:relative;border-radius:10px;overflow:hidden;cursor:pointer;border:1px solid var(--panel-border);background:var(--bg0);transition:transform .2s,box-shadow .2s}
+.tcard:hover{transform:translateY(-2px)}
+.tcard.sel{box-shadow:0 0 0 2px var(--accent),0 0 24px var(--glow)}
+.tcard .scene{height:104px;position:relative;background:var(--env);overflow:hidden}
+.mini{position:absolute;left:50%;top:50%;width:150px;height:92px;transform:translate(-50%,-46%) perspective(260px) rotateX(38deg);background:var(--plate);border:1px solid var(--line);
+  border-radius:calc(var(--r) * .6);display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:1fr 1fr;gap:5px;padding:7px;box-shadow:0 0 22px var(--glow)}
+.mini i{border:1px solid var(--line);border-radius:2px}
+.mini i.c{background:radial-gradient(circle,var(--cb2),var(--cb1));border-color:var(--accent)}
+.tcard .tm{padding:11px 13px 12px;color:var(--text)}
+.tcard .tm b{display:block;font:700 16px/1.1 var(--font-display);color:var(--accent);margin-bottom:4px}
+.tcard .tm span{font-size:11.5px;color:var(--muted)}
+.tcard .tick{position:absolute;right:9px;top:9px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#111;font:700 12px/22px var(--font-ui);text-align:center;display:none}
+.tcard.sel .tick{display:block}
+.artthumb{width:64px;height:44px;border-radius:calc(var(--r) * .6);background-size:cover;background-position:center 30%;border:1px solid var(--panel-border)}
+.artgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+.apick{position:relative;height:96px;border-radius:calc(var(--r) * .8);overflow:hidden;cursor:pointer;background:#000 center 30%/cover;border:1px solid var(--panel-border);transition:transform .2s,box-shadow .2s}
+.apick:hover{transform:translateY(-2px);border-color:var(--accent)}
+.apick.sel{box-shadow:0 0 0 2px var(--accent),0 0 18px var(--glow)}
+.apick span{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 6px;font-size:11px;font-weight:600;color:#fff;
+  background:linear-gradient(transparent,rgba(0,0,0,.85));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#settings .settings{position:absolute!important;left:50%;top:124px;width:1120px;height:700px;margin-left:-560px;grid-template-columns:250px 1fr}
+#settings .sbody{padding:34px 40px}
+</style>
+</head>
+<body data-dir="c">
+
+<div class="chrome">
+  <div class="t"><b>Millennium Arena</b> &nbsp;·&nbsp; mockup</div>
+  <a href="welcome.html">Logged out</a><a href="home.html" class="on">Home</a><a href="duel.html">Duel page</a><a href="decks.html">Decks</a><a href="profile.html">Profile</a><a href="match.html">Duel screen</a><a href="replay.html">Replay</a>
+  <div class="sep"></div><span class="lbl">Preview theme</span><div id="themeBtns"></div>
+  <div class="sep"></div><button id="newPlayer">New player view</button>
+</div>
+
+<div class="viewport">
+  <div class="scaler" id="scaler">
+    <div class="stage">
+      <div class="env"></div>
+      <div class="shafts"></div>
+      <div class="mist"><i></i><i></i></div>
+      <div class="motes" id="motes"></div>
+      <div class="ring"></div>
+
+      <div class="top">
+        <div class="brand">
+          <button class="homebtn" id="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Home</button>
+          <div class="logo"><span class="eye"></span><div class="w">MILLENNIUM<small>ARENA</small></div></div>
+        </div>
+        <div class="chip" data-go="profile"><div class="av">D</div><div><b class="uname">Daniyal</b><span>Unranked</span></div></div>
+      </div>
+
+      <!-- HOME -->
+      <section class="screen on" id="home">
+        <div class="tiles">
+          <div class="panel tile duel" data-go="duel">
+            <div class="art" id="duelArt"></div><div class="tint"></div><div class="shade"></div>
+            <span class="eye emb"></span>
+            <div class="txt">
+              <div class="eyebrow">Play</div>
+              <h2>Duel</h2>
+              <p>Host a private duel and send the code to a friend, or join theirs with a code.</p>
+              <div class="modes">
+                <span class="mode live"><i></i>Private</span>
+                <span class="mode"><i></i>Ranked <small>Soon</small></span>
+                <span class="mode"><i></i>Unranked <small>Soon</small></span>
+                <span class="mode"><i></i>Solo vs bot <small>Soon</small></span>
+              </div>
+            </div>
+            <div class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          </div>
+
+          <div class="panel tile sm" data-go="decks">
+            <div class="txt">
+              <div class="eyebrow">Build</div>
+              <h2>Decks</h2>
+              <p>6 decks · Active: Dark Magician</p>
+              <p class="fanhint" id="fanHint"></p>
+            </div>
+            <div class="fan" id="fan"></div>
+            <div class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          </div>
+
+          <div class="panel tile sm" data-go="profile">
+            <div class="txt">
+              <div class="eyebrow">You</div>
+              <h2>Profile</h2>
+              <div class="stats">
+                <div><b>Unranked</b><span>Rank</span></div>
+                <div><b>14 – 9</b><span>Wins – Losses</span></div>
+                <div><b>61%</b><span>Win rate</span></div>
+              </div>
+            </div>
+            <div class="big-av">D</div>
+            <div class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          </div>
+
+          <div class="panel tile sm" data-go="settings">
+            <div class="txt">
+              <div class="eyebrow">Options</div>
+              <h2>Settings</h2>
+              <p>Theme: <span id="themeName">Pharaoh</span> · Account · Gameplay · Audio</p>
+            </div>
+            <div class="big-gear"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
+            <div class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          </div>
+        </div>
+
+        <div class="foot">
+          <div><a href="welcome.html#privacy">Privacy</a> &nbsp;·&nbsp; <a href="welcome.html#terms">Terms</a></div>
+          <div>Card data and images from YGOPRODeck &nbsp;·&nbsp; Not affiliated with Konami</div>
+        </div>
+      </section>
+
+      <!-- SETTINGS (only reachable from Home) -->
+      <section class="screen" id="settings">
+        <div class="panel settings">
+          <nav class="snav">
+            <div class="title">Settings</div>
+            <button data-tab="appearance" class="on">Appearance</button>
+            <button data-tab="account">Account</button>
+            <button disabled>Gameplay<small>soon</small></button>
+            <button disabled>Audio<small>soon</small></button>
+          </nav>
+          <div class="sbody">
+            <section class="tab on" data-tab="appearance">
+              <h3>Theme</h3>
+              <div class="hint">Changes the whole site and every duel: field, cards, panels and effects. Saved to your account, so it follows you to any device.</div>
+              <div class="themes" id="themes"></div>
+              <div class="srow">
+                <div class="l"><b>Home artwork</b><span>The card art on your Duel tile. Pick any card.</span></div>
+                <div class="r"><div class="artthumb" id="artThumb"></div><span class="val" id="artName"></span><button class="sbtn" id="artBtn">Change</button></div>
+              </div>
+              <div class="flow" id="artFlow">
+                <div class="line"><input class="sinput" id="artSearch" placeholder="Search any card…" style="width:340px" spellcheck="false"><button class="sbtn" id="artDone">Done</button></div>
+                <div class="msg" id="artMsg">Popular picks</div>
+                <div class="artgrid" id="artGrid"></div>
+              </div>
+              <div class="srow">
+                <div class="l"><b>Field effects</b><span>Light, mist and particles. Turn off on slower laptops.</span></div>
+                <div class="r"><button class="tog on" id="fx"></button></div>
+              </div>
+            </section>
+
+            <section class="tab" data-tab="account">
+              <h3>Account</h3>
+              <div class="hint">Sign in with your email and password. Your username is what opponents see.</div>
+
+              <div class="srow">
+                <div class="l"><b>Username</b><span id="unameHint">3–16 letters, numbers or underscores. You can change it once every 30 days.</span></div>
+                <div class="r"><span class="val uname">Daniyal</span><button class="sbtn" id="unameBtn">Change</button></div>
+              </div>
+              <div class="flow" id="unameFlow">
+                <div class="line"><input class="sinput" id="unameInput" maxlength="16" spellcheck="false"><button class="sbtn p" id="unameSave" disabled>Save</button><button class="sbtn" id="unameCancel">Cancel</button></div>
+                <div class="msg" id="unameMsg"></div>
+              </div>
+
+              <div class="srow">
+                <div class="l"><b>Email</b><span>Used to sign in and to receive verification codes.</span></div>
+                <div class="r"><span class="val" id="emailVal">daniyal@example.com</span><span class="ok">Verified</span><button class="sbtn" id="emailBtn">Change</button></div>
+              </div>
+              <div class="flow" id="emailFlow">
+                <div id="emailStep1">
+                  <p>We'll send a 6-digit code to the new address. Your email only changes once you enter it.</p>
+                  <div class="line" style="margin-top:10px"><input class="sinput" id="emailInput" type="email" placeholder="New email address"><button class="sbtn p" id="emailSend">Send code</button><button class="sbtn" id="emailCancel">Cancel</button></div>
+                  <div class="msg" id="emailMsg"></div>
+                </div>
+                <div id="emailStep2" style="display:none">
+                  <p>Enter the code we sent to <b id="emailTo"></b>. It expires in 10 minutes.</p>
+                  <div class="code" id="code"></div>
+                  <div class="line"><button class="sbtn p" id="emailVerify" disabled>Verify</button><button class="sbtn" disabled>Resend in 0:45</button></div>
+                </div>
+              </div>
+
+              <div class="srow">
+                <div class="l"><b>Password</b><span>Last changed 3 days ago. Changing it signs you out on your other devices.</span></div>
+                <div class="r"><button class="sbtn" id="pwBtn">Change</button></div>
+              </div>
+              <div class="flow" id="pwFlow">
+                <div class="line"><input class="sinput" type="password" placeholder="Current password" style="width:200px"><input class="sinput" type="password" placeholder="New password" style="width:200px"><button class="sbtn p" id="pwSave">Save</button></div>
+                <div class="msg" id="pwMsg"></div>
+              </div>
+
+              <div class="srow">
+                <div class="l"><b>Log out</b><span>Signed in as <b class="uname" style="display:inline;font-size:inherit">Daniyal</b> on this device.</span></div>
+                <div class="r"><button class="sbtn" onclick="location.href='welcome.html'">Log out</button></div>
+              </div>
+              <div class="srow">
+                <div class="l"><b>Trusted devices</b><span>Signing in on a new device asks for an email code. This MacBook is trusted until 10 Nov 2026.</span></div>
+                <div class="r"><button class="sbtn" id="forget">Forget all</button></div>
+              </div>
+              <div class="srow">
+                <div class="l"><b>Delete account</b><span>Permanently removes your account, decks, match history and chat. This can't be undone.</span></div>
+                <div class="r"><button class="sbtn" id="delBtn" style="color:#ff8a76">Delete account</button></div>
+              </div>
+              <div class="flow" id="delFlow">
+                <p>To confirm, type your username: <b class="uname">Daniyal</b></p>
+                <div class="line" style="margin-top:10px"><input class="sinput" id="delInput" spellcheck="false"><button class="sbtn" id="delYes" disabled style="background:#c0392b;border-color:#c0392b;color:#fff">Delete forever</button><button class="sbtn" id="delNo">Cancel</button></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <div class="panel toast" id="toast"></div>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="cards.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+
+// ---------- home ----------
+// Duel tile artwork: any card, chosen in Settings (real site: saved to the account)
+const POPULAR = [
+  [89631139,'Blue-Eyes White Dragon'],[46986414,'Dark Magician'],[74677422,'Red-Eyes Black Dragon'],[38033121,'Dark Magician Girl'],
+  [10000000,'Obelisk the Tormentor'],[44508094,'Stardust Dragon'],[5405694,'Black Luster Soldier'],[89943723,'Elemental HERO Neos'],
+];
+let art = {id:89631139, name:'Blue-Eyes White Dragon'};
+try { const a = JSON.parse(localStorage.getItem('ma-art')); if (a && a.id) art = a; } catch (e) {}
+function setArt(id, name){
+  art = {id, name};
+  try { localStorage.setItem('ma-art', JSON.stringify(art)); } catch (e) {}
+  $('duelArt').style.backgroundImage = `url(${CROP(id)})`;
+  $('artThumb').style.backgroundImage = `url(${CROP(id)})`;
+  $('artName').textContent = name;
+  document.querySelectorAll('.apick').forEach(p => p.classList.toggle('sel', +p.dataset.id === id));
+}
+function showPicks(list){
+  $('artGrid').innerHTML = list.map(([id, name]) =>
+    `<div class="apick ${id === art.id ? 'sel' : ''}" data-id="${id}" style="background-image:url(${CROP(id)})"><span>${name.replace(/</g,'&lt;')}</span></div>`).join('');
+  $('artGrid').querySelectorAll('.apick').forEach(p => p.onclick = () => setArt(+p.dataset.id, p.textContent));
+}
+$('artBtn').onclick = () => { $('artFlow').classList.add('on'); showPicks(POPULAR); $('artSearch').focus(); if (!CARD_LIST.length) loadCardIndex().then(() => $('artSearch').oninput()); };
+$('artDone').onclick = () => $('artFlow').classList.remove('on');
+$('artSearch').oninput = () => {
+  const q = $('artSearch').value.trim();
+  if (q.length < 2) { $('artMsg').textContent = 'Popular picks'; return showPicks(POPULAR); }
+  if (!CARD_LIST.length) { $('artMsg').textContent = 'Loading cards…'; return; }
+  const list = searchCards(q, undefined, 12).map(c => [c.id, c.name]);
+  $('artMsg').textContent = list.length ? `Cards matching "${q}"` : `No cards match "${q}"`;
+  showPicks(list);
+};
+// Decks tile: Millennium Arena card backs until the player has 10 duels, then their 3 most-played cards
+// (counted from what they actually summon, activate or set in duels, not just deck contents)
+const FAVOURITES_AFTER = 10;
+const player = {duels: 23, mostPlayed: [46986414, 47222536, 14558127]};   // Dark Magician, Dark Magical Circle, Ash Blossom
+function renderFan(){
+  const ready = player.duels >= FAVOURITES_AFTER;
+  $('fan').innerHTML = '';
+  [0, 1, 2].forEach(i => {
+    const c = document.createElement('div');
+    c.className = ready ? 'card' : 'card back';
+    c.innerHTML = ready ? `<img src="${SMALL(player.mostPlayed[i])}" alt="">` : EYE;
+    c.style.transform = `translate(${(i-1)*46}px, ${Math.abs(i-1)*8}px) rotate(${(i-1)*10}deg)`;
+    $('fan').appendChild(c);
+  });
+  const left = FAVOURITES_AFTER - player.duels;
+  $('fanHint').textContent = ready ? 'Your most-played cards' : `Your most-played cards show here after ${left} more ${left === 1 ? 'duel' : 'duels'}`;
+}
+renderFan();
+// mockup toggle to preview a brand-new player
+$('newPlayer').onclick = e => {
+  player.duels = player.duels >= FAVOURITES_AFTER ? 0 : 23;
+  e.target.classList.toggle('on', player.duels < FAVOURITES_AFTER);
+  renderFan();
+};
+document.querySelector('[data-go=decks]').addEventListener('mouseenter', () =>
+  $('fan').querySelectorAll('.card').forEach((c, i) => c.style.transform = `translate(${(i-1)*70}px, ${Math.abs(i-1)*10 - 8}px) rotate(${(i-1)*14}deg)`));
+document.querySelector('[data-go=decks]').addEventListener('mouseleave', () =>
+  $('fan').querySelectorAll('.card').forEach((c, i) => c.style.transform = `translate(${(i-1)*46}px, ${Math.abs(i-1)*8}px) rotate(${(i-1)*10}deg)`));
+
+let toastTimer;
+function toast(msg){
+  $('toast').textContent = msg; $('toast').classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').classList.remove('on'), 2200);
+}
+function go(screen){
+  if (screen === 'duel') return location.href = 'duel.html';
+  if (screen === 'decks') return location.href = 'decks.html';
+  if (screen === 'profile') return location.href = 'profile.html';
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === screen));
+  document.body.classList.toggle('in-settings', screen === 'settings');
+}
+document.querySelectorAll('[data-go]').forEach(el => el.onclick = () => go(el.dataset.go));
+$('back').onclick = () => go('home');
+addEventListener('keydown', e => { if (e.key === 'Escape') go('home'); });
+
+// ---------- settings: appearance ----------
+$('themes').innerHTML = THEMES.map(t => `
+  <div class="tcard" data-dir="${t.k}">
+    <div class="scene"><div class="mini">${[0,1,2,3,4,5,6,7,8,9].map(i => `<i class="${[1,3,7].includes(i)?'c':''}"></i>`).join('')}</div></div>
+    <div class="tm"><b>${t.name}</b><span>${t.desc}</span></div><div class="tick">✓</div>
+  </div>`).join('');
+document.querySelectorAll('.tcard').forEach(t => t.onclick = () => applyTheme(t.dataset.dir));
+document.addEventListener('themechange', e => {
+  document.querySelectorAll('.tcard').forEach(t => t.classList.toggle('sel', t.dataset.dir === e.detail));
+  $('themeName').textContent = THEMES.find(t => t.k === e.detail).name;
+});
+document.querySelectorAll('.snav [data-tab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.snav [data-tab]').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === b.dataset.tab));
+});
+$('fx').onclick = e => {
+  e.target.classList.toggle('on');
+  document.body.classList.toggle('nofx', !e.target.classList.contains('on'));
+};
+
+// ---------- settings: account ----------
+// Username: unique, 3-16 chars, one change per 30 days
+const TAKEN = ['kaze', 'admin', 'pharaoh', 'yugi', 'kaiba', 'joey'];
+const currentName = () => document.querySelector('.uname').textContent;
+$('unameBtn').onclick = () => { $('unameFlow').classList.add('on'); $('unameInput').value = currentName(); $('unameInput').focus(); checkName(); };
+$('unameCancel').onclick = () => $('unameFlow').classList.remove('on');
+$('unameInput').oninput = checkName;
+function checkName(){
+  const v = $('unameInput').value, m = $('unameMsg');
+  let ok = false;
+  if (v === currentName()) { m.className = 'msg'; m.textContent = 'This is your current username.'; }
+  else if (!/^[A-Za-z0-9_]{3,16}$/.test(v)) { m.className = 'msg bad'; m.textContent = '3–16 characters: letters, numbers and underscores only.'; }
+  else if (TAKEN.includes(v.toLowerCase())) { m.className = 'msg bad'; m.textContent = `"${v}" is taken.`; }
+  else { m.className = 'msg good'; m.textContent = `"${v}" is available.`; ok = true; }
+  $('unameSave').disabled = !ok;
+}
+$('unameSave').onclick = () => {
+  const v = $('unameInput').value;
+  document.querySelectorAll('.uname').forEach(e => e.textContent = v);
+  document.querySelectorAll('.av,.big-av').forEach(e => e.textContent = v[0].toUpperCase());
+  $('unameFlow').classList.remove('on');
+  $('unameBtn').disabled = true;
+  $('unameHint').textContent = 'Changed today. You can change it again on 10 Nov 2026.';
+};
+
+// Email change: verified with a 6-digit code
+$('emailBtn').onclick = () => { $('emailFlow').classList.add('on'); $('emailStep1').style.display = ''; $('emailStep2').style.display = 'none'; $('emailInput').focus(); };
+$('emailCancel').onclick = () => $('emailFlow').classList.remove('on');
+$('emailSend').onclick = () => {
+  const v = $('emailInput').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { $('emailMsg').className = 'msg bad'; $('emailMsg').textContent = 'That doesn\'t look like an email address.'; return; }
+  $('emailTo').textContent = v;
+  $('emailStep1').style.display = 'none'; $('emailStep2').style.display = '';
+  buildCode(); $('code').querySelector('input').focus();
+};
+function buildCode(){
+  const c = $('code');
+  c.innerHTML = Array.from({length:6}, () => '<input inputmode="numeric" maxlength="1">').join('');
+  const boxes = [...c.querySelectorAll('input')];
+  const sync = () => { $('emailVerify').disabled = boxes.some(b => !b.value); };
+  boxes.forEach((b, i) => {
+    b.oninput = () => { b.value = b.value.replace(/\D/g, ''); if (b.value && boxes[i+1]) boxes[i+1].focus(); sync(); };
+    b.onkeydown = e => { if (e.key === 'Backspace' && !b.value && boxes[i-1]) boxes[i-1].focus(); };
+    b.onpaste = e => {
+      const d = (e.clipboardData.getData('text').match(/\d/g) || []).slice(0, 6);
+      if (d.length) { e.preventDefault(); boxes.forEach((x, j) => x.value = d[j] || ''); boxes[Math.min(d.length, 5)].focus(); sync(); }
+    };
+  });
+}
+$('emailVerify').onclick = () => { $('emailVal').textContent = $('emailTo').textContent; $('emailFlow').classList.remove('on'); };
+$('pwBtn').onclick = () => $('pwFlow').classList.toggle('on');
+$('pwSave').onclick = () => { $('pwMsg').className = 'msg good'; $('pwMsg').textContent = 'Password changed. Your other devices have been signed out.'; };
+$('delBtn').onclick = () => { $('delFlow').classList.add('on'); $('delInput').value = ''; $('delYes').disabled = true; $('delInput').focus(); };
+$('delNo').onclick = () => $('delFlow').classList.remove('on');
+$('delInput').oninput = () => $('delYes').disabled = $('delInput').value !== currentName();
+$('delYes').onclick = () => location.href = 'welcome.html';
+$('forget').onclick = e => { e.target.textContent = 'Forgotten'; e.target.disabled = true; };
+
+setArt(art.id, art.name);
+if (location.hash === '#settings') go('settings');
+fillMotes($('motes'));
+</script>
+</body>
+</html>

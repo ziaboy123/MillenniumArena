@@ -1,0 +1,6 @@
+{
+  "name": "@arena/shared",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./protocol.ts" }
+}

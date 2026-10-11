@@ -1,0 +1,98 @@
+Daniyal (Dark Magician) vs Kaze (Blue-Eyes) · seed 1090
+  Daniyal draws 5
+  Kaze draws 5
+
+— Turn 1 · Daniyal · LP 8000 / 8000
+  Daniyal activates Crossout Designator
+  Crossout Designator goes to the GY
+  Daniyal Sets a card
+  Daniyal Sets a card
+  Daniyal Sets a card
+  Daniyal Sets a card
+
+— Turn 2 · Kaze · LP 8000 / 8000
+  Kaze draws 1
+  Daniyal activates Magicians' Combination
+  Kaze Sets a card
+  Kaze Sets a card
+  Kaze Sets a card
+  Kaze Sets a card
+  Kaze Sets a card
+
+— Turn 3 · Daniyal · LP 8000 / 8000
+  Daniyal draws 1
+  Kaze activates True Light
+  Kaze activates True Light (chain link 2)
+  Daniyal Sets a card
+
+— Turn 4 · Kaze · LP 8000 / 8000
+  Kaze draws 1
+
+— Turn 5 · Daniyal · LP 8000 / 8000
+  Daniyal draws 1
+  Daniyal activates Dark Magic Veil
+  Daniyal pays 1000 LP → 7000 LP
+  Daniyal Special Summons Dark Magician
+  Dark Magic Veil goes to the GY
+  Daniyal activates The Eye of Timaeus
+  Dark Magician goes to the GY
+  Daniyal Special Summons Dark Cavalry
+  The Eye of Timaeus goes to the GY
+  Kaze activates Infinite Impermanence
+  Kaze activates Called by the Grave (chain link 2)
+  Kaze activates Infinite Impermanence (chain link 3)
+  Infinite Impermanence goes to the GY
+  Infinite Impermanence goes to the GY
+  Called by the Grave goes to the GY
+  Kaze activates True Light
+  Kaze Sets a card
+  Dark Cavalry attacks directly
+  Kaze takes 2800 damage → 5200 LP
+
+— Turn 6 · Kaze · LP 7000 / 5200
+  Kaze draws 1
+  Kaze activates True Light
+  Kaze Sets a card
+  Kaze activates Bingo Machine, Go!!!
+  Bingo Machine, Go!!! goes to the GY
+  Kaze Normal Summons The White Stone of Ancients
+  Kaze Sets a card
+  Daniyal activates Infinite Impermanence
+  Infinite Impermanence goes to the GY
+  Kaze Sets a card
+  The White Stone of Ancients attacks Dark Cavalry
+  Kaze takes 3700 damage → 1500 LP
+  The White Stone of Ancients goes to the GY
+  Kaze activates The White Stone of Ancients
+  Kaze Special Summons Blue-Eyes White Dragon
+
+— Turn 7 · Daniyal · LP 7000 / 1500
+  Daniyal draws 1
+  Daniyal activates Dark Magical Circle
+  Daniyal Sets a card
+  Dark Cavalry attacks Blue-Eyes White Dragon
+  Kaze takes 1500 damage → 0 LP
+
+Daniyal wins (turn 7, LP 7000 / 0)
+
+=== 1 duel between 2 decks · 1 finished · 0 s total
+average 7.0 turns, 40 ms of engine time per duel (slowest duel 40 ms)
+slowest single engine step: 0.9 ms (Daniyal vs Kaze, seed 1090, turn 1)
+engine: ygopro-core 93eff32a9bfc65cc3a748c7cf8a8774c10260b7f 2026-10-11 · cards in database: 14986
+decks: Dark Magician 40+15, Blue-Eyes 40+15 · Dark Magician 1 – 0 Blue-Eyes
+
+Prompts the engine asked for (the UI must handle each):
+  select_chain           154
+  select_idlecmd         30
+  select_place           21
+  select_card            16
+  select_battlecmd       8
+  select_position        3
+  announce_card          1
+  select_effectyn        1
+  select_yesno           1
+  sort_card              1
+
+Other message types seen: attack, battle, become_target, card_hint, chain_end, chain_solved, chain_solving, chained, chaining, confirm_cards, damage, damage_step_end, damage_step_start, draw, hint, move, new_phase, new_turn, pay_lpcost, pos_change, set, shuffle_deck, shuffle_hand, spsummoned, spsummoning, summoned, summoning, win
+
+"Respond?" prompts: 139 with nothing to activate, 15 with real options

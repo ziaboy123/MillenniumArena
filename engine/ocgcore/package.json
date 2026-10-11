@@ -1,0 +1,9 @@
+{
+  "name": "ocgcore-wasm",
+  "version": "0.1.4-ma.93eff32a",
+  "description": "EDOPro ygopro-core 93eff32a as WebAssembly, built by Millennium Arena's engine/build-core.sh",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": { ".": "./dist/index.js" },
+  "license": "AGPL-3.0-or-later"
+}

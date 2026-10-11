@@ -1,0 +1,27 @@
+/* App-only styles (the duel screen itself uses duel.css from the mockups). */
+html, body, #root { height: 100%; }
+.app-viewport { inset: 0; }   /* the mockups reserved 52px for their toolbar */
+.loadmsg { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); color: var(--muted); font-size: 15px; }
+
+.lobby { position: absolute; inset: 0; }
+.lobby .logo { position: absolute; left: 40px; top: 32px; }
+.lobby-card { position: absolute !important; left: 50%; top: 180px; width: 620px; margin-left: -310px; padding: 36px 40px; display: flex; flex-direction: column; gap: 16px; }
+.lobby-card h1 { font: 700 38px/1.1 var(--font-display); letter-spacing: .03em; }
+[data-dir=c] .lobby-card h1 { text-transform: uppercase; }
+[data-dir=a] .lobby-card h1 { color: var(--accent-hi); }
+.lobby-card p { color: var(--muted); font-size: 15px; line-height: 1.55; }
+.lobby-row { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 14px; font: 600 13px/1 var(--font-ui); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.lobby-row select { min-width: 0; width: 100%; font: 500 15px/1 var(--font-ui); color: var(--text); background: rgba(0,0,0,.4); border: 1px solid var(--panel-border); border-radius: calc(var(--r) * .8); padding: 12px; outline: none; text-transform: none; letter-spacing: 0; }
+.lobby-row select:focus { border-color: var(--accent); }
+.lobby-card .bigbtn { margin-top: 6px; }
+.lobby-status { font-size: 13px; color: var(--muted); min-height: 18px; }
+.lobby-status .bad { color: #ff8a76; }
+.lobby-themes { display: flex; gap: 6px; border-top: 1px solid var(--panel-border); padding-top: 14px; }
+.lobby-themes button { font: 600 12px/1 var(--font-ui); padding: 8px 12px; border-radius: 999px; border: 1px solid var(--panel-border); background: rgba(0,0,0,.3); color: var(--muted); cursor: pointer; }
+.lobby-themes button.on { background: var(--accent); border-color: var(--accent); color: #140e05; }
+
+/* the opponent's cards face them (turned 180°); their Defense Position monsters lie sideways facing them */
+.zone.theirs .card { transform: rotate(180deg); }
+.zone.theirs .card.def { transform: rotate(270deg) scale(.8); }
+.pile.theirs .card:nth-child(1) { transform: rotate(180deg) translate(4px,4px); }
+.pile.theirs .card:nth-child(2) { transform: rotate(180deg) translate(2px,2px); }

@@ -1,0 +1,16 @@
+{
+  "name": "millennium-arena",
+  "private": true,
+  "description": "Browser Yu-Gi-Oh! duels with automated rules, built on EDOPro's engine",
+  "type": "module",
+  "workspaces": ["shared", "server", "client"],
+  "scripts": {
+    "dev": "npm run dev --workspace server & npm run dev --workspace client & wait",
+    "build": "npm run build --workspace client",
+    "start": "npm run start --workspace server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "engine": "sh engine/build-core.sh",
+    "data": "sh engine/fetch-data.sh"
+  },
+  "engines": { "node": ">=22.13" }
+}

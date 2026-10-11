@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Millennium Arena · Replay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Marcellus&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="themes.css">
+<link rel="preconnect" href="https://images.ygoprodeck.com">
+<style>
+/* Mockup of the duel screen. Themes come from themes.css.
+   The field tilt here is faked with CSS 3D; the real build renders that layer with Three.js. */
+
+/* ---------- duel stage (3D tilt + exploded view) ---------- */
+.stage{position:absolute;inset:0;transform-style:preserve-3d;transition:transform 1s cubic-bezier(.2,.8,.2,1)}
+.layer{position:absolute;inset:0;transition:transform 1s cubic-bezier(.2,.8,.2,1),background .6s,outline-color .6s;outline:1px dashed transparent}
+.layer-3d{overflow:clip;background:var(--bg0)}
+.layer-ui{pointer-events:none}
+.layer-ui>*{pointer-events:auto}
+body.exploded .stage{transform:translateY(-10px) rotateX(56deg) rotateZ(-34deg) scale(.6)}
+body.exploded .layer-3d{transform:translateZ(-210px);outline-color:rgba(255,255,255,.35)}
+body.exploded .layer-ui{transform:translateZ(210px);background:rgba(255,255,255,.02);outline-color:rgba(255,255,255,.55)}
+.layer-label{position:absolute;opacity:0;transition:opacity .5s;pointer-events:none!important;z-index:50;
+  padding:16px 20px;background:rgba(0,0,0,.78);border:1px solid rgba(255,255,255,.3);border-radius:10px;
+  font-family:-apple-system,system-ui,sans-serif;color:#fff;max-width:520px}
+.layer-label b{display:block;font-size:26px;letter-spacing:.04em;margin-bottom:6px}
+.layer-label span{font-size:16px;line-height:1.45;color:#cfcfcf}
+.layer-3d .layer-label{left:40px;top:40px}
+.layer-ui .layer-label{left:380px;top:250px}
+body.exploded .layer-label{opacity:1}
+
+/* ---------- field (3D layer) ---------- */
+.field-wrap{position:absolute;left:330px;width:900px;top:34px;height:700px;perspective:2100px;perspective-origin:50% 15%}
+.field{position:absolute;left:50%;top:50%;width:728px;height:726px;margin:-363px 0 0 -364px;
+  transform:scale(.88) rotateX(40deg) translateY(-30px);display:grid;grid-template-columns:repeat(7,92px);grid-template-rows:repeat(5,134px);gap:14px}
+.field::before{content:'';position:absolute;inset:-28px;border-radius:calc(var(--r) * 2)}
+[data-dir=a] .field::before{background:linear-gradient(180deg,#1d150c,#0d0906);border:2px solid #5e4620;
+  box-shadow:inset 0 0 0 6px #120d07,inset 0 0 0 7px rgba(217,173,85,.3),0 40px 80px rgba(0,0,0,.8)}
+[data-dir=b] .field::before{background:repeating-linear-gradient(0deg,rgba(54,226,230,.05) 0 1px,transparent 1px 4px),rgba(4,20,26,.55);
+  border:1px solid rgba(54,226,230,.7);box-shadow:0 0 50px rgba(54,226,230,.25),inset 0 0 60px rgba(54,226,230,.1)}
+[data-dir=d] .field::before{background:rgba(18,8,32,.55);border:1px solid rgba(181,123,255,.55);
+  box-shadow:0 0 60px rgba(160,90,255,.25),inset 0 0 80px rgba(160,90,255,.1)}
+[data-dir=c] .field::before{background:#101419;border:1px solid #2a3038;box-shadow:0 40px 80px rgba(0,0,0,.7)}
+[data-dir=c] .field::after{content:'';position:absolute;left:-28px;right:-28px;top:50%;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.6}
+
+.zone{position:relative;border-radius:4px}
+.zone.none{border:none!important;background:none!important;box-shadow:none!important}
+[data-dir=a] .zone{border:1px solid var(--line);background:linear-gradient(180deg,rgba(217,173,85,.07),rgba(0,0,0,.3));box-shadow:inset 0 0 18px rgba(0,0,0,.65)}
+[data-dir=b] .zone{border:1px solid var(--line);background:rgba(54,226,230,.04);border-radius:2px;box-shadow:0 0 10px rgba(54,226,230,.22),inset 0 0 10px rgba(54,226,230,.12)}
+[data-dir=d] .zone{border:1px solid var(--line);background:rgba(181,123,255,.04);border-radius:8px;box-shadow:0 0 14px rgba(160,90,255,.2),inset 0 0 14px rgba(160,90,255,.12)}
+[data-dir=c] .zone{border:1px solid var(--line);background:rgba(255,255,255,.015);border-radius:0}
+[data-dir=c] .zone::after{content:attr(data-label);position:absolute;left:7px;top:6px;font:600 11px/1 'Rajdhani',sans-serif;letter-spacing:.14em;color:#56606b}
+.zone.emz{border-style:dashed!important}
+.zone.emblem{display:grid;place-items:center;color:var(--accent);opacity:.4}
+.zone.emblem svg{width:150px;stroke-width:3}
+[data-dir=b] .zone.emblem,[data-dir=d] .zone.emblem{opacity:.7;filter:drop-shadow(0 0 10px var(--glow))}
+[data-dir=c] .zone.emblem{opacity:.25}
+[data-dir=c] .zone.emblem svg{width:90px;stroke-width:2.5}
+
+
+.card.def{transform:rotate(90deg) scale(.8)}
+.zone:not(.none):hover .card{box-shadow:0 0 0 2px var(--accent),0 0 26px var(--glow)}
+.pile .card:nth-child(1){transform:translate(4px,4px);filter:brightness(.5)}
+.pile .card:nth-child(2){transform:translate(2px,2px);filter:brightness(.7)}
+.count{position:absolute;right:-8px;bottom:-8px;z-index:3;min-width:28px;height:22px;padding:0 6px;border-radius:11px;background:var(--accent);color:#111;font:700 12px/22px var(--font-ui);text-align:center}
+.zone.ban .count{background:rgba(0,0,0,.7);color:var(--muted);border:1px solid var(--line)}
+.stat{position:absolute;left:50%;bottom:-22px;transform:translateX(-50%);z-index:3;white-space:nowrap;
+  font:700 14px/1 var(--font-display);color:var(--muted);background:rgba(0,0,0,.78);padding:4px 9px;border-radius:999px;border:1px solid var(--line)}
+.stat b{color:var(--text)}
+.zone.can .card{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px var(--accent-hi),0 0 14px 2px var(--glow)}50%{box-shadow:0 0 0 2px var(--accent-hi),0 0 34px 8px var(--glow)}}
+.zone.attacker .card,.zone.target .card{box-shadow:0 0 0 2px var(--atk),0 0 30px rgba(255,90,60,.55)}
+.link{position:absolute;top:-16px;right:-16px;z-index:4;width:34px;height:34px;border-radius:50%;background:var(--accent);color:#111;
+  font:700 17px/34px var(--font-display);text-align:center;box-shadow:0 0 24px var(--glow);animation:pop .4s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(0)}}
+.arrow{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:5}
+
+
+/* ---------- interface layer ---------- */
+
+.detail{left:24px;top:84px;width:320px;height:640px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.detail .img{width:206px;height:300px;align-self:center;border-radius:6px;overflow:hidden;flex:none;box-shadow:0 12px 30px rgba(0,0,0,.6),0 0 0 1px var(--panel-border)}
+.detail .img img,.detail .img .card{width:100%;height:100%;object-fit:cover;display:block;position:relative}
+.detail h2{font:700 21px/1.15 var(--font-display);color:var(--accent-hi);letter-spacing:.02em}
+[data-dir=c] .detail h2{text-transform:uppercase;font-size:23px;color:var(--text)}
+.detail .meta{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+.detail .stats{display:flex;gap:16px;font:700 18px/1 var(--font-display)}
+.detail .stats span{color:var(--muted);font-size:12px;margin-right:4px}
+.detail p{font-size:13px;line-height:1.55;opacity:.92}
+
+.me{left:24px;bottom:24px;width:320px;height:122px;padding:16px;display:flex;gap:14px;align-items:center}
+.opp{right:24px;top:20px;width:340px;height:100px;padding:14px 16px;display:flex;gap:14px;align-items:center}
+.opp .av{border-color:var(--atk);color:var(--atk)}
+.who{flex:1;min-width:0}
+.who .name{font-weight:600;font-size:14px;display:flex;justify-content:space-between;align-items:baseline}
+.who .rank{font-size:11px;color:var(--muted);font-weight:500}
+.lp{font:700 36px/1.1 var(--font-display);letter-spacing:.03em;margin:2px 0 6px}
+.lp small{font-size:13px;color:var(--accent);margin-right:6px;letter-spacing:.1em}
+.bar{height:6px;background:rgba(255,255,255,.09);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-hi))}
+.opp .bar i{background:linear-gradient(90deg,#c2402a,var(--atk))}
+
+.opp-hand{position:absolute;left:780px;top:0;width:0;height:0}
+.opp-hand .card{position:absolute;width:60px;height:88px;left:-30px;top:-40px;inset:auto;box-shadow:0 6px 14px rgba(0,0,0,.7)}
+
+.phase{right:24px;top:296px;width:78px;padding:12px 8px;display:flex;flex-direction:column;gap:6px}
+.phase .turn{text-align:center;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.phase .turn b{display:block;font:700 24px/1.1 var(--font-display);color:var(--text)}
+.phase .whose{color:var(--atk)}
+.ph{font:700 14px/1 var(--font-display);text-align:center;padding:8px 0;border-radius:calc(var(--r) * .6);color:var(--muted)}
+.ph.on{color:#140e05;background:var(--accent);box-shadow:0 0 18px var(--glow)}
+
+.prompt{right:114px;top:232px;width:300px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.prompt h3{font:700 18px/1.25 var(--font-display);letter-spacing:.01em}
+[data-dir=c] .prompt h3{font-size:20px}
+.prompt h3 em{font-style:normal;color:var(--atk)}
+.prompt .sub{font-size:13px;color:var(--muted)}
+.opt{display:flex;gap:12px;align-items:center;padding:8px;border:1px solid var(--panel-border);border-radius:calc(var(--r) * .8);cursor:pointer;transition:all .2s;background:rgba(0,0,0,.2)}
+.opt:hover{border-color:var(--accent)}
+.opt.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 20px var(--glow)}
+.opt img{width:42px;height:61px;border-radius:3px;object-fit:cover;flex:none}
+.opt b{display:block;font-size:14px;margin-bottom:3px}
+.opt span{font-size:11px;color:var(--muted)}
+.timer{height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+.timer i{display:block;height:100%;background:var(--accent);animation:countdown 20s linear infinite}
+@keyframes countdown{from{width:100%}to{width:0}}
+.chain{right:114px;top:232px;width:300px;padding:18px;display:none;flex-direction:column;gap:10px}
+.chain .row{display:flex;gap:12px;align-items:center}
+.chain .n{width:30px;height:30px;flex:none;border-radius:50%;background:var(--accent);color:#111;font:700 15px/30px var(--font-display);text-align:center}
+.chain .sub{font-size:13px;color:var(--muted);line-height:1.5}
+
+.hand{position:absolute;left:780px;bottom:0;width:0;height:0}
+.hcard{position:absolute;width:132px;height:193px;left:-66px;bottom:-46px;border-radius:6px;overflow:hidden;cursor:pointer;
+  box-shadow:0 12px 28px rgba(0,0,0,.75);transform-origin:50% 130%;
+  transform:translate(var(--x),var(--y)) rotate(var(--a));transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s}
+.hcard img{width:100%;height:100%;object-fit:cover;display:block}
+.hcard:hover{transform:translate(var(--x),calc(var(--y) - 76px)) rotate(0deg) scale(1.14);z-index:10;box-shadow:0 0 0 2px var(--accent),0 18px 40px rgba(0,0,0,.8)}
+
+/* chat + duel log share one tabbed panel */
+.talk{right:24px;bottom:24px;width:360px;height:272px;display:flex;flex-direction:column;overflow:hidden}
+.talk .tabs{display:flex;align-items:stretch;border-bottom:1px solid var(--panel-border);flex:none}
+.talk .tabs button{flex:1;font:600 11px/1 var(--font-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);background:none;border:none;padding:13px 0;cursor:pointer}
+.talk .tabs button.on{color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+.talk .tabs .mute{flex:none;width:44px;display:grid;place-items:center;letter-spacing:0}
+.talk .tabs .mute svg{width:16px;height:16px}
+.talk .tabs .mute.on{color:var(--atk);box-shadow:none}
+.unread{display:inline-block;min-width:17px;height:17px;border-radius:9px;background:var(--atk);color:#fff;font:700 10px/17px var(--font-ui);letter-spacing:0;margin-left:6px;padding:0 5px}
+.unread[hidden]{display:none}
+.talk .body{flex:1;overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.45;min-height:0}
+.talk .body[hidden]{display:none}
+.cm b{font-weight:600;margin-right:6px}
+.cm.k-me b{color:var(--accent)}
+.cm.k-opp b{color:var(--atk)}
+.cm.k-spec b{color:var(--muted)}
+.cm.k-spec b::after{content:' · watching';font-weight:400;font-size:11px}
+.cm.k-sys{color:var(--muted);font-size:11.5px;font-style:italic}
+.cm.new{animation:cin .25s ease-out}
+.talk .quick{display:flex;gap:6px;padding:2px 12px 8px;flex:none}
+.talk .quick button{font:600 11px/1 var(--font-ui);padding:6px 9px;border-radius:999px;border:1px solid var(--panel-border);background:rgba(0,0,0,.3);color:var(--text);cursor:pointer;white-space:nowrap}
+.talk .quick button:hover{border-color:var(--accent);color:var(--accent)}
+[data-dir=b] .talk .quick button,[data-dir=c] .talk .quick button{border-radius:3px}
+.talk .send{display:flex;gap:8px;padding:0 12px 12px;flex:none}
+.chatin{flex:1;min-width:0;font:13px/1 var(--font-ui);color:var(--text);background:rgba(0,0,0,.4);border:1px solid var(--panel-border);border-radius:calc(var(--r) * .8);padding:9px 11px;outline:none}
+.chatin:focus{border-color:var(--accent)}
+.talk .chatonly[hidden]{display:none}
+.log-e{display:flex;gap:10px;color:var(--muted);font-size:12px}
+.log-e i{font-style:normal;color:var(--accent);font-weight:600;width:22px;flex:none}
+.log-e:last-child{color:var(--text)}
+
+
+/* ---------- leaving + surrender (always behind an "are you sure") ---------- */
+.layer-ui .homebtn{position:absolute;left:24px;top:24px}
+.layer-ui .logo{left:132px}
+.zone.mydeck{cursor:pointer}
+.zone.mydeck:hover .card{box-shadow:0 0 0 2px var(--accent),0 0 26px var(--glow)}
+.deckpop{width:240px;padding:16px;display:none;flex-direction:column;gap:12px;z-index:65}
+.deckpop.on{display:flex;animation:cin .2s ease-out}
+.deckpop .t{display:flex;justify-content:space-between;align-items:baseline}
+.deckpop .t b{font:700 16px/1 var(--font-display)}
+.deckpop .t span{font-size:12px;color:var(--muted)}
+.deckpop .bigbtn{width:100%;padding:13px 0}
+.confirm{position:absolute;inset:0;z-index:70;display:none;place-items:center;background:rgba(0,0,0,.62);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.confirm.on{display:grid}
+.confirm .panel{position:relative;width:470px;padding:30px 32px;display:flex;flex-direction:column;gap:12px;animation:cin .25s cubic-bezier(.2,1.2,.4,1)}
+.confirm h3{font:700 26px/1.15 var(--font-display)}
+[data-dir=c] .confirm h3{text-transform:uppercase}
+.confirm p{font-size:14px;color:var(--muted);line-height:1.55}
+.confirm .line{display:flex;gap:10px;margin-top:10px}
+.confirm .line .bigbtn{flex:1;padding:15px 0}
+.confirm .defeat{font:700 84px/1 var(--font-display);letter-spacing:.1em;color:var(--atk);text-shadow:0 0 40px rgba(255,90,60,.45);text-align:center;margin:6px 0}
+@keyframes cin{from{opacity:0;transform:translateY(10px) scale(.97)}}
+
+/* ---------- replay viewer (on top of the duel screen styles) ---------- */
+.layer-ui .homebtn{position:absolute;left:24px;top:24px}
+.layer-ui .logo{left:132px}
+.zone .card{transition:box-shadow .25s,transform .35s}
+.zone.flash .card{animation:flash 1s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent-hi),0 0 40px 10px var(--glow)}100%{box-shadow:0 10px 20px rgba(0,0,0,.65)}}
+.zone.peek .card img{opacity:.5;filter:grayscale(.4)}
+.zone.peek .card::after{content:'SET';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:700 11px/1 var(--font-ui);letter-spacing:.14em;color:#fff;background:rgba(0,0,0,.7);padding:4px 6px;border-radius:3px}
+.mats{position:absolute;left:-8px;top:-8px;z-index:4;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--accent2);color:#fff;
+  font:700 12px/22px var(--font-ui);text-align:center;box-shadow:0 0 0 2px rgba(0,0,0,.5)}
+.zone .card.pile-top{inset:0}
+.zone.empty-pile .count{background:rgba(0,0,0,.7);color:var(--muted);border:1px solid var(--line)}
+.opp-hand .card img{width:100%;height:100%;object-fit:cover;display:block}
+.hcard.back{background:radial-gradient(circle at 50% 45%,var(--cb2),var(--cb1) 72%);color:var(--accent)}
+.lp{transition:color .3s}
+.panel.hit{animation:hit .5s}
+@keyframes hit{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+.panel.hit .lp{color:var(--atk)}
+.dmg{position:absolute;z-index:30;font:700 34px/1 var(--font-display);color:var(--atk);text-shadow:0 0 20px rgba(255,90,60,.6);pointer-events:none;animation:float 1.4s ease-out forwards}
+.dmg.cost{color:var(--muted);text-shadow:none;font-size:26px}
+@keyframes float{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-60px)}}
+.chain{display:none}
+.chain.on{display:flex}
+.chain .row b{font-size:14px}
+.rlog{right:24px;bottom:24px;width:360px;height:272px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.ctrls{display:flex;gap:5px;align-items:center}
+.ctrls button{height:30px;min-width:32px;padding:0 8px;border-radius:calc(var(--r) * .7);border:1px solid var(--panel-border);background:rgba(0,0,0,.35);color:var(--text);cursor:pointer;font:600 12px/1 var(--font-ui)}
+.ctrls button:hover{border-color:var(--accent)}
+.ctrls button.on{background:var(--accent);color:#140e05;border-color:var(--accent)}
+.ctrls .sp{margin-left:auto;display:flex;gap:3px}
+.ctrls .sp button{min-width:0;padding:0 7px;font-size:11px}
+.prog{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
+.prog input{flex:1;accent-color:var(--accent)}
+.lines{flex:1;overflow:auto;display:flex;flex-direction:column;gap:3px;font-size:12px;line-height:1.4;color:var(--muted);padding-right:4px}
+.lines .ln{display:flex;gap:8px}
+.lines .ln[hidden]{display:none}
+.lines .ln i{font-style:normal;color:var(--accent);font-weight:600;width:24px;flex:none}
+.lines .ln.turn{color:var(--text);font-weight:600;margin-top:4px}
+.lines .ln.now{color:var(--text)}
+.lines .ln.now i{color:var(--accent-hi)}
+.ending{position:absolute;inset:0;z-index:60;display:none;place-items:center;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.ending.on{display:grid}
+.ending .panel{position:relative;padding:34px 44px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.ending h2{font:700 64px/1 var(--font-display);letter-spacing:.08em;color:var(--accent-hi)}
+[data-dir=c] .ending h2{text-transform:uppercase}
+.ending p{color:var(--muted);font-size:14px}
+.ending .line{display:flex;gap:10px;margin-top:8px}
+.zone.pileable{cursor:pointer}
+.zone.pileable:hover{box-shadow:0 0 0 2px var(--accent),0 0 22px var(--glow)!important}
+.pileview{position:absolute!important;left:366px;top:92px;width:850px;max-height:660px;z-index:55;display:none;flex-direction:column;padding:18px 22px 20px;gap:12px}
+.pileview.on{display:flex;animation:pv-in .2s ease-out}
+@keyframes pv-in{from{opacity:0;transform:translateY(8px)}}
+.pv-head{display:flex;align-items:baseline;gap:12px}
+.pv-head h3{font:700 22px/1 var(--font-display);letter-spacing:.03em}
+[data-dir=c] .pv-head h3{text-transform:uppercase}
+.pv-head .n{color:var(--accent);font-weight:700}
+.pv-head .note{font-size:12px;color:var(--muted);margin-left:auto}
+.pv-close{width:30px;height:30px;border-radius:50%;border:1px solid var(--panel-border);background:none;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;flex:none}
+.pv-close:hover{color:var(--text);border-color:var(--accent)}
+.pv-tabs{display:flex;flex-wrap:wrap;gap:6px}
+.pv-tabs button{font:600 11.5px/1 var(--font-ui);padding:7px 10px;border-radius:999px;border:1px solid var(--panel-border);background:rgba(0,0,0,.3);color:var(--muted);cursor:pointer}
+.pv-tabs button.on{background:var(--accent);border-color:var(--accent);color:#140e05}
+.pv-tabs button:disabled{opacity:.35;cursor:default}
+.pv-tabs .sep{width:1px;background:var(--panel-border);margin:2px 4px}
+[data-dir=b] .pv-tabs button,[data-dir=c] .pv-tabs button{border-radius:3px}
+.pv-grid{overflow:auto;display:grid;grid-template-columns:repeat(9,1fr);gap:9px;padding:2px 6px 2px 2px;min-height:0}
+.pv-card{position:relative;aspect-ratio:59/86;border-radius:4px;overflow:hidden;background:#111;box-shadow:0 4px 10px rgba(0,0,0,.5);transition:transform .15s}
+.pv-card:hover{transform:translateY(-3px);box-shadow:0 0 0 2px var(--accent),0 6px 14px rgba(0,0,0,.6)}
+.pv-card img{width:100%;height:100%;object-fit:cover;display:block}
+.pv-card .tag{position:absolute;left:3px;top:3px;font:700 9px/1 var(--font-ui);letter-spacing:.06em;text-transform:uppercase;padding:3px 5px;border-radius:3px;background:rgba(0,0,0,.8);color:var(--accent-hi)}
+.pv-card.down img{opacity:.55}
+.pv-empty{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:30px 0}
+ /* the opponent's cards face them (turned 180°); their Defense Position monsters lie sideways facing them */ .zone.theirs .card { transform: rotate(180deg); } .zone.theirs .card.def { transform: rotate(270deg) scale(.8); } .pile.theirs .card:nth-child(1) { transform: rotate(180deg) translate(4px,4px); } .pile.theirs .card:nth-child(2) { transform: rotate(180deg) translate(2px,2px); } 
+.loadmsg{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);color:var(--muted);font-size:15px;z-index:5}
+</style>
+</head>
+<body data-dir="c">
+
+<div class="chrome">
+  <div class="t"><b>Millennium Arena</b> &nbsp;·&nbsp; replay of a real engine duel</div>
+  <a href="welcome.html">Logged out</a><a href="home.html">Home</a><a href="duel.html">Duel page</a><a href="decks.html">Decks</a><a href="profile.html">Profile</a><a href="match.html">Duel screen</a><a href="replay.html" class="on">Replay</a>
+  <div class="sep"></div><span class="lbl">Preview theme</span><div id="themeBtns"></div>
+  <div class="sep"></div><button id="reveal" class="on">Show both hands</button>
+</div>
+
+<div class="viewport">
+  <div class="scaler" id="scaler">
+    <div class="stage">
+      <section class="layer layer-3d">
+        <div class="env"></div>
+        <div class="shafts"></div>
+        <div class="mist"><i></i><i></i></div>
+        <div class="motes" id="motes"></div>
+        <div class="field-wrap"><div class="field" id="field"></div></div>
+      </section>
+
+      <section class="layer layer-ui">
+        <button class="homebtn" onclick="location.href='home.html'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+        <div class="logo"><span class="eye"></span><div class="w">MILLENNIUM<small>ARENA</small></div></div>
+        <div class="panel detail" id="detail"><div style="margin:auto;color:var(--muted);font-size:13px;text-align:center">Hover any card to see it here.</div></div>
+        <div class="panel opp" id="lp1"></div>
+        <div class="opp-hand" id="oppHand"></div>
+        <div class="panel phase" id="phase"></div>
+        <div class="panel chain" id="chain"></div>
+        <div class="hand" id="hand"></div>
+        <div class="panel me" id="lp0"></div>
+        <div class="panel rlog">
+          <div class="ctrls">
+            <button id="bStart" title="Start (Home)">⏮</button><button id="bPrev" title="Back one step (←)">◀</button>
+            <button id="bPlay" class="on" title="Play / pause (Space)">❚❚</button>
+            <button id="bNext" title="Forward one step (→)">▶</button><button id="bTurn" title="Next turn (↓)">⏭</button>
+            <div class="sp" id="speeds"><button data-s="0.5">½×</button><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="4">4×</button></div>
+          </div>
+          <div class="prog"><input type="range" id="scrub" min="0" value="0"><span id="pos"></span></div>
+          <div class="lines" id="lines"></div>
+        </div>
+        <div class="panel pileview" id="pileview">
+          <div class="pv-head"><h3 id="pvTitle"></h3><span class="n" id="pvCount"></span><span class="note" id="pvNote"></span><button class="pv-close" id="pvClose" title="Close (Esc)">×</button></div>
+          <div class="pv-tabs" id="pvTabs"></div>
+          <div class="pv-grid" id="pvGrid"></div>
+        </div>
+        <div class="ending" id="ending"><div class="panel"><div class="eyebrow">Duel over</div><h2 id="winner"></h2><p id="endInfo"></p>
+          <div class="line"><button class="bigbtn" id="again">Watch again</button><button class="bigbtn ghost" id="close">Look at the board</button></div></div></div>
+        <div class="loadmsg" id="loadmsg">Loading replay…</div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+<script src="cards.js"></script>
+<script>
+// Plays back a duel recorded from the real engine: node duel.js ... --record ../design/replays/<name>.json
+// Open with replay.html?file=replays/<name>.json (default: the Galaxy-Eyes mirror match).
+const $ = id => document.getElementById(id);
+const FILE = new URLSearchParams(location.search).get('file') || 'replays/galaxy-mirror.json';
+let R, at = 0, playing = true, speed = 1, timer = null, reveal = true;
+
+const idOf = code => cardIdOf(code) ?? code;
+const nameOf = code => CARDS[idOf(code)]?.name ?? `#${code}`;
+const img = code => `<img src="${SMALL(idOf(code))}" alt="" loading="lazy">`;
+const FACEDOWN = 0xa, DEFENSE = 0xc;
+
+// ---------- field layout: same 7 × 5 grid as the duel screen; player 0 at the bottom, opponent mirrored ----------
+const CELLS = [];
+for (let r = 0; r < 5; r++) for (let c = 0; c < 7; c++) {
+  let cell = { kind: 'none' };
+  if (r === 0) cell = c === 0 ? { p: 1, kind: 'deck' } : c === 6 ? { p: 1, kind: 'extra' } : { p: 1, loc: 's', seq: 5 - c };
+  if (r === 1) cell = c === 0 ? { p: 1, kind: 'gy' } : c === 6 ? { p: 1, loc: 's', seq: 5, field: 1 } : { p: 1, loc: 'm', seq: 5 - c };
+  if (r === 2) cell = c === 0 ? { p: 1, kind: 'ban' } : c === 6 ? { p: 0, kind: 'ban' } : c === 2 ? { emz: 'L' } : c === 4 ? { emz: 'R' } : c === 3 ? { kind: 'emblem' } : { kind: 'none' };
+  if (r === 3) cell = c === 0 ? { p: 0, loc: 's', seq: 5, field: 1 } : c === 6 ? { p: 0, kind: 'gy' } : { p: 0, loc: 'm', seq: c - 1 };
+  if (r === 4) cell = c === 0 ? { p: 0, kind: 'extra' } : c === 6 ? { p: 0, kind: 'deck' } : { p: 0, loc: 's', seq: c - 1 };
+  CELLS.push(cell);
+}
+// the Extra Monster Zones are shared: left = your zone 5 / their zone 6, right = your 6 / their 5
+const emzSlots = side => side === 'L' ? [[0, 5], [1, 6]] : [[0, 6], [1, 5]];
+const keyOf = (p, loc, seq) => `${p}-${loc}-${seq}`;
+
+function buildField(){
+  const field = $('field');
+  field.innerHTML = '';
+  CELLS.forEach(cell => {
+    const el = document.createElement('div');
+    const kind = cell.kind ?? (cell.emz ? 'emz' : cell.field ? 'fieldz' : cell.loc === 'm' ? 'm' : 'st');
+    el.className = 'zone ' + (kind === 'emblem' ? 'none emblem' : kind);
+    el.dataset.label = { m: 'MZ', st: 'S/T', emz: 'EMZ', fieldz: 'FIELD', gy: 'GY', ban: 'BAN', deck: 'DECK', extra: 'EXTRA' }[kind] || '';
+    if (kind === 'emblem') el.innerHTML = EYE;
+    if (['gy', 'ban', 'deck', 'extra'].includes(kind)) { el.classList.add('pileable'); el.onclick = () => openPile(cell.p, kind); }
+    cell.el = el;
+    field.appendChild(el);
+  });
+}
+const zoneEl = new Map();
+function cardHTML(c, opts = {}){
+  const [code, pos, atk, def, mats] = c;
+  const down = pos & FACEDOWN, defense = opts.monster && (pos & DEFENSE);
+  const showFace = !down || (reveal && opts.mine !== undefined);
+  let h = `<div class="card ${down && !reveal ? 'back' : ''} ${defense ? 'def' : ''}" data-code="${down && !reveal ? '' : code}">${down && !reveal ? EYE : img(code)}</div>`;
+  if (!down && atk !== null && atk !== undefined && opts.monster) h += defense ? `<div class="stat">${atk} / <b>${def}</b></div>` : `<div class="stat"><b>${atk}</b>${def !== null && def !== undefined ? ' / ' + def : ''}</div>`;
+  if (mats) h += `<div class="mats" title="Xyz materials">${mats}</div>`;
+  return h;
+}
+function renderField(f){
+  zoneEl.clear();
+  const b = f.board;
+  CELLS.forEach(cell => {
+    const el = cell.el;
+    el.classList.remove('flash', 'peek', 'attacker', 'target', 'can', 'empty-pile', 'theirs');
+    if (cell.p === 1) el.classList.add('theirs');   // the opponent's cards face them
+    if (cell.kind === 'none' || cell.kind === 'emblem') return;
+    let html = '';
+    if (cell.kind === 'deck' || cell.kind === 'extra') {
+      const n = b[cell.p][cell.kind];
+      html = n ? `<div class="card back">${EYE}</div><div class="card back">${EYE}</div><div class="card back">${EYE}</div>` : '';
+      html += `<div class="count">${n}</div>`; if (!n) el.classList.add('empty-pile');
+      el.classList.add('pile');
+    } else if (cell.kind === 'gy' || cell.kind === 'ban') {
+      const list = cell.kind === 'gy' ? b[cell.p].gy : b[cell.p].ban.map(x => x[0]);
+      const top = list[list.length - 1];
+      html = top ? `<div class="card pile-top" data-code="${top}">${img(top)}</div>` : '';
+      html += `<div class="count">${list.length}</div>`; if (!list.length) el.classList.add('empty-pile');
+    } else {
+      const slots = cell.emz ? emzSlots(cell.emz) : [[cell.p, cell.seq]];
+      for (const [p, seq] of slots) {
+        const c = (cell.emz || cell.loc === 'm' ? b[p].m : b[p].s)[seq];
+        zoneEl.set(keyOf(p, cell.emz ? 'm' : cell.loc, seq), el);
+        if (c) { html = cardHTML(c, { monster: cell.emz || cell.loc === 'm', mine: p }); if ((c[1] & FACEDOWN) && reveal) el.classList.add('peek'); if (cell.emz) el.classList.toggle('theirs', p === 1); }
+      }
+    }
+    el.innerHTML = html;
+  });
+  f.highlight.forEach(z => zoneEl.get(keyOf(z.p, z.loc, z.seq))?.classList.add('flash'));
+  // chain link numbers on the cards that started them
+  f.chain.forEach((c, i) => { const el = zoneEl.get(keyOf(c.p, c.loc, c.seq)); if (el) el.insertAdjacentHTML('beforeend', `<div class="link">${i + 1}</div>`); });
+  drawAttack(f.attack);
+}
+function drawAttack(a){
+  const field = $('field');
+  field.querySelector('.arrow')?.remove();
+  if (!a) return;
+  const from = zoneEl.get(keyOf(a.from.p, a.from.loc, a.from.seq)), to = a.to && zoneEl.get(keyOf(a.to.p, a.to.loc, a.to.seq));
+  if (!from) return;
+  from.classList.add('attacker'); if (to) to.classList.add('target');
+  const ax = from.offsetLeft + from.offsetWidth / 2, ay = from.offsetTop + from.offsetHeight / 2;
+  const tx = to ? to.offsetLeft + to.offsetWidth / 2 : ax, ty = to ? to.offsetTop + to.offsetHeight / 2 : (a.from.p === 0 ? -40 : field.offsetHeight + 40);
+  const mx = (ax + tx) / 2 + 50, my = (ay + ty) / 2;
+  field.insertAdjacentHTML('beforeend', `<svg class="arrow" viewBox="0 0 ${field.offsetWidth} ${field.offsetHeight}">
+    <defs><linearGradient id="ag" gradientUnits="userSpaceOnUse" x1="${ax}" y1="${ay}" x2="${tx}" y2="${ty}"><stop offset="0" stop-color="#ff6b4a" stop-opacity="0"/><stop offset="1" stop-color="#ff6b4a"/></linearGradient>
+    <marker id="ah" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#ff6b4a"/></marker></defs>
+    <path d="M${ax} ${ay} Q${mx} ${my} ${tx} ${ty}" stroke="url(#ag)" stroke-width="12" fill="none" stroke-linecap="round" marker-end="url(#ah)" style="filter:drop-shadow(0 0 10px rgba(255,90,60,.8))"/></svg>`);
+}
+
+// ---------- hands, LP, phase, chain ----------
+function renderHands(b){
+  const mine = b[0].hand, theirs = b[1].hand;
+  $('hand').innerHTML = mine.map((code, i) => {
+    const off = i - (mine.length - 1) / 2;
+    return `<div class="hcard" data-code="${code}" style="--x:${off * Math.min(112, 560 / Math.max(mine.length, 1))}px;--y:${off * off * 6}px;--a:${off * 4}deg">${img(code)}</div>`;
+  }).join('');
+  $('oppHand').innerHTML = theirs.map((code, i) => {
+    const off = i - (theirs.length - 1) / 2;
+    return `<div class="card ${reveal ? '' : 'back'}" data-code="${reveal ? code : ''}" style="transform:translate(${off * 44}px, ${-Math.abs(off) * 4}px) rotate(${180 - off * 4}deg)">${reveal ? img(code) : EYE}</div>`;
+  }).join('');
+}
+function lpPanel(p, b, f){
+  const lp = b[p].lp, name = R.players[p];
+  $('lp' + p).innerHTML = `<div class="av">${name[0]}</div><div class="who"><div class="name">${name} <span class="rank">${p === f.turnPlayer ? (p === 0 ? 'Your turn' : 'Their turn') : ''}</span></div>
+    <div class="lp"><small>LP</small>${lp}</div><div class="bar"><i style="width:${Math.min(100, lp / 80)}%"></i></div></div>`;
+}
+function renderPhase(f){
+  const PH = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP'];
+  $('phase').innerHTML = `<div class="turn">Turn<b>${f.turn}</b><span class="whose" style="color:${f.turnPlayer ? 'var(--atk)' : 'var(--accent)'}">${R.players[f.turnPlayer]}</span></div>` +
+    PH.map(p => `<div class="ph ${p === f.phase ? 'on' : ''}">${p}</div>`).join('');
+}
+function renderChain(f){
+  $('chain').classList.toggle('on', f.chain.length > 0);
+  $('chain').innerHTML = `<div class="eyebrow">Chain</div>` + f.chain.map((c, i) =>
+    `<div class="row" data-code="${c.code}"><div class="n">${i + 1}</div><div><b>${nameOf(c.code)}</b><div class="sub">${R.players[c.p]}</div></div></div>`).join('');
+}
+function damagePops(f){
+  f.damage.forEach(d => {
+    const panel = $('lp' + d.p);
+    panel.classList.remove('hit'); void panel.offsetWidth; if (!d.cost) panel.classList.add('hit');
+    const pop = document.createElement('div');
+    pop.className = 'dmg' + (d.cost ? ' cost' : '');
+    pop.textContent = '−' + d.amount;
+    pop.style.left = (panel.offsetLeft + 150) + 'px'; pop.style.top = (panel.offsetTop + (d.p === 0 ? -10 : 70)) + 'px';
+    panel.parentElement.appendChild(pop);
+    setTimeout(() => pop.remove(), 1500);
+  });
+}
+
+// ---------- pile viewer: GY, banished, Extra Deck, Deck ----------
+// Live-duel rules (Show both hands off): GY and banished are public, your own Extra Deck is yours to see, the
+// opponent's Extra Deck only shows face-up cards, and nobody looks through a Deck. Replays with it on show everything.
+const PILE_NAMES = { gy: 'Graveyard', ban: 'Banished', extra: 'Extra Deck', deck: 'Deck' };
+let pile = null;   // [player, kind]
+function pileCards(p, kind, b){
+  if (kind === 'gy') return b[p].gy.slice().reverse().map(code => ({ code }));   // most recent first
+  if (kind === 'ban') return b[p].ban.slice().reverse().map(([code, pos]) => ({ code, down: !!(pos & FACEDOWN) }));
+  if (kind === 'extra') return b[p].ex.map(([code, pos]) => ({ code, faceup: !!(pos & 0x5) }));
+  return b[p].dk.map((code, i) => ({ code, tag: i === 0 ? 'Top' : i === b[p].dk.length - 1 ? 'Bottom' : '' }));
+}
+function canSee(p, kind){
+  if (reveal || kind === 'gy' || kind === 'ban') return 'all';
+  if (kind === 'extra') return p === 0 ? 'all' : 'faceup';
+  return 'none';
+}
+function openPile(p, kind){ pile = [p, kind]; renderPile(); }
+function renderPile(){
+  const view = $('pileview');
+  if (!pile) { view.classList.remove('on'); return; }
+  const [p, kind] = pile, b = R.frames[at].board, see = canSee(p, kind);
+  let cards = pileCards(p, kind, b);
+  if (see === 'faceup') cards = cards.filter(c => c.faceup);
+  const whose = p === 0 ? (R.players[0] === 'You' ? 'Your' : R.players[0] + "'s") : (R.players[1] === 'Opponent' ? "Opponent's" : R.players[1] + "'s");
+  $('pvTitle').textContent = `${whose} ${PILE_NAMES[kind]}`;
+  $('pvCount').textContent = kind === 'extra' || kind === 'deck' ? b[p][kind] : cards.length;
+  $('pvNote').textContent = see === 'none' ? '' : kind === 'gy' || kind === 'ban' ? 'Most recent first' : kind === 'deck' ? 'Top card first · replay only' : see === 'faceup' ? 'Only face-up cards are public' : reveal && p === 1 ? 'Replay view' : '';
+  $('pvGrid').innerHTML = see === 'none'
+    ? `<div class="pv-empty">You can't look through a Deck during a duel. Turn on "Show both hands" to see it in this replay.</div>`
+    : cards.length ? cards.map(c => `<div class="pv-card ${c.down ? 'down' : ''}" data-code="${c.code}">${img(c.code)}${c.tag ? `<span class="tag">${c.tag}</span>` : c.faceup && kind === 'extra' ? '<span class="tag">Face-up</span>' : c.down ? '<span class="tag">Face-down</span>' : ''}</div>`).join('')
+    : `<div class="pv-empty">${see === 'faceup' ? 'No face-up cards.' : 'Empty.'}</div>`;
+  $('pvTabs').innerHTML = [0, 1].map(q => ['gy', 'ban', 'extra', 'deck'].map(k => {
+    const n = k === 'gy' ? b[q].gy.length : k === 'ban' ? b[q].ban.length : b[q][k];
+    return `<button data-p="${q}" data-k="${k}" class="${q === p && k === kind ? 'on' : ''}" ${canSee(q, k) === 'none' ? 'disabled' : ''}>${q === 0 ? R.players[0] : R.players[1]} · ${PILE_NAMES[k]} ${n}</button>`;
+  }).join('')).join('<span class="sep"></span>');
+  $('pvTabs').querySelectorAll('button').forEach(btn => btn.onclick = () => openPile(+btn.dataset.p, btn.dataset.k));
+  view.classList.add('on');
+}
+$('pvClose').onclick = () => { pile = null; renderPile(); };
+
+// ---------- log ----------
+let logRows = [];
+function buildLog(){
+  logRows = [];
+  R.frames.forEach((f, i) => f.lines.forEach(line => logRows.push({ i, line, turn: line.startsWith('—') })));
+  $('lines').innerHTML = logRows.map((r, k) => `<div class="ln ${r.turn ? 'turn' : ''}" data-k="${k}" hidden>${r.turn ? r.line.replace(/^— /, '') : `<i>T${R.frames[r.i].turn}</i><span>${r.line}</span>`}</div>`).join('');
+}
+function renderLog(){
+  const rows = $('lines').children;
+  let last = null;
+  logRows.forEach((r, k) => { rows[k].hidden = r.i > at; rows[k].classList.toggle('now', r.i === at); if (r.i <= at) last = rows[k]; });
+  if (last) last.scrollIntoView({ block: 'nearest' });
+}
+
+// ---------- playback ----------
+function show(i, animate = true){
+  at = Math.max(0, Math.min(R.frames.length - 1, i));
+  const f = R.frames[at];
+  renderField(f); renderHands(f.board); lpPanel(0, f.board, f); lpPanel(1, f.board, f); renderPhase(f); renderChain(f); renderLog(); renderPile();
+  if (animate) damagePops(f);
+  $('scrub').value = at; $('pos').textContent = `step ${at + 1} / ${R.frames.length} · turn ${f.turn} of ${R.turns}`;
+  $('ending').classList.toggle('on', at === R.frames.length - 1 && animate && !$('ending').dataset.closed);
+}
+function delay(f){ return (f.lines.length ? 650 + 380 * Math.min(f.lines.length - 1, 4) : 260) / speed; }
+function tick(){
+  clearTimeout(timer);
+  if (!playing) return;
+  if (at >= R.frames.length - 1) { setPlaying(false); return; }
+  show(at + 1);
+  timer = setTimeout(tick, delay(R.frames[at]));
+}
+function setPlaying(on){ playing = on; $('bPlay').textContent = on ? '❚❚' : '▶'; $('bPlay').classList.toggle('on', on); clearTimeout(timer); if (on) timer = setTimeout(tick, 300); }
+$('bPlay').onclick = () => setPlaying(!playing);
+$('bNext').onclick = () => { setPlaying(false); show(at + 1); };
+$('bPrev').onclick = () => { setPlaying(false); show(at - 1, false); };
+$('bStart').onclick = () => { setPlaying(false); $('ending').dataset.closed = ''; show(0, false); };
+$('bTurn').onclick = () => { setPlaying(false); const t = R.frames[at].turn; const n = R.frames.findIndex((f, i) => i > at && f.turn > t); show(n < 0 ? R.frames.length - 1 : n); };
+$('scrub').oninput = e => { setPlaying(false); show(+e.target.value, false); };
+$('speeds').querySelectorAll('button').forEach(b => b.onclick = () => { speed = +b.dataset.s; $('speeds').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+$('reveal').onclick = e => { reveal = !reveal; e.target.classList.toggle('on', reveal); show(at, false); };
+$('reveal').title = 'Spectator view: both hands, Set cards, Decks and Extra Decks';
+$('again').onclick = () => { delete $('ending').dataset.closed; $('ending').classList.remove('on'); show(0, false); setPlaying(true); };
+$('close').onclick = () => { $('ending').dataset.closed = '1'; $('ending').classList.remove('on'); };
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && pile) { pile = null; renderPile(); return; }
+  if (e.key === ' ') { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === 'ArrowRight') $('bNext').click(); else if (e.key === 'ArrowLeft') $('bPrev').click();
+  else if (e.key === 'ArrowDown') { e.preventDefault(); $('bTurn').click(); } else if (e.key === 'Home') $('bStart').click();
+});
+
+// card detail on hover (field, hands, GY tops, chain list)
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest('[data-code]'); const code = el && +el.dataset.code;
+  if (!code) return;
+  const c = CARDS[idOf(code)];
+  if (!c) return;
+  const meta = c.frameType === 'spell' || c.frameType === 'trap' ? `${c.race} ${c.frameType === 'spell' ? 'Spell' : 'Trap'}`
+    : [c.attribute, c.level ? `Level ${c.level}` : c.linkval ? `Link ${c.linkval}` : '', `${c.race} / ${c.type.replace(' Monster', '')}`].filter(Boolean).join(' · ');
+  $('detail').innerHTML = `<div class="img"><img src="${BIG(idOf(code))}" alt=""></div><h2>${c.name}</h2><div class="meta">${meta}</div>
+    ${c.atk != null ? `<div class="stats"><div><span>ATK</span>${c.atk}</div>${c.def != null ? `<div><span>DEF</span>${c.def}</div>` : ''}</div>` : ''}
+    <p style="white-space:pre-line">${c.desc ?? 'Loading card text…'}</p>`;
+});
+
+(async () => {
+  try {
+    const [data] = await Promise.all([fetch(FILE).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }), loadCardIndex()]);
+    R = data;
+    $('loadmsg').remove();
+    buildField(); buildLog();
+    $('scrub').max = R.frames.length - 1;
+    $('winner').textContent = R.winner === 2 ? 'Draw' : `${R.players[R.winner]} ${R.players[R.winner] === 'You' ? 'win' : 'wins'}`;
+    $('endInfo').textContent = `${R.decks[0] === R.decks[1] ? 'Mirror match' : R.decks.join(' vs ')} · ${R.turns} turns · ${R.engine} · seed ${R.seed}`;
+    show(0, false);
+    setPlaying(true);
+  } catch (err) { $('loadmsg').textContent = `Couldn't load ${FILE} (${err.message}).`; }
+})();
+fillMotes($('motes'));
+</script>
+</body>
+</html>
