@@ -33,18 +33,33 @@ export function Background() {
   </>;
 }
 
-/** Everything is laid out at 1600×900 and scaled to fit the window, like the mockups. */
-export function Stage({ children, perspective }: { children: ReactNode; perspective?: boolean }) {
-  const [scale, setScale] = useState(1);
+/** Layout happens in "design pixels" (the mockups are 1600×900), scaled to the window, and the stage always fills
+ *  the window: whichever way the window is wider or taller than 16:9, the stage gets that extra room (no bars).
+ *  - Fixed screens (the duel) keep their exact 1600×900 layout, centred, scaled so all of it fits.
+ *  - `fluid` pages reflow instead: they stop shrinking at a readable size and lay out narrower (or scroll). */
+const DESIGN_W = 1600, DESIGN_H = 900, MIN_SCALE = 0.8, MIN_W = 960;
+
+function measure(fluid: boolean) {
+  const w = innerWidth, h = innerHeight;
+  const fit = Math.min(w / DESIGN_W, h / DESIGN_H);
+  const scale = fluid ? Math.max(fit, Math.min(MIN_SCALE, w / MIN_W)) : fit;
+  return { scale, w: w / scale, h: h / scale };
+}
+
+export function Stage({ children, fluid = false }: { children?: ReactNode; fluid?: boolean }) {
+  const [box, setBox] = useState(() => measure(fluid));
   useEffect(() => {
-    const fit = () => setScale(Math.min(innerWidth / 1600, innerHeight / 900));
+    const fit = () => setBox(measure(fluid));
     fit(); addEventListener('resize', fit);
     return () => removeEventListener('resize', fit);
-  }, []);
+  }, [fluid]);
   return (
     <div className="viewport app-viewport">
-      <div className="scaler" style={{ transform: `translate(-50%,-50%) scale(${scale})`, perspective: perspective ? undefined : 'none' }}>
-        <div className="stage">{children}</div>
+      <div className="scaler" style={{ width: box.w, height: box.h, transform: `translate(-50%,-50%) scale(${box.scale})`, perspective: 'none' }}>
+        <div className={`stage ${fluid ? 'fluid' : 'fixed'}`}>
+          <Background />
+          {fluid ? children : <div className="safe">{children}</div>}
+        </div>
       </div>
     </div>
   );

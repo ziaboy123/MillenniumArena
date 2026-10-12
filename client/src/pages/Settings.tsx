@@ -35,7 +35,7 @@ export function Settings() {
   };
 
   return (
-    <Page back="/home">
+    <Page back="/home" className="center" over={toast}>
       <div className="panel settings">
         <nav className="snav">
           <div className="title">Settings</div>
@@ -48,7 +48,6 @@ export function Settings() {
           {tab === 'gameplay' && <Gameplay me={me} save={save} />}
         </div>
       </div>
-      {toast}
     </Page>
   );
 }

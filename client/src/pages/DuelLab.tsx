@@ -7,7 +7,7 @@ import { loadCards } from '../lib/cards.ts';
 import { navigate } from '../lib/router.tsx';
 import { useSession } from '../lib/session.tsx';
 import { useArenaSocket } from '../lib/socket.ts';
-import { Background, Eye, Stage, THEMES, useTheme } from '../lib/ui.tsx';
+import { Eye, Stage, THEMES, useTheme } from '../lib/ui.tsx';
 import { Page } from './common.tsx';
 
 type Ending = Extract<ServerMessage, { type: 'end' }>;
@@ -138,10 +138,9 @@ export function DuelLab() {
       {account ? <div className="lobby-status">Responses and bot speed come from Settings.</div> : <ThemeButtons />}
     </div>
   );
-  if (account) return <Page back="/home">{lobby}</Page>;
+  if (account) return <Page back="/home" className="center">{lobby}</Page>;
   return (
     <Stage>
-      <Background />
       <div className="lobby">
         <div className="logo"><Eye /><div className="w">MILLENNIUM<small>ARENA</small></div></div>
         {lobby}

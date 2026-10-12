@@ -2,14 +2,14 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, navigate } from '../lib/router.tsx';
 import { useSession } from '../lib/session.tsx';
-import { Background, Eye, Stage } from '../lib/ui.tsx';
+import { Eye, Stage } from '../lib/ui.tsx';
 
-/** A page: the themed background, the top bar, the content and (optionally) the footer. */
-export function Page({ children, foot = false, back }: { children: ReactNode; foot?: boolean; back?: string }) {
+/** A page: the top bar, then the content (which scrolls under it if the window is short), then (optionally) the footer.
+ *  `over` floats above the page and doesn't scroll: toasts and pop-up windows. `className` is the page's own layout. */
+export function Page({ children, foot = false, back, over, className = '' }: { children: ReactNode; foot?: boolean; back?: string; over?: ReactNode; className?: string }) {
   const { me } = useSession();
   return (
-    <Stage>
-      <Background />
+    <Stage fluid>
       <div className="ring" />
       <div className="top">
         <div className="brand">
@@ -21,10 +21,11 @@ export function Page({ children, foot = false, back }: { children: ReactNode; fo
           ? <Link to="/profile" className="chip"><div className="av">{me.username[0].toUpperCase()}</div><div><b>{me.username}</b><span>Unranked</span></div></Link>
           : !me && <div className="topR"><button className="bigbtn ghost sm" onClick={() => navigate('/login')}>Log in</button><button className="bigbtn sm" onClick={() => navigate('/signup')}>Sign up</button></div>}
       </div>
-      <section className="screen on">
+      <section className={`screen on pagebody ${className}`}>
         {children}
         {foot && <Foot />}
       </section>
+      {over}
     </Stage>
   );
 }

@@ -1,5 +1,16 @@
 /* The site's pages (from design/welcome.html and design/home.html): Welcome, the account forms, Privacy/Terms,
-   Home and Settings. The duel screen's own styles are in duel.css and app.css. */
+   Home and Settings. The duel screen's own styles are in duel.css and app.css.
+   Pages are "fluid" (see Stage in lib/ui.tsx): the area under the top bar (.pagebody) is a scrolling column that fills the
+   window, and @container page queries rearrange things when the window is narrow. */
+
+/* ---------- the page frame ---------- */
+.stage.fixed .safe { position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px; margin: -450px 0 0 -800px; }
+.screen.pagebody { top: 96px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 28px 40px 26px;
+  container: page / inline-size; scrollbar-width: thin; scrollbar-color: var(--panel-border) transparent; }
+/* the page's own panels sit in the flow (a panel is absolutely placed by default, as on the duel screen) */
+.pagebody :is(.auth, .doc, .settings, .feats > .panel, .lobby-card) { position: relative; }
+.screen.pagebody > .foot { position: static; flex: none; margin-top: auto; padding-top: 22px; }
+.screen.pagebody.center > :first-child { margin: auto; }
 
 .top a.logo, a.chip { text-decoration: none; color: inherit; }
 .top a.logo { color: var(--accent); }
@@ -10,7 +21,9 @@
 
 /* ---------- Welcome ---------- */
 .stage:has(.hero) .ring { left: 1160px; top: 360px; }
-.hero { position: absolute; left: 80px; top: 146px; width: 640px; }
+.welcome .wrap { width: 100%; max-width: 1440px; margin: auto; display: flex; flex-direction: column; gap: 56px; }
+.hero-row { display: flex; align-items: center; justify-content: space-between; gap: 50px; }
+.hero { flex: 0 1 640px; min-width: 0; padding-top: 14px; }
 .hero h1 { font: 700 64px/1.04 var(--font-display); letter-spacing: .03em; margin: 16px 0 20px; }
 [data-dir=a] .hero h1 { color: var(--accent-hi); text-shadow: 0 0 34px rgba(217,173,85,.3); }
 [data-dir=b] .hero h1, [data-dir=d] .hero h1 { text-shadow: 0 0 26px var(--glow); }
@@ -20,12 +33,19 @@
 .hero .line { display: flex; gap: 12px; margin-top: 30px; }
 .hero .fine { margin-top: 18px; font-size: 13px; color: var(--muted); display: flex; gap: 16px; }
 .hero .fine span::before { content: '✓'; color: var(--accent); margin-right: 6px; font-weight: 700; }
-.shot { position: absolute; left: 770px; top: 132px; width: 780px; height: 439px; perspective: 1800px; }
+.shot { position: relative; flex: 0 1 780px; min-width: 0; aspect-ratio: 16 / 9; perspective: 1800px; }
 .shot .frame { position: absolute; inset: 0; transform: rotateY(-13deg) rotateX(5deg); transform-origin: left center; border-radius: calc(var(--r) * 1.5); overflow: hidden;
   border: 1px solid var(--panel-border); box-shadow: 0 40px 90px rgba(0,0,0,.7), 0 0 60px var(--glow); }
 /* the real duel screen at 1600×900, shrunk into the frame */
-.shot .embedded-stage { inset: auto; left: 0; top: 0; width: 1600px; height: 900px; transform: scale(.4875); transform-origin: 0 0; pointer-events: none; }
-.feats { position: absolute; left: 80px; right: 80px; top: 668px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.shot .embedded-stage { inset: auto; left: 0; top: 0; width: 1600px; height: 900px; transform: scale(var(--k, .4875)); transform-origin: 0 0; pointer-events: none; }
+.feats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+@container page (max-width: 1260px) {
+  .hero-row { flex-direction: column; align-items: stretch; gap: 40px; }
+  .hero { flex: none; max-width: 720px; }
+  .shot { flex: none; width: 100%; max-width: 900px; align-self: center; }
+  .shot .frame { transform: none; }
+}
+@container page (max-width: 1100px) { .feats { grid-template-columns: 1fr 1fr; } }
 .feats .panel { position: relative; padding: 22px 24px; display: flex; flex-direction: column; gap: 8px; }
 .feats .ico { width: 44px; height: 44px; }
 .feats .ico svg { width: 20px; height: 20px; }
@@ -34,7 +54,7 @@
 .feats p { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
 
 /* ---------- account forms ---------- */
-.auth { position: absolute !important; left: 50%; top: 128px; width: 500px; margin-left: -250px; padding: 34px 38px; display: flex; flex-direction: column; gap: 16px; animation: rise-in .3s cubic-bezier(.2,.8,.2,1); }
+.auth { width: 500px; max-width: 100%; padding: 34px 38px; display: flex; flex-direction: column; gap: 16px; animation: rise-in .3s cubic-bezier(.2,.8,.2,1); }
 .auth h2 { font: 700 30px/1.1 var(--font-display); letter-spacing: .03em; }
 [data-dir=a] .auth h2 { color: var(--accent-hi); }
 [data-dir=c] .auth h2 { text-transform: uppercase; }
@@ -73,7 +93,7 @@
 @keyframes rise-in { from { opacity: 0; transform: translateY(16px) scale(.98); } }
 
 /* ---------- Privacy / Terms ---------- */
-.doc { position: absolute !important; left: 50%; top: 118px; bottom: 36px; width: 860px; margin-left: -430px; padding: 36px 52px; overflow: auto; }
+.doc { width: 860px; max-width: 100%; padding: 36px 52px; }
 .doc h1 { font: 700 40px/1.1 var(--font-display); letter-spacing: .03em; margin: 10px 0 6px; }
 [data-dir=c] .doc h1 { text-transform: uppercase; }
 .doc .upd { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
@@ -86,7 +106,7 @@
 .doc .crumb { background: none; border: none; padding: 0; }
 
 /* ---------- Home ---------- */
-.tiles { position: absolute; left: 40px; right: 40px; top: 124px; bottom: 84px; display: grid; grid-template-columns: 1.5fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 22px; }
+.tiles { flex: 1 0 auto; min-height: 620px; display: grid; grid-template-columns: 1.5fr 1fr; grid-template-rows: repeat(3, 1fr); gap: 22px; }
 .tiles .tile { position: relative; overflow: hidden; cursor: pointer; transition: transform .35s cubic-bezier(.2,.8,.2,1); }
 .tiles .tile.duel { grid-row: 1 / 4; }
 .tile:hover { transform: translateY(-4px); }
@@ -137,9 +157,25 @@
 .big-gear svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
 .tile:hover .big-gear { transform: rotate(90deg); opacity: .5; }
 .soon .bigbtn { margin-top: 6px; }
+/* the small tiles get narrow in smaller windows: tuck the fan, avatar and gear to the right and shrink them */
+.tile.sm { container: tile / inline-size; }
+@container tile (max-width: 580px) {
+  .tile h2 { font-size: 46px; }
+  .fan { right: 100px; scale: .8; }
+  .big-av { right: 40px; width: 84px; height: 84px; margin-top: -42px; font-size: 34px; }
+  .big-gear { right: 40px; width: 110px; height: 110px; margin-top: -55px; }
+  .tile .stats { gap: 18px; }
+  .tile .stats b { font-size: 21px; }
+  .tile .go { display: none; }   /* the whole tile is the button; there's no room for the arrow */
+}
+@container page (max-width: 1100px) {
+  .tiles { flex: none; grid-template-columns: 1fr; grid-template-rows: 420px; grid-auto-rows: 200px; }
+  .tiles .tile.duel { grid-row: auto; }
+  .tile.duel h2 { font-size: 100px; }
+}
 
 /* ---------- Settings ---------- */
-.settings { position: absolute !important; left: 50%; top: 124px; width: 1120px; height: 700px; margin-left: -560px; display: grid; grid-template-columns: 250px 1fr; overflow: hidden;
+.settings { width: 1120px; max-width: 100%; flex: 1 1 auto; max-height: 700px; min-height: 480px; display: grid; grid-template-columns: 250px 1fr; overflow: hidden;
   animation: rise-in .3s cubic-bezier(.2,.8,.2,1); }
 .snav { padding: 26px 14px; border-right: 1px solid var(--panel-border); display: flex; flex-direction: column; gap: 4px; }
 .snav .title { font: 700 22px/1 var(--font-display); color: var(--accent); letter-spacing: .06em; margin: 0 10px 22px; }
@@ -152,7 +188,8 @@
 .sbody h3 { font: 700 19px/1.2 var(--font-display); margin-bottom: 4px; }
 [data-dir=c] .sbody h3 { text-transform: uppercase; letter-spacing: .06em; }
 .sbody .hint { font-size: 12.5px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
-.sbody .srow .l { max-width: 520px; }
+.sbody .srow { flex-wrap: wrap; }
+.sbody .srow .l { flex: 1 1 300px; max-width: 520px; }
 .sbody .seg button { flex: none; padding: 10px 15px; font-size: 13px; }
 .themes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
 .tcard { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; border: 1px solid var(--panel-border); background: var(--bg0); transition: transform .2s, box-shadow .2s; }
@@ -190,3 +227,10 @@
 .dev .ok { margin-right: 10px; }
 .dev span:last-child { font-size: 12px; color: var(--muted); }
 .ffield label.plain { justify-content: flex-start; gap: 6px; }
+@container page (max-width: 1000px) {
+  .settings { grid-template-columns: 190px 1fr; }
+  .sbody { padding: 28px 28px; }
+  .artgrid { grid-template-columns: repeat(3, 1fr); }
+}
+/* the duel lab, when it sits inside the page frame */
+.pagebody .lobby-card { position: relative !important; left: auto; top: auto; margin: auto; max-width: 100%; }

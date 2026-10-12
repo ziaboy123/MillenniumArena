@@ -1,6 +1,6 @@
 // The signed-out pages: Welcome, Sign up (account → email code → username), Log in (+ a code on new devices),
 // Forgot password, Privacy and Terms. Accounts are shared with DeckForge.
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { DuelInfo, Frame, Me, SideView } from '@arena/shared';
 import { DuelScreen } from '../duel/DuelScreen.tsx';
 import { api, ApiError } from '../lib/api.ts';
@@ -18,17 +18,21 @@ const FEATURES: [string, string, string][] = [
 
 export function Welcome() {
   return (
-    <Page foot>
-      <div className="hero">
-        <div className="eyebrow">Free Yu-Gi-Oh! duels in your browser</div>
-        <h1>Every card.<br />Every duel.<br /><em>No grind.</em></h1>
-        <p>Build any deck from every card ever printed, then duel your friends with the rules handled for you. Nothing to download, no packs to open.</p>
-        <div className="line"><button className="bigbtn" onClick={() => navigate('/signup')}>Create free account</button><button className="bigbtn ghost" onClick={() => navigate('/login')}>Log in</button></div>
-        <div className="fine"><span>Every card, free</span><span>Automatic rulings</span><span>No ads, ever</span></div>
-      </div>
-      <div className="shot"><div className="frame"><DemoDuel /></div></div>
-      <div className="feats">
-        {FEATURES.map(([icon, title, text]) => <div key={title} className="panel"><div className="ico"><Icon name={icon} /></div><h3>{title}</h3><p>{text}</p></div>)}
+    <Page foot className="welcome">
+      <div className="wrap">
+        <div className="hero-row">
+          <div className="hero">
+            <div className="eyebrow">Free Yu-Gi-Oh! duels in your browser</div>
+            <h1>Every card.<br />Every duel.<br /><em>No grind.</em></h1>
+            <p>Build any deck from every card ever printed, then duel your friends with the rules handled for you. Nothing to download, no packs to open.</p>
+            <div className="line"><button className="bigbtn" onClick={() => navigate('/signup')}>Create free account</button><button className="bigbtn ghost" onClick={() => navigate('/login')}>Log in</button></div>
+            <div className="fine"><span>Every card, free</span><span>Automatic rulings</span><span>No ads, ever</span></div>
+          </div>
+          <Shot />
+        </div>
+        <div className="feats">
+          {FEATURES.map(([icon, title, text]) => <div key={title} className="panel"><div className="ico"><Icon name={icon} /></div><h3>{title}</h3><p>{text}</p></div>)}
+        </div>
       </div>
     </Page>
   );
@@ -49,6 +53,19 @@ const DEMO_FRAME: Frame = {
 const DEMO_DUEL: DuelInfo = { id: 'demo', players: ['You', 'Rival'], decks: ['Galaxy-Eyes', 'Fiendsmith'], you: 0, fullView: false, engine: '', timer: 0 };
 const DEMO_LOG = ['Galaxy-Eyes Photon Dragon attacks Fiendsmith Engraver', 'Rival activates Fiendsmith Engraver', 'Chain link 1’s effect is negated'].map((text, i) => ({ step: i, turn: 5, text, isTurn: false }));
 const noop = () => {};
+/** The frame around the preview; the 1600×900 duel screen inside is shrunk to whatever width the frame has. */
+function Shot() {
+  const frame = useRef<HTMLDivElement>(null);
+  const [k, setK] = useState(0.4875);
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setK(el.clientWidth / 1600));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return <div className="shot"><div className="frame" ref={frame} style={{ ['--k' as string]: k }}><DemoDuel /></div></div>;
+}
 function DemoDuel() {
   // the card text in the detail panel needs the card data; the board shows without it
   const [, setReady] = useState(false);
@@ -58,8 +75,8 @@ function DemoDuel() {
 }
 
 // ---------- the account forms ----------
-function AuthCard({ children }: { children: ReactNode }) {
-  return <Page><div className="panel auth">{children}</div></Page>;
+function AuthCard({ children, over }: { children: ReactNode; over?: ReactNode }) {
+  return <Page className="center" over={over}><div className="panel auth">{children}</div></Page>;
 }
 const message = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong.');
 const validEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
@@ -86,7 +103,7 @@ export function SignUp() {
   const resend = async () => { try { await api('auth/signup', { email, password }); showToast('New code sent'); } catch (x) { setErr(message(x)); } };
 
   return (
-    <AuthCard>
+    <AuthCard over={toast}>
       <div className="steps"><i className="on" /><i className={step >= 2 ? 'on' : ''} /><i /></div>
       {step === 1 ? (
         <form className="step on" onSubmit={start}>
@@ -111,7 +128,6 @@ export function SignUp() {
           <div className="alt">No email? Check spam, or <a onClick={resend}>resend the code</a> · <a onClick={() => { setStep(1); setErr(''); }}>use a different email</a></div>
         </form>
       )}
-      {toast}
     </AuthCard>
   );
 }
@@ -250,7 +266,7 @@ export function Forgot() {
 // ---------- Privacy and Terms ----------
 function Doc({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Page>
+    <Page className="center">
       <div className="panel doc">
         <button className="crumb" onClick={() => (history.length > 1 ? history.back() : navigate('/'))}>← Back</button>
         <h1>{title}</h1>

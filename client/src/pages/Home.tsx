@@ -24,7 +24,7 @@ export function Home() {
     : `translate(${(i - 1) * 46}px, ${Math.abs(i - 1) * 8}px) rotate(${(i - 1) * 10}deg)`;
 
   return (
-    <Page foot>
+    <Page foot className="home">
       <div className="tiles">
         <div className="panel tile duel" onClick={() => navigate('/duel')}>
           <div className="art" style={{ backgroundImage: `url(${cropImage(art)})` }} /><div className="tint" /><div className="shade" />
@@ -85,7 +85,7 @@ export function Home() {
 /** Pages that arrive in later steps. */
 export function Soon({ title, text }: { title: string; text: string }) {
   return (
-    <Page back="/home">
+    <Page back="/home" className="center">
       <div className="panel auth soon">
         <div className="eyebrow">Coming next</div>
         <h2>{title}</h2>

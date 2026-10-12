@@ -3,7 +3,7 @@
 import { useEffect, type ComponentType } from 'react';
 import { navigate, usePath } from './lib/router.tsx';
 import { useSession } from './lib/session.tsx';
-import { Background, Stage } from './lib/ui.tsx';
+import { Stage } from './lib/ui.tsx';
 import { DuelLab } from './pages/DuelLab.tsx';
 import { Home, Soon } from './pages/Home.tsx';
 import { Settings } from './pages/Settings.tsx';
@@ -22,7 +22,7 @@ const SIGNED_IN: Record<string, ComponentType> = {
 export function App() {
   const { me, loading, accounts } = useSession();
   const path = usePath();
-  if (loading) return <Stage><Background /></Stage>;
+  if (loading) return <Stage fluid />;
   if (!accounts) return <DuelLab />;
 
   const named = !!me?.username;

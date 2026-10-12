@@ -1,6 +1,8 @@
 /* App-only styles (the duel screen itself uses duel.css from the mockups). */
 html, body, #root { height: 100%; }
 .app-viewport { inset: 0; }   /* the mockups reserved 52px for their toolbar */
+/* the background fills the whole window (Stage draws it); the duel's own layer stays see-through so there's no seam */
+.stage.fixed .layer-3d { background: none; overflow: visible; }
 .loadmsg { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); color: var(--muted); font-size: 15px; }
 
 .lobby { position: absolute; inset: 0; }

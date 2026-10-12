@@ -168,7 +168,6 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
     <Wrap>
       <div onMouseOver={onHover} onMouseDown={e => { if (menu && !(e.target as HTMLElement).closest('.actmenu')) setMenu(null); }}>
         <section className="layer layer-3d">
-          <Background />
           {frame ? <Field frame={frame} onPile={onPile} marks={marks} onCell={onCell} fx={fx} /> : <div className="loadmsg">Waiting for the duel to start…</div>}
         </section>
 
@@ -233,7 +232,7 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
 }
 
 /** The duel screen at its full 1600×900, for a page to scale down and show (it can't be clicked). */
-const EmbeddedStage = ({ children }: { children: React.ReactNode }) => <div className="stage embedded-stage" inert>{children}</div>;
+const EmbeddedStage = ({ children }: { children: React.ReactNode }) => <div className="stage embedded-stage" inert><Background />{children}</div>;
 
 function CardDetail({ code }: { code: number | null }) {
   const c = code ? card(code) : undefined;
