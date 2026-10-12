@@ -20,8 +20,18 @@ export interface RoomOptions {
   bots?: [BotLevel, BotLevel];
   /** For the people playing: when to ask them to respond. */
   responses?: Responses;
+  /** Sides that only want to respond to the opponent's moves (overrides `responses`, for duels between people). */
+  smart?: Side[];
   setup?: WorkerInput['setup'];
   setupLua?: string;
+  /** Starting life points. */
+  lp?: number;
+  /** Duels between people: neither the log nor a spectator learns which deck someone is using. */
+  hideDecks?: boolean;
+  /** Called once when the duel ends (with the winning engine side, 2 for a draw). */
+  onEnd?: (end: Extract<ServerMessage, { type: 'end' }>) => void;
+  /** Part of a match: the match decides when to close it, not the last person leaving. */
+  managed?: boolean;
 }
 
 const SPEED: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.45, instant: 0.12 };
@@ -55,6 +65,7 @@ export class DuelRoom {
   private ended: Extract<ServerMessage, { type: 'end' }> | null = null;
   private readonly speed: number;
   readonly startedAt = Date.now();
+  private readonly options: RoomOptions;
   closed = false;
 
   /** `decks` and `players` are in engine order: side 0 goes first. `humans` are the sides people play. */
@@ -62,7 +73,8 @@ export class DuelRoom {
     this.seconds = Math.max(0, Math.min(600, Math.round(options.timer ?? 0)));
     this.speed = SPEED[options.speed ?? 'normal'] ?? 1;
     const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup, setupLua: options.setupLua,
-      smart: options.responses === 'always' ? [] : humans };
+      smart: options.smart ?? (options.responses === 'always' ? [] : humans), lp: options.lp, hideDecks: options.hideDecks };
+    this.options = options;
     for (const side of humans) this.seats.set(side, randomBytes(18).toString('base64url'));
     this.worker = new Worker(new URL('./duel-worker.ts', import.meta.url), { workerData: input, execArgv: ['--import', 'tsx'] });
     this.worker.on('message', (msg: WorkerOutput) => {
@@ -77,7 +89,9 @@ export class DuelRoom {
 
   info(side: Side | null): DuelInfo {
     const key = side === null ? undefined : this.seats.get(side);
-    return { id: this.id, players: seat(this.players, side), decks: seat([this.decks[0].name, this.decks[1].name], side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME, timer: this.seconds, ...(key ? { seat: key } : {}) };
+    // between people you only know your own deck's name
+    const decks: [string, string] = this.options.hideDecks ? [side === 0 ? this.decks[0].name : '', side === 1 ? this.decks[1].name : ''] : [this.decks[0].name, this.decks[1].name];
+    return { id: this.id, players: seat(this.players, side), decks: seat(decks, side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME, timer: this.seconds, ...(key ? { seat: key } : {}) };
   }
 
   /** `rejoining`: also send the log so far (the page may have been reloaded). */
@@ -101,15 +115,29 @@ export class DuelRoom {
     return true;
   }
 
+  /** Back into the duel for someone a match has already identified by their login (a player's seat, or watching). */
+  rejoinAs(viewer: Viewer, side: Side | null): boolean {
+    if (this.closed) return false;
+    if (side !== null) { clearTimeout(this.away.get(side)); this.away.delete(side); }
+    viewer.side = side;
+    this.join(viewer, true);
+    return true;
+  }
+
   /** `dropped`: the connection was lost (the seat is kept for a minute) rather than the player leaving. */
   leave(viewer: Viewer, dropped = false) {
     this.viewers.delete(viewer);
     const side = viewer.side;
     if (dropped && side !== null && this.seats.has(side) && !this.ended && ![...this.viewers].some(v => v.side === side)) {
-      this.away.set(side, setTimeout(() => { this.away.delete(side); if (![...this.viewers].some(v => v.side !== null)) this.close(); }, REJOIN_MS));
+      this.away.set(side, setTimeout(() => {
+        this.away.delete(side);
+        // against a person, not coming back loses the duel; against the bot the duel just stops
+        if (this.humans.length > 1) this.concede(side, `${this.players[side]} left the duel`);
+        else if (![...this.viewers].some(v => v.side !== null)) this.close();
+      }, REJOIN_MS));
       return;
     }
-    if (!this.viewers.size && !this.away.size) this.close();
+    if (!this.viewers.size && !this.away.size && !this.options.managed) this.close();
   }
 
   /** A player's answer to the prompt they were shown. Anything stale or from the wrong seat is ignored. */
@@ -120,6 +148,21 @@ export class DuelRoom {
     for (const v of this.viewers) if (v.side === viewer.side && v !== viewer) v.send({ type: 'prompt', prompt: null });
     this.worker.postMessage({ type: 'answer', id, answer } satisfies WorkerCommand);
   }
+
+  /** A player gives up (or left): the other side wins straight away. */
+  concede(side: Side, reason: string) {
+    if (this.closed || this.ended || this.ending) return;
+    this.queue = [];
+    this.pending = null;
+    this.stopClock();
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    this.worker.terminate();
+    this.ending = { type: 'end', winner: (1 - side) as Side, reason, turns: this.turn };
+    this.pump();
+  }
+
+  /** Who's connected to the duel right now. */
+  get people() { return this.viewers; }
 
   close() {
     if (this.closed) return;
@@ -142,6 +185,9 @@ export class DuelRoom {
         this.ended = end;
         for (const v of this.viewers) v.send({ ...end, winner: seatSide(end.winner, v.side) });
         this.ending = null;
+        for (const t of this.away.values()) clearTimeout(t);
+        this.away.clear();
+        this.options.onEnd?.(end);
       }
       return;
     }

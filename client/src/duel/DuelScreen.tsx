@@ -1,7 +1,7 @@
 // The duel screen: field + interface panels. You play from the bottom (side 0); when you're only watching,
 // both sides are bots. Prompts from the engine light up the cards you can use.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Side, SummonKind, ZoneRef } from '@arena/shared';
+import type { ChatLine, DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Side, SummonKind, ZoneRef } from '@arena/shared';
 import { bigImage, card, cardName, imageFallback, smallImage } from '../lib/cards.ts';
 import { Background, Eye, EyeSvg, Stage } from '../lib/ui.tsx';
 import { Field, cellIndex, pileCell, type CellFx, type Mark, type PileKind } from './Field.tsx';
@@ -49,7 +49,10 @@ function useFleeting<T extends { id: number }>(ms: number) {
   return [items, add] as const;
 }
 
-export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave, reconnecting, embedded, initialDetail }: {
+/** Duels between people: the chat, which shares the bottom-right panel with the duel log. */
+export interface DuelChat { lines: ChatLine[]; name: string; onSend: (text: string) => void }
+
+export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave, reconnecting, embedded, initialDetail, chat, matchLine, leaveText, endAction }: {
   duel: DuelInfo; frame: Frame | null; log: LogRow[]; ending: Ending | null;
   prompt: Prompt | null; promptAt: number; onAnswer: (a: PromptAnswer) => void;
   reveal: Reveal | null; onCloseReveal: () => void; onSurrender: () => void; onLeave: () => void; reconnecting?: boolean;
@@ -57,6 +60,13 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
   embedded?: boolean;
   /** The card shown in the detail panel before anything is hovered. */
   initialDetail?: number;
+  chat?: DuelChat;
+  /** A match between people, e.g. "Game 2 of 3 · 1-0". */
+  matchLine?: string;
+  /** What leaving the duel means here. */
+  leaveText?: string;
+  /** The main button when the duel is over (default: back to the lobby). */
+  endAction?: { label: string; run: () => void };
 }) {
   const [detail, setDetail] = useState<number | null>(initialDetail ?? null);
   const [pile, setPile] = useState<[Side, PileKind] | null>(null);
@@ -203,13 +213,13 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
             ))}
             {reconnecting && <div className="panel reconnecting"><span className="dots"><i /><i /><i /></span>Connection lost. Reconnecting to the duel…</div>}
           </>}
-          <LogPanel log={log} step={frame?.step ?? -1} duel={duel} />
+          {chat ? <TalkPanel log={log} step={frame?.step ?? -1} chat={chat} matchLine={matchLine} /> : <LogPanel log={log} step={frame?.step ?? -1} duel={duel} />}
           {menu && <ActionMenu {...menu} onClose={closeMenu} />}
           {confirm && (
             <div className="confirm on" onMouseDown={e => { if (e.target === e.currentTarget) setConfirm(null); }}><div className="panel">
               <div className="eyebrow">{confirm === 'home' ? 'Leave the duel' : 'Surrender'}</div>
               <h3>{confirm === 'home' ? 'Return to Home?' : 'Surrender this duel?'}</h3>
-              <p>{confirm === 'home' ? 'Leaving ends the duel and counts as a surrender.' : `The duel ends here and ${duel.players[1]} wins.`}</p>
+              <p>{confirm === 'home' ? leaveText ?? 'Leaving ends the duel and counts as a surrender.' : `The duel ends here and ${duel.players[1]} wins.`}</p>
               <div className="line">
                 <button className="bigbtn ghost" autoFocus onClick={() => setConfirm(null)}>{confirm === 'home' ? 'Stay' : 'Keep playing'}</button>
                 <button className="bigbtn danger" onClick={() => { setConfirm(null); if (confirm === 'home') onLeave(); else onSurrender(); }}>{confirm === 'home' ? 'Leave duel' : 'Surrender'}</button>
@@ -218,11 +228,11 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
           )}
           {ending && showEnd && (
             <div className={`ending on ${duel.you === 0 ? (ending.winner === 0 ? 'victory' : ending.winner === 1 ? 'defeat' : '') : ''}`}><div className="panel">
-              <div className="eyebrow">Duel over · {ending.turns} turns</div>
+              <div className="eyebrow">Duel over · {ending.turns} {ending.turns === 1 ? 'turn' : 'turns'}</div>
               <h2>{duel.you === 0 ? (ending.winner === 0 ? 'Victory' : ending.winner === 1 ? 'Defeat' : ending.winner === 2 ? 'Draw' : 'Duel ended')
                 : ending.winner === 0 || ending.winner === 1 ? `${duel.players[ending.winner]} wins` : ending.winner === 2 ? 'Draw' : 'Stopped'}</h2>
-              <p>{ending.reason} · {duel.decks[0] === duel.decks[1] ? `${duel.decks[0]} mirror` : duel.decks.join(' vs ')}</p>
-              <div className="line"><button className="bigbtn" onClick={onLeave}>Back to the lobby</button><button className="bigbtn ghost" onClick={() => setShowEnd(false)}>Look at the board</button></div>
+              <p>{ending.reason} · {matchLine ?? (duel.decks[0] === duel.decks[1] ? `${duel.decks[0]} mirror` : duel.decks.join(' vs '))}</p>
+              <div className="line"><button className="bigbtn" onClick={endAction?.run ?? onLeave}>{endAction?.label ?? 'Back to the lobby'}</button><button className="bigbtn ghost" onClick={() => setShowEnd(false)}>Look at the board</button></div>
             </div></div>
           )}
         </section>
@@ -362,6 +372,54 @@ function LogPanel({ log, step, duel }: { log: LogRow[]; step: number; duel: Duel
           {r.isTurn ? r.text : <><i>T{r.turn}</i><span>{r.text}</span></>}
         </div>)}
       </div>
+    </div>
+  );
+}
+
+const QUICK = ['GG', 'Good luck!', 'Nice play', 'Thinking…'];
+
+/** Chat and the duel log as two tabs. Mute hides what the opponent and spectators say. */
+function TalkPanel({ log, step, chat, matchLine }: { log: LogRow[]; step: number; chat: DuelChat; matchLine?: string }) {
+  const [tab, setTab] = useState<'chat' | 'log'>('chat');
+  const [muted, setMuted] = useState(false);
+  const [text, setText] = useState('');
+  const [seen, setSeen] = useState(chat.lines.length);
+  const chatBox = useRef<HTMLDivElement>(null), logBox = useRef<HTMLDivElement>(null);
+  const mine = (l: ChatLine) => l.role !== 'system' && l.from === chat.name;
+  const shown = chat.lines.filter(l => !muted || l.role === 'system' || mine(l));
+  const unread = tab === 'log' ? chat.lines.slice(seen).filter(l => !mine(l) && l.role !== 'system' && !muted).length : 0;
+  useEffect(() => { if (tab === 'chat') { setSeen(chat.lines.length); chatBox.current?.scrollTo({ top: chatBox.current.scrollHeight }); } }, [chat.lines.length, tab, muted]);
+  useEffect(() => { logBox.current?.scrollTo({ top: logBox.current.scrollHeight }); }, [log.length, tab]);
+  const send = (t: string) => { const v = t.trim(); if (v) { chat.onSend(v); setText(''); } };
+  return (
+    <div className="panel talk">
+      <div className="tabs">
+        <button className={tab === 'chat' ? 'on' : ''} onClick={() => setTab('chat')}>Chat{unread > 0 && <span className="unread">{unread}</span>}</button>
+        <button className={tab === 'log' ? 'on' : ''} onClick={() => setTab('log')}>Duel log</button>
+        <button className={`mute ${muted ? 'on' : ''}`} title={muted ? 'Unmute chat' : 'Mute chat'} onClick={() => setMuted(m => !m)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" />{muted ? <path d="m22 9-6 6M16 9l6 6" /> : <><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M19 5a10 10 0 0 1 0 14" /></>}</svg>
+        </button>
+      </div>
+      {tab === 'chat' ? <>
+        <div className="body" ref={chatBox}>
+          {matchLine && <div className="cm k-sys">{matchLine}</div>}
+          {shown.map((l, k) => (
+            <div key={k} className={`cm k-${l.role === 'system' ? 'sys' : mine(l) ? 'me' : l.role === 'spectator' ? 'spec' : 'opp'}`}>
+              {l.role === 'system' ? l.text : <><b>{mine(l) ? 'You' : l.from}</b>{l.text}</>}
+            </div>
+          ))}
+          {muted && <div className="cm k-sys">Chat muted: messages from others are hidden.</div>}
+        </div>
+        <div className="quick">{QUICK.map(q => <button key={q} onClick={() => send(q)}>{q}</button>)}</div>
+        <form className="send" onSubmit={e => { e.preventDefault(); send(text); }}>
+          <input className="chatin" maxLength={200} spellCheck={false} placeholder="Say something…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.stopPropagation()} />
+          <button className="sbtn p" disabled={!text.trim()}>Send</button>
+        </form>
+      </> : (
+        <div className="body lines" ref={logBox}>
+          {log.map((r, k) => <div key={k} className={`ln ${r.isTurn ? 'turn' : ''} ${r.step === step ? 'now' : ''}`}>{r.isTurn ? r.text : <><i>T{r.turn}</i><span>{r.text}</span></>}</div>)}
+        </div>
+      )}
     </div>
   );
 }

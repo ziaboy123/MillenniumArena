@@ -2,9 +2,12 @@
 import { copyLimit, type Banlist, type DeckFormat, type RuleCard } from '@arena/shared/decks';
 import { card, type CardInfo } from './cards.ts';
 
-let banlist: Promise<Banlist | null> | null = null;
+let banlist: Promise<Banlist | null> | null = null, ocg: Promise<Banlist | null> | null = null;
+const fetchList = (path: string) => fetch(`${import.meta.env.BASE_URL}api/${path}`).then(r => (r.ok ? r.json() : null)).catch(() => null);
 /** The current TCG banlist, fetched once. */
-export const loadBanlist = () => (banlist ??= fetch(`${import.meta.env.BASE_URL}api/banlist`).then(r => (r.ok ? r.json() : null)).catch(() => null));
+export const loadBanlist = () => (banlist ??= fetchList('banlist'));
+/** Both banlists (private rooms can use either). */
+export const loadBanlists = async () => ({ TCG: await loadBanlist(), OCG: await (ocg ??= fetchList('banlist/ocg')) });
 
 const EXTRA_FRAMES = /^(fusion|synchro|xyz|link)/;
 export const isExtraCard = (c: CardInfo) => EXTRA_FRAMES.test(c.frame);

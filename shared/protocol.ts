@@ -199,7 +199,16 @@ export type ServerMessage =
   /** Cards the engine shows you (e.g. Galaxy Hundred lets you look at the opponent's Extra Deck). `brief`: just a glimpse, it closes itself. */
   | { type: 'reveal'; title: string; cards: number[]; brief: boolean }
   | { type: 'end'; winner: Side | 2 | null; reason: string; turns: number }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  // ----- private rooms -----
+  /** Your room as it is now (null: you're not in one). */
+  | { type: 'room'; room: RoomView | null }
+  /** What a room code leads to, before joining (null: no such room). */
+  | { type: 'room.preview'; preview: RoomPreview | null; code: string }
+  /** You're no longer in the room: it closed, you were removed, or a watch request was declined. */
+  | { type: 'room.closed'; reason: string }
+  /** New chat lines (all of them after joining or rejoining). */
+  | { type: 'chat'; lines: ChatLine[]; reset?: boolean };
 
 export type ClientMessage =
   | { type: 'listDecks' }
@@ -210,7 +219,82 @@ export type ClientMessage =
   /** Rejoin a duel in progress with the seat key from DuelInfo. */
   | { type: 'resume'; duel: string; seat: string }
   | { type: 'answer'; id: number; answer: PromptAnswer }
-  | { type: 'leave' };
+  | { type: 'leave' }
+  // ----- private rooms (logged in only); decks are your own decks' ids (without "acct:") -----
+  | { type: 'room.create'; rules: RoomRules; password?: string; deck: string }
+  | { type: 'room.peek'; code: string }
+  | { type: 'room.join'; code: string; password?: string; deck: string }
+  /** Ask to watch a room's duels (both duelists must accept). */
+  | { type: 'room.watch'; code: string; password?: string }
+  /** Back into your room after a reload or a dropped connection. */
+  | { type: 'room.resume' }
+  | { type: 'room.deck'; deck: string }
+  | { type: 'room.ready'; ready: boolean }
+  /** Host: both duelists are ready, toss the coin. */
+  | { type: 'room.start' }
+  /** Whoever won the toss (or lost the last game) picks. */
+  | { type: 'room.choose'; first: boolean }
+  /** Best of 3: your deck after side decking between games. */
+  | { type: 'room.side'; main: number[]; extra: number[]; side: number[] }
+  /** Duelists: answer a watch request, or remove a spectator. */
+  | { type: 'room.request'; id: string; accept: boolean }
+  | { type: 'room.kick'; id: string }
+  /** Give up the current game (the match goes on in a best of 3). */
+  | { type: 'room.surrender' }
+  /** Host, after a match: back to the room for another. */
+  | { type: 'room.again' }
+  | { type: 'room.leave' }
+  | { type: 'chat'; text: string };
+
+// ---------- private rooms ----------
+export interface RoomRules {
+  /** Best of 1 or 3 (side decking between games). */
+  bo: 1 | 3;
+  /** Seconds per turn, 0 = no timer. */
+  timer: 0 | 60 | 90 | 180;
+  banlist: 'TCG' | 'OCG' | 'none';
+  lp: 4000 | 8000 | 16000;
+  /** Decks must be legal for the banlist (off lets friends test anything). */
+  check: boolean;
+  spectators: 'ask' | 'off';
+}
+export const DEFAULT_RULES: RoomRules = { bo: 1, timer: 90, banlist: 'TCG', lp: 8000, check: true, spectators: 'ask' };
+
+export type RoomRole = 'host' | 'guest';
+export interface RoomPlayer {
+  name: string; role: RoomRole; you: boolean; ready: boolean; connected: boolean; wins: number;
+  /** Your own deck's name and cover; for the opponent only whether they've picked one. */
+  deck: { name: string; cover: number | null } | null; hasDeck: boolean;
+}
+export type RoomPhase = 'lobby' | 'toss' | 'choose' | 'dueling' | 'siding' | 'over';
+export interface RoomView {
+  code: string; you: RoomRole | 'spectator' | 'asking';
+  rules: RoomRules; password: boolean;
+  /** Host first; the guest's place is null until someone joins. */
+  players: [RoomPlayer, RoomPlayer | null];
+  phase: RoomPhase;
+  /** The game being played (or just played), from 1. */
+  game: number;
+  /** Who picks going first or second (after the toss, or the loser of the last game). */
+  chooser: RoomRole | null;
+  /** Who won the coin toss (game 1). */
+  toss: RoomRole | null;
+  /** The game that just ended. */
+  last: { winner: RoomRole | null; reason: string } | null;
+  /** The match is over: who won it. */
+  winner: RoomRole | null;
+  spectators: { id: string; name: string }[];
+  /** Duelists only: people asking to watch, and whether you've said yes. */
+  requests: { id: string; name: string; accepted: boolean }[];
+  /** Side decking (best of 3, between games): your deck right now and the Side Deck size to keep. */
+  siding: { main: number[]; extra: number[]; side: number[]; done: boolean } | null;
+}
+export interface RoomPreview {
+  host: string; rules: RoomRules; password: boolean;
+  /** open: there's room for you; full / dueling: you can only ask to watch (if spectators are allowed). */
+  state: 'open' | 'full' | 'dueling';
+}
+export interface ChatLine { from: string; role: RoomRole | 'spectator' | 'system'; text: string; at: number }
 
 /** Compact card data the browser needs for names, text and stats (GET <base>/api/cards). */
 export type CardRow = [

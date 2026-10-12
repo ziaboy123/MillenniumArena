@@ -14,7 +14,9 @@ import { blocksPlay, deckProblems } from '@arena/shared/decks';
 import { loadBanlist } from './banlist.ts';
 import { clientCardList, loadCards, ruleCards } from './cards.ts';
 import { accountDeck, accountDecks, activeDeck } from './decks-api.ts';
-import { BASE, CLIENT_DIST, DEV, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
+import { cleanRules, PrivateMatch, RoomError, type Account, type MatchDeps } from './match.ts';
+import { limited } from './auth/ratelimit.ts';
+import { BASE, CLIENT_DIST, DEV, ENGINE_DATA, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
 import { loadDecks, summarise, type Deck } from './decks.ts';
 import { DB_ENABLED, migrate } from './db/index.ts';
 import { DuelRoom, type Viewer } from './duel/room.ts';
@@ -26,6 +28,8 @@ const cardList = clientCardList(cards);
 const cardListTag = `"${createHash('sha1').update(cardList).digest('base64url').slice(0, 16)}"`;   // changes whenever the list does
 const decks = loadDecks(cards);
 const banlist = loadBanlist();
+const ocgBanlist = loadBanlist(path.join(ENGINE_DATA, 'LFLists/OCG.lflist.conf'));
+const ocgBanlistJson = JSON.stringify(ocgBanlist);
 const banlistJson = JSON.stringify(banlist);
 const ruleCard = ruleCards(cards);
 const rooms = new Map<string, DuelRoom>();
@@ -75,11 +79,24 @@ const server = createServer(async (req, res) => {
     res.end(cardList); return;
   }
   if (rel === '/api/decks') return json(res, [...decks.values()].map(summarise));
-  if (rel === '/api/banlist') { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=600' }); res.end(banlistJson); return; }
+  if (rel === '/api/banlist' || rel === '/api/banlist/ocg') {
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=600' });
+    res.end(rel === '/api/banlist' ? banlistJson : ocgBanlistJson); return;
+  }
   if (DB_ENABLED && await accountRoutes(req, res, rel)) return;
   if (rel.startsWith('/api/')) return json(res, { error: 'not found' }, 404);
   serveClient(req, res, rel);
 });
+
+// ---------- private rooms ----------
+const matches = new Map<string, PrivateMatch>();   // by room code
+const matchOf = new Map<string, PrivateMatch>();   // by account: one room at a time
+const matchDeps: MatchDeps = {
+  banlists: { TCG: banlist, OCG: ocgBanlist }, ruleCard, loadDeck: accountDeck, full: () => rooms.size >= MAX_DUELS,
+  track: r => rooms.set(r.id, r), untrack: r => rooms.delete(r.id),
+  closed: m => { matches.delete(m.code); for (const [user, x] of matchOf) if (x === m) matchOf.delete(user); },
+};
+const roomCode = (v: unknown) => String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 
 /** One of your own decks, ready to duel with, or the reason it can't be used. */
 async function ownDeck(userId: string | undefined, id: string): Promise<Deck | string | undefined> {
@@ -98,14 +115,80 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   // who's connected (if logged in); messages wait for this
   const who = DB_ENABLED ? sessionUser(cookies(req).ma_session).catch(() => null) : Promise.resolve(null);
   let room: DuelRoom | null = null;
+  let match: PrivateMatch | null = null;   // the private room this tab is in
   const viewer: Viewer = { side: null, send: (msg: ServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg)); } };
   const leave = (dropped = false) => { room?.leave(viewer, dropped); room = null; viewer.side = null; };
   const full = () => rooms.size >= MAX_DUELS && (viewer.send({ type: 'error', message: 'The server is running as many duels as it can right now. Try again in a minute.' }), true);
+
+  /** Leave whatever private room this account is in (before creating or joining another). */
+  const leaveRooms = (userId: string) => { matchOf.get(userId)?.leave(userId); matchOf.delete(userId); match = null; };
+  async function roomMessage(msg: ClientMessage, me: Account) {
+    const busy = (key: string, max: number, ms: number) => { if (limited(`${key}:${me.id}`, max, ms)) throw new RoomError('Too many tries. Wait a minute and try again.'); };
+    switch (msg.type) {
+      case 'room.resume': {
+        const m = matchOf.get(me.id);
+        if (m && !m.closed && m.attach(me.id, viewer)) match = m; else viewer.send({ type: 'room', room: null });
+        return;
+      }
+      case 'room.create': {
+        busy('room-create', 20, 600_000);
+        leave(); leaveRooms(me.id);
+        const m = new PrivateMatch(PrivateMatch.newCode(c => matches.has(c)), cleanRules(msg.rules), String(msg.password ?? '').slice(0, 64), me, matchDeps);
+        matches.set(m.code, m);
+        try { await m.setDeck(me.id, String(msg.deck)); } catch (e) { m.close('The room could not be set up.'); throw e; }
+        matchOf.set(me.id, m);
+        match = m;
+        m.attach(me.id, viewer);
+        return;
+      }
+      case 'room.peek': {
+        busy('room-peek', 40, 60_000);
+        const code = roomCode(msg.code), m = matches.get(code);
+        return viewer.send({ type: 'room.preview', code, preview: m && !m.closed ? m.preview() : null });
+      }
+      case 'room.join': case 'room.watch': {
+        busy('room-join', 20, 60_000);
+        const m = matches.get(roomCode(msg.code));
+        if (!m || m.closed) throw new RoomError('No room has that code. Check it with your friend.');
+        if (matchOf.get(me.id) !== m) { leave(); leaveRooms(me.id); }
+        if (msg.type === 'room.join') await m.join(me, viewer, msg.password, String(msg.deck));
+        else m.askToWatch(me, viewer, msg.password);
+        matchOf.set(me.id, m);
+        match = m;
+        return;
+      }
+    }
+    // everything else happens inside your room
+    const m = match ?? matchOf.get(me.id) ?? null;
+    if (!m || m.closed || !m.has(me.id)) { viewer.send({ type: 'room', room: null }); return; }
+    switch (msg.type) {
+      case 'room.deck': return m.setDeck(me.id, String(msg.deck));
+      case 'room.ready': return m.setReady(me.id, !!msg.ready);
+      case 'room.start': return m.start(me.id);
+      case 'room.choose': return m.choose(me.id, !!msg.first);
+      case 'room.side': return m.side(me.id, msg);
+      case 'room.request': return m.answerRequest(me.id, String(msg.id), !!msg.accept);
+      case 'room.kick': return m.kick(me.id, String(msg.id));
+      case 'room.surrender': return m.surrender(me.id);
+      case 'room.again': return m.again(me.id);
+      case 'room.leave': m.leave(me.id); matchOf.delete(me.id); match = null; return;
+      case 'chat': busy('chat', 60, 60_000); return m.say(me.id, msg.text);
+    }
+  }
 
   ws.on('message', async raw => {
     let msg: ClientMessage;
     try { msg = JSON.parse(String(raw)); } catch { return; }
     const me = await who;
+    if (typeof msg?.type === 'string' && (msg.type.startsWith('room.') || msg.type === 'chat')) {
+      if (!me?.username) return viewer.send({ type: 'error', message: 'Log in to play with friends.' });
+      try { await roomMessage(msg, { id: me.id, name: me.username, smart: (me.settings.responses ?? 'smart') !== 'always' }); }
+      catch (e: any) {
+        if (e instanceof RoomError) viewer.send({ type: 'error', message: e.message });
+        else { console.error(`room: ${e?.stack ?? e}`); viewer.send({ type: 'error', message: 'Something went wrong. Try again in a moment.' }); }
+      }
+      return;
+    }
     if (msg.type === 'listDecks') {
       // logged in: your own decks first (from the Decks page), then ours and the tournament decks
       const own = me?.username ? (await accountDecks(me.id)).map(d => {
@@ -117,6 +200,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         ...(DEV ? { scenarios: Object.entries(SCENARIOS).map(([id, s]) => ({ id, name: s.name })) } : {}) });
     }
     else if (msg.type === 'watch') {
+      if (DB_ENABLED && !DEV) return viewer.send({ type: 'error', message: 'Watching bots is only on the test server.' });
       leave();
       const pair = msg.decks.map(id => decks.get(id));
       if (!pair[0] || !pair[1]) return viewer.send({ type: 'error', message: 'Unknown deck.' });
@@ -144,7 +228,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       room = r;
       viewer.side = side;
       r.join(viewer);
-    } else if (msg.type === 'answer') room?.answer(viewer, msg.id, msg.answer);
+    } else if (msg.type === 'answer') (room ?? match?.room)?.answer(viewer, msg.id, msg.answer);
     else if (msg.type === 'resume') {
       // back into a duel after a dropped connection or a page reload
       leave();
@@ -153,7 +237,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       else viewer.send({ type: 'gone' });
     } else if (msg.type === 'leave') leave();
   });
-  ws.on('close', () => leave(true));
+  ws.on('close', () => { leave(true); match?.detach(viewer); });
 });
 
 if (DB_ENABLED) {

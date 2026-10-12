@@ -26,6 +26,9 @@ export const baseCode = (code: number, card?: Pick<RuleCard, 'alias'>) => (card?
 
 /** Released in the TCG (not OCG-only, not still to come). */
 export const isTcg = (card: Pick<RuleCard, 'ot'>) => (card.ot & 0x2) !== 0 && (card.ot & 0x100) === 0;
+/** Released in the region's card pool (null: any card goes). */
+export const releasedIn = (card: Pick<RuleCard, 'ot'>, region: 'TCG' | 'OCG' | null) =>
+  region === null || ((card.ot & (region === 'TCG' ? 0x2 : 0x1)) !== 0 && (card.ot & 0x100) === 0);
 
 /** How many copies of a card a deck may hold in this format. */
 export function copyLimit(code: number, card: RuleCard | undefined, banlist: Banlist | null, format: DeckFormat) {
@@ -42,7 +45,9 @@ export interface DeckProblem { kind: ProblemKind; text: string }
  * Everything that stops a deck being legal in its format, most important first. Size, unknown cards and format
  * problems stop it being played at all; banlist, copies and release problems only matter where the rules are checked.
  */
-export function deckProblems(deck: DeckLists & { format: DeckFormat }, cardOf: (code: number) => RuleCard | undefined, banlist: Banlist | null): DeckProblem[] {
+export function deckProblems(deck: DeckLists & { format: DeckFormat }, cardOf: (code: number) => RuleCard | undefined, banlist: Banlist | null,
+  /** Which cards count as released: the TCG's (default), the OCG's, or any (a room with no banlist). */
+  region: 'TCG' | 'OCG' | null = 'TCG'): DeckProblem[] {
   const out: DeckProblem[] = [];
   if (!PLAYABLE_FORMATS.has(deck.format)) out.push({ kind: 'format', text: `${FORMAT_NAMES[deck.format]} decks can't be played here` });
   const n = { main: deck.main.length, extra: deck.extra.length, side: deck.side.length };
@@ -76,9 +81,9 @@ export function deckProblems(deck: DeckLists & { format: DeckFormat }, cardOf: (
     else if (copies > limit) out.push(limit < 3
       ? { kind: 'banlist', text: `${card.name} is ${LIMIT_NAMES[limit]}: ${copies} copies (${limit} allowed)` }
       : { kind: 'copies', text: `${card.name}: ${copies} copies (3 at most)` });
-    if (!isTcg(card)) released.push(card.name);
+    if (!releasedIn(card, region)) released.push(card.name);
   }
-  if (released.length) out.push({ kind: 'release', text: released.length === 1 ? `${released[0]} isn't released in the TCG` : `${released.length} cards aren't released in the TCG (${released.slice(0, 3).join(', ')}${released.length > 3 ? '…' : ''})` });
+  if (released.length) out.push({ kind: 'release', text: released.length === 1 ? `${released[0]} isn't released in the ${region}` : `${released.length} cards aren't released in the ${region} (${released.slice(0, 3).join(', ')}${released.length > 3 ? '…' : ''})` });
   return out;
 }
 
@@ -103,4 +108,18 @@ export function parseYdk(text: string): DeckLists & { name: string | null } {
     else if (zone && /^\d{1,9}$/.test(line)) out[zone].push(Number(line));
   }
   return out;
+}
+
+/**
+ * Why a deck can't be used for a duel, or null if it can. Against the bot (`rules` null) it only has to be playable;
+ * in a private room the room's banlist decides (whatever format the deck was built for), and with deck check on it
+ * must be fully legal.
+ */
+export function deckBlocker(d: SavedDeck, cardOf: (code: number) => RuleCard | undefined, banlists: { TCG: Banlist | null; OCG: Banlist | null },
+  rules: { banlist: 'TCG' | 'OCG' | 'none'; check: boolean } | null): string | null {
+  const region = !rules ? 'TCG' : rules.banlist === 'none' ? null : rules.banlist;
+  const format = rules && d.format === 'TRADITIONAL' ? 'ADVANCED' : d.format;
+  const problems = deckProblems({ ...d, format }, cardOf, region ? banlists[region] : null, rules?.check ? region : null);
+  const stop = problems.find(blocksPlay) ?? (rules?.check ? problems[0] : undefined);
+  return stop ? `${d.name} can't be used${rules ? ' in this room' : ' yet'}: ${stop.text[0].toLowerCase()}${stop.text.slice(1)}.` : null;
 }

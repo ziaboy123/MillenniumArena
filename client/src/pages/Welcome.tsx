@@ -5,7 +5,7 @@ import type { DuelInfo, Frame, Me, SideView } from '@arena/shared';
 import { DuelScreen } from '../duel/DuelScreen.tsx';
 import { api, ApiError } from '../lib/api.ts';
 import { loadCards } from '../lib/cards.ts';
-import { Link, navigate } from '../lib/router.tsx';
+import { Link, navigate, takeRememberedPath } from '../lib/router.tsx';
 import { useSession } from '../lib/session.tsx';
 import { CodeBoxes, Icon, Page, PasswordInput, useToast } from './common.tsx';
 
@@ -140,7 +140,7 @@ export function ChooseName() {
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setErr('');
-    try { const res = await api('account/username', { username: name }); setMe(res.me ?? null); navigate('/home', true); }
+    try { const res = await api('account/username', { username: name }); setMe(res.me ?? null); navigate(takeRememberedPath() ?? '/home', true); }
     catch (x) { setErr(message(x)); } finally { setBusy(false); }
   };
   return (
@@ -163,7 +163,7 @@ export function LogIn() {
   const { setMe } = useSession();
   const [step, setStep] = useState(1), [busy, setBusy] = useState(false), [err, setErr] = useState('');
   const [email, setEmail] = useState(''), [password, setPassword] = useState(''), [code, setCode] = useState(''), [trust, setTrust] = useState(true);
-  const done = (res: { me?: Me | null }) => { setMe(res.me ?? null); navigate(res.me?.username ? '/home' : '/choose-name', true); };
+  const done = (res: { me?: Me | null }) => { setMe(res.me ?? null); navigate(res.me?.username ? takeRememberedPath() ?? '/home' : '/choose-name', true); };
 
   const start = async (e: FormEvent) => {
     e.preventDefault();
@@ -295,7 +295,9 @@ export function Privacy() {
       <h3>Cookies</h3>
       <p>One cookie keeps you logged in. If you tick "Trust this device", a second one remembers that for 30 days. Your theme and duel choices are also kept in your browser. There are no analytics or advertising cookies.</p>
       <h3>Who can see what</h3>
-      <p>Opponents see your username. Your email and decks stay private.</p>
+      <p>Opponents and spectators see your username. Your email and decks stay private: in a private duel your opponent doesn't even see your deck's name.</p>
+      <h3>Chat</h3>
+      <p>Chat in a private room goes only to the people in that room, and isn't saved: it's gone when the room closes.</p>
       <h3>Your rights</h3>
       <p>You can delete your account at any time in Settings. That removes it everywhere, including your DeckForge decks. For anything else, email <a href="mailto:daniyal@daniyalzia.co.uk">daniyal@daniyalzia.co.uk</a>.</p>
     </Doc>

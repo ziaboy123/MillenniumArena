@@ -25,6 +25,12 @@ export function navigate(to: string, replace = false) {
   listeners.forEach(l => l());
 }
 
+/** Where to go after logging in (e.g. an invite link opened while logged out). */
+export const rememberPath = (path: string) => { try { sessionStorage.setItem('ma-next', path); } catch {} };
+export function takeRememberedPath(): string | null {
+  try { const p = sessionStorage.getItem('ma-next'); sessionStorage.removeItem('ma-next'); return p && /^\/[\w/-]*$/.test(p) ? p : null; } catch { return null; }
+}
+
 /** A link that changes page without reloading. */
 export function Link({ to, children, ...rest }: { to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) {
   return (

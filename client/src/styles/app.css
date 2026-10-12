@@ -260,3 +260,29 @@ button.opt { font: inherit; color: inherit; text-align: left; width: 100%; }
 .ending.defeat h2 { color: var(--atk); text-shadow: 0 0 40px rgba(255,90,60,.45); }
 @keyframes end-panel { from { opacity: 0; scale: .9; } }
 @keyframes end-word { from { opacity: 0; letter-spacing: .5em; filter: blur(8px); } }
+
+/* chat + duel log share one tabbed panel (duels between people) */
+.talk { right: 24px; bottom: 24px; width: 360px; height: 272px; display: flex; flex-direction: column; overflow: hidden; }
+.talk .tabs { display: flex; align-items: stretch; border-bottom: 1px solid var(--panel-border); flex: none; }
+.talk .tabs button { flex: 1; font: 600 11px/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); background: none; border: none; padding: 13px 0; cursor: pointer; }
+.talk .tabs button.on { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+.talk .tabs .mute { flex: none; width: 44px; display: grid; place-items: center; letter-spacing: 0; }
+.talk .tabs .mute svg { width: 16px; height: 16px; }
+.talk .tabs .mute.on { color: var(--atk); box-shadow: none; }
+.talk .unread { display: inline-block; min-width: 17px; height: 17px; border-radius: 9px; background: var(--atk); color: #fff; font: 700 10px/17px var(--font-ui); letter-spacing: 0; margin-left: 6px; padding: 0 5px; }
+.talk .body { flex: 1; overflow: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; line-height: 1.45; min-height: 0; }
+.talk .cm { overflow-wrap: anywhere; }
+.talk .cm b { font-weight: 600; margin-right: 6px; }
+.talk .cm.k-me b { color: var(--accent); }
+.talk .cm.k-opp b { color: var(--atk); }
+.talk .cm.k-spec b { color: var(--muted); }
+.talk .cm.k-spec b::after { content: ' · watching'; font-weight: 400; font-size: 11px; }
+.talk .cm.k-sys { color: var(--muted); font-size: 11.5px; font-style: italic; }
+.talk .quick { display: flex; gap: 6px; padding: 2px 12px 8px; flex: none; }
+.talk .quick button { font: 600 11px/1 var(--font-ui); padding: 6px 9px; border-radius: 999px; border: 1px solid var(--panel-border); background: rgba(0,0,0,.3); color: var(--text); cursor: pointer; white-space: nowrap; }
+.talk .quick button:hover { border-color: var(--accent); color: var(--accent); }
+[data-dir=b] .talk .quick button, [data-dir=c] .talk .quick button { border-radius: 3px; }
+.talk .send { display: flex; gap: 8px; padding: 0 12px 12px; flex: none; }
+.talk .chatin { flex: 1; min-width: 0; font: 13px/1 var(--font-ui); color: var(--text); background: rgba(0,0,0,.4); border: 1px solid var(--panel-border); border-radius: calc(var(--r) * .8); padding: 9px 11px; outline: none; }
+.talk .chatin:focus { border-color: var(--accent); }
+.talk .body.lines { gap: 3px; font-size: 12px; }

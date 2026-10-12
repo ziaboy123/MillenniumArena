@@ -28,6 +28,10 @@ export interface WorkerInput {
   setupLua?: string;
   /** Sides that only want to be asked to respond when the opponent did something (their own triggers are still asked). */
   smart?: Side[];
+  /** Starting life points (default 8000). */
+  lp?: number;
+  /** Don't name the decks in the log (duels between people: you don't learn the opponent's deck name). */
+  hideDecks?: boolean;
   seed: number;
 }
 export type WorkerOutput =
@@ -40,6 +44,7 @@ export type WorkerOutput =
 export type WorkerCommand = { type: 'answer'; id: number; answer: PromptAnswer } | { type: 'timeout'; id: number };
 
 const input = workerData as WorkerInput;
+const START_LP = [4000, 8000, 16000].includes(Number(input.lp)) ? Number(input.lp) : 8000;
 const post = (msg: WorkerOutput) => parentPort!.postMessage(msg);
 
 // a person's answer arrives from the room as a message; the duel loop waits for it
@@ -79,8 +84,8 @@ async function run() {
   const handle = lib.createDuel({
     flags: OcgDuelMode.MODE_MR5 | OcgDuelMode.TCG_SEGOC_NONPUBLIC | OcgDuelMode.TCG_SEGOC_FIRSTTRIGGER,
     seed: [BigInt(input.seed) + 1n, BigInt(input.seed) * 7n + 3n, 0x9e3779b9n, BigInt(input.seed) ^ 0xabcdefn],
-    team1: { startingLP: 8000, startingDrawCount: 5, drawCountPerTurn: 1 },
-    team2: { startingLP: 8000, startingDrawCount: 5, drawCountPerTurn: 1 },
+    team1: { startingLP: START_LP, startingDrawCount: 5, drawCountPerTurn: 1 },
+    team2: { startingLP: START_LP, startingDrawCount: 5, drawCountPerTurn: 1 },
     cardReader: (code: number) => cards.get(code) ?? null,
     scriptReader: readScript,
     errorHandler: (_type: number, text: string) => { if (!text.startsWith('stack traceback')) console.warn(`[duel ${input.seed}] script: ${text.split('\n')[0]}`); },
@@ -97,7 +102,7 @@ async function run() {
   for (const c of input.setup ?? []) lib.duelNewCard(handle, { team: c.team, duelist: 0, code: c.code, controller: c.team, location: c.location, sequence: c.sequence, position: c.position });
   if (input.setupLua) lib.loadScript(handle, 'scenario.lua', input.setupLua);
 
-  const players = input.players, lp = [8000, 8000], humans = new Set(input.humans), levels = input.bots ?? ['smart', 'smart'];
+  const players = input.players, lp = [START_LP, START_LP], humans = new Set(input.humans), levels = input.bots ?? ['smart', 'smart'];
   const r = rng(input.seed), bots: BotState[] = [{ acts: 0, attacks: 0 }, { acts: 0, attacks: 0 }];
   const chain: (ZoneRef & { code: number })[] = [];
   let turn = 0, turnPlayer: Side = 0, phase: Phase = 'DP', winner: Side | 2 | null = null, winReason = '', step = 0;
@@ -208,7 +213,7 @@ async function run() {
   }
 
   lib.startDuel(handle);
-  say(`${players[0]} (${input.decks[0].name}) vs ${players[1]} (${input.decks[1].name})`);
+  say(input.hideDecks ? `${players[0]} vs ${players[1]}` : `${players[0]} (${input.decks[0].name}) vs ${players[1]} (${input.decks[1].name})`);
 
   while (true) {
     const status = lib.duelProcess(handle);

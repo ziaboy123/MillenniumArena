@@ -1,8 +1,9 @@
 // The duel lab: duel the bot yourself, or watch two bots duel (with test setups on the development server).
 // It's the Duel page until the real one (solo and private duels) is built, and the whole site when accounts are off.
-import { useCallback, useEffect, useState } from 'react';
-import type { DeckSummary, DuelInfo, Frame, Prompt, PromptAnswer, Responses, ServerMessage, Speed } from '@arena/shared';
-import { DuelScreen, type LogRow, type Reveal } from '../duel/DuelScreen.tsx';
+import { useEffect, useState } from 'react';
+import type { DeckSummary, PromptAnswer, Responses, Speed } from '@arena/shared';
+import { DuelScreen } from '../duel/DuelScreen.tsx';
+import { saveSeat, savedSeat, useDuel } from '../duel/useDuel.ts';
 import { loadCards } from '../lib/cards.ts';
 import { navigate } from '../lib/router.tsx';
 import { useSession } from '../lib/session.tsx';
@@ -10,15 +11,9 @@ import { useArenaSocket } from '../lib/socket.ts';
 import { Eye, Stage, THEMES, useTheme } from '../lib/ui.tsx';
 import { Page } from './common.tsx';
 
-type Ending = Extract<ServerMessage, { type: 'end' }>;
 type Mode = 'play' | 'watch';
 type First = 'me' | 'bot' | 'random';
 interface LobbyChoices { mode: Mode; name: string; deck: string; botDeck: string; first: First; watch: [string, string]; speed: Speed; timer: number; responses: Responses }
-
-// the seat you're playing, kept for this tab so a dropped connection or a reload rejoins the same duel
-const SEAT_KEY = 'ma-seat';
-const savedSeat = (): { duel: string; seat: string } | null => { try { return JSON.parse(sessionStorage.getItem(SEAT_KEY) ?? 'null'); } catch { return null; } };
-const saveSeat = (v: { duel: string; seat: string } | null) => { try { if (v) sessionStorage.setItem(SEAT_KEY, JSON.stringify(v)); else sessionStorage.removeItem(SEAT_KEY); } catch {} };
 
 // the lobby remembers your last choices in this browser
 function loadChoices(): LobbyChoices {
@@ -35,17 +30,12 @@ export function DuelLab() {
   const [scenarios, setScenarios] = useState<{ id: string; name: string }[]>([]);
   const [scenario, setScenario] = useState('');
   const [ch, setCh] = useState(loadChoices);
-  const [duel, setDuel] = useState<DuelInfo | null>(null);
-  const [frame, setFrame] = useState<Frame | null>(null);
-  const [prompt, setPrompt] = useState<Prompt | null>(null);
-  const [promptAt, setPromptAt] = useState(0);   // when the prompt arrived, for its countdown
-  const [reveal, setReveal] = useState<Reveal | null>(null);
-  const [log, setLog] = useState<LogRow[]>([]);
-  const [ending, setEnding] = useState<Ending | null>(null);
   const [error, setError] = useState('');
-  const [reconnecting, setReconnecting] = useState(false);
+  const d = useDuel({ keepSeat: true });
+  const { duel, frame, prompt, ending } = d;
 
   const { connected, send } = useArenaSocket(msg => {
+    if (d.handle(msg)) { if (msg.type === 'duel') setError(''); return; }
     if (msg.type === 'decks') {
       setDecks(msg.decks);
       setScenarios(msg.scenarios ?? []);
@@ -56,24 +46,7 @@ export function DuelLab() {
       const active = msg.active && has(usable, msg.active) ? msg.active : null;
       const ok = (id: string) => (has(server, id) ? id : fallback);   // the bot and watched duels use the server's decks
       setCh(c => ({ ...c, deck: active ?? (has(usable, c.deck) ? c.deck : fallback), botDeck: ok(c.botDeck), watch: [ok(c.watch[0]), ok(c.watch[1])] }));
-    } else if (msg.type === 'duel') {
-      setDuel(msg.duel); setFrame(null); setPrompt(null); setReveal(null); setLog([]); setEnding(null); setError(''); setReconnecting(false);
-      saveSeat(msg.duel.seat ? { duel: msg.duel.id, seat: msg.duel.seat } : null);
-    }
-    else if (msg.type === 'backlog') setLog(msg.lines.map(r => ({ ...r, isTurn: r.text.startsWith('Turn ') })));
-    else if (msg.type === 'gone') {
-      // the duel finished (or the server restarted) while we were away
-      saveSeat(null); setReconnecting(false); setPrompt(null);
-      if (duel) setEnding(e => e ?? { type: 'end', winner: null, reason: 'The duel ended while you were disconnected', turns: frame?.turn ?? 0 });
-    }
-    else if (msg.type === 'frame') {
-      setFrame(msg.frame);
-      const f = msg.frame;
-      if (f.lines.length) setLog(l => [...l, ...f.lines.map(text => ({ step: f.step, turn: f.turn, text, isTurn: text.startsWith('Turn ') }))]);
-    } else if (msg.type === 'prompt') { setPrompt(msg.prompt); setPromptAt(Date.now()); }
-    else if (msg.type === 'reveal') setReveal({ ...msg, at: Date.now() });
-    else if (msg.type === 'end') { setEnding(msg); setPrompt(null); saveSeat(null); }
-    else if (msg.type === 'error') setError(msg.message);
+    } else if (msg.type === 'error') setError(msg.message);
   });
 
   useEffect(() => { loadCards().then(() => setCardsReady(true)).catch(e => setError(`Couldn't load card data (${e.message}).`)); }, []);
@@ -83,19 +56,15 @@ export function DuelLab() {
       send({ type: 'listDecks' });
       const s = savedSeat();
       if (s) send({ type: 'resume', duel: s.duel, seat: s.seat });
-    } else if (duel && !ending) { setReconnecting(true); setPrompt(null); }
+    } else d.dropped();
   }, [connected]);
   useEffect(() => { try { localStorage.setItem('ma-lobby', JSON.stringify(ch)); } catch {} }, [ch]);
-  // a glimpse of a revealed card closes itself; looking at hidden cards stays until closed
-  useEffect(() => { if (!reveal?.brief) return; const t = setTimeout(() => setReveal(null), 3500); return () => clearTimeout(t); }, [reveal]);
+  const answer = (a: PromptAnswer) => { if (prompt) { send({ type: 'answer', id: prompt.id, answer: a }); d.setPrompt(null); } };
+  const surrender = () => { send({ type: 'leave' }); saveSeat(null); d.setPrompt(null); d.setEnding({ type: 'end', winner: 1, reason: 'You surrendered', turns: frame?.turn ?? 0 }); };
+  const leave = () => { send({ type: 'leave' }); saveSeat(null); d.clear(); if (account) navigate('/home'); };
 
-  const closeReveal = useCallback(() => setReveal(null), []);
-  const answer = (a: PromptAnswer) => { if (prompt) { send({ type: 'answer', id: prompt.id, answer: a }); setPrompt(null); } };
-  const surrender = () => { send({ type: 'leave' }); saveSeat(null); setPrompt(null); setEnding({ type: 'end', winner: 1, reason: 'You surrendered', turns: frame?.turn ?? 0 }); };
-  const leave = () => { send({ type: 'leave' }); saveSeat(null); setDuel(null); setPrompt(null); setReconnecting(false); if (account) navigate('/home'); };
-
-  if (duel && cardsReady) return <DuelScreen duel={duel} frame={frame} log={log} ending={ending} prompt={prompt} promptAt={promptAt} onAnswer={answer}
-    reveal={reveal} onCloseReveal={closeReveal} onSurrender={surrender} onLeave={leave} reconnecting={reconnecting} />;
+  if (duel && cardsReady) return <DuelScreen duel={duel} frame={frame} log={d.log} ending={ending} prompt={prompt} promptAt={d.promptAt} onAnswer={answer}
+    reveal={d.reveal} onCloseReveal={d.closeReveal} onSurrender={surrender} onLeave={leave} reconnecting={d.reconnecting} />;
 
   const ready = connected && cardsReady && decks.length > 0;
   const start = () => ch.mode === 'play'
