@@ -6,7 +6,11 @@ import { Eye, Stage } from '../lib/ui.tsx';
 
 /** A page: the top bar, then the content (which scrolls under it if the window is short), then (optionally) the footer.
  *  `over` floats above the page and doesn't scroll: toasts and pop-up windows. `className` is the page's own layout. */
-export function Page({ children, foot = false, back, over, className = '' }: { children: ReactNode; foot?: boolean; back?: string; over?: ReactNode; className?: string }) {
+export function Page({ children, foot = false, back, over, mid, className = '' }: {
+  children: ReactNode; foot?: boolean; back?: string; over?: ReactNode; className?: string;
+  /** Shown in the top bar between the logo and your badge (the deck editor's name and legality). */
+  mid?: ReactNode;
+}) {
   const { me } = useSession();
   return (
     <Stage fluid>
@@ -17,6 +21,7 @@ export function Page({ children, foot = false, back, over, className = '' }: { c
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>Home</button>}
           <Link to={me ? '/home' : '/'} className="logo pg-logo" aria-label="Millennium Arena"><Eye /><div className="w">MILLENNIUM<small>ARENA</small></div></Link>
         </div>
+        {mid && <div className="tmid">{mid}</div>}
         {me?.username
           ? <Link to="/profile" className="chip"><div className="av">{me.username[0].toUpperCase()}</div><div><b>{me.username}</b><span>Unranked</span></div></Link>
           : !me && <div className="topR"><button className="bigbtn ghost sm" onClick={() => navigate('/login')}>Log in</button><button className="bigbtn sm" onClick={() => navigate('/signup')}>Sign up</button></div>}
@@ -118,7 +123,22 @@ const ICONS: Record<string, ReactNode> = {
   users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
   layers: <><path d="m12 2 10 5-10 5L2 7z" /><path d="m2 17 10 5 10-5" /><path d="m2 12 10 5 10-5" /></>,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  plus: <><path d="M5 12h14" /><path d="M12 5v14" /></>,
+  globe: <><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></>,
+  star: <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />,
+  copy: <><rect width="14" height="14" x="8" y="8" rx="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></>,
+  trash: <><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></>,
 };
+
+/** "just now", "5 min ago", "3 days ago", or the date. */
+export function ago(iso: string) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 86400 * 7) { const d = Math.floor(s / 86400); return `${d} day${d === 1 ? '' : 's'} ago`; }
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 export const Icon = ({ name, className }: { name: keyof typeof ICONS | string; className?: string }) => (
   <svg className={className ?? 'i'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{ICONS[name]}</svg>
 );

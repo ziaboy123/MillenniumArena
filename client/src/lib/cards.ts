@@ -1,7 +1,7 @@
 // Card names, text and stats, loaded once from the server (the same card database the engine uses).
 import type { CardRow } from '@arena/shared';
 
-export interface CardInfo { code: number; name: string; alias: number; frame: string; typeLine: string; attribute: string; level: number; atk: number | null; def: number | null; text: string }
+export interface CardInfo { code: number; name: string; alias: number; frame: string; typeLine: string; attribute: string; level: number; atk: number | null; def: number | null; text: string; ot: number }
 
 const cards = new Map<number, CardInfo>();
 let loading: Promise<void> | null = null;
@@ -10,8 +10,8 @@ export function loadCards(): Promise<void> {
   return (loading ??= fetch(`${import.meta.env.BASE_URL}api/cards`)
     .then(r => { if (!r.ok) throw new Error(`card data: ${r.status}`); return r.json() as Promise<CardRow[]>; })
     .then(rows => {
-      for (const [code, name, alias, frame, typeLine, attribute, level, atk, def, text] of rows)
-        cards.set(code, { code, name, alias, frame, typeLine, attribute, level, atk: atk < 0 ? null : atk, def: def < 0 ? null : def, text });
+      for (const [code, name, alias, frame, typeLine, attribute, level, atk, def, text, ot] of rows)
+        cards.set(code, { code, name, alias, frame, typeLine, attribute, level, atk: atk < 0 ? null : atk, def: def < 0 ? null : def, text, ot: ot ?? 3 });   // 3 (released everywhere) if an older cached list has no ot
     }));
 }
 

@@ -2,5 +2,5 @@
   "name": "@arena/shared",
   "private": true,
   "type": "module",
-  "exports": { ".": "./protocol.ts" }
+  "exports": { ".": "./protocol.ts", "./decks": "./decks.ts" }
 }

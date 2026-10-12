@@ -1,5 +1,7 @@
 // Home: four tiles (Duel, Decks, Profile, Settings). Settings is only reachable from here, never mid-duel.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { SavedDeck } from '@arena/shared/decks';
+import { api } from '../lib/api.ts';
 import { cropImage } from '../lib/cards.ts';
 import { navigate } from '../lib/router.tsx';
 import { useSession } from '../lib/session.tsx';
@@ -13,6 +15,11 @@ const FAVOURITES_AFTER = 10;
 export function Home() {
   const { me } = useSession();
   const [fanOpen, setFanOpen] = useState(false);
+  const [decks, setDecks] = useState<{ count: number; active: string | null } | null>(null);
+  useEffect(() => {
+    api<{ decks: SavedDeck[]; active: string | null }>('decks/list')
+      .then(r => setDecks({ count: r.decks.length, active: r.decks.find(d => d.id === r.active)?.name ?? null })).catch(() => {});
+  }, []);
   if (!me?.username) return null;
   const art = me.settings.artwork ?? DEFAULT_ARTWORK;
   const theme = THEMES.find(t => t.k === (me.settings.theme ?? 'c'))?.name ?? 'Arena';
@@ -47,7 +54,7 @@ export function Home() {
           <div className="txt">
             <div className="eyebrow">Build</div>
             <h2>Decks</h2>
-            <p>Your decks, shared with DeckForge.</p>
+            <p>{decks ? (decks.count ? `${decks.count} ${decks.count === 1 ? 'deck' : 'decks'}${decks.active ? ` · Dueling with ${decks.active}` : ''}` : 'No decks yet · shared with DeckForge') : 'Your decks, shared with DeckForge.'}</p>
             <p className="fanhint">Your most-played cards show here after {left} more {left === 1 ? 'duel' : 'duels'}</p>
           </div>
           <div className="fan">{[0, 1, 2].map(i => <div key={i} className="card back" style={{ transform: fan(i) }}><EyeSvg /></div>)}</div>

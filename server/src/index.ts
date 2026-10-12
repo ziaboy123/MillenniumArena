@@ -1,5 +1,6 @@
 // Millennium Arena server: card data API, duel WebSocket, and (in production) the built browser app,
 // all under one path prefix so it sits behind nginx like the other sites (e.g. /millennium).
+import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
@@ -9,9 +10,12 @@ import { sessionUser } from './auth/accounts.ts';
 import { MAIL_READY } from './auth/mailer.ts';
 import { accountRoutes, cookies, sameOrigin } from './auth/routes.ts';
 import { AUTH_READY } from './auth/security.ts';
-import { clientCardList, loadCards } from './cards.ts';
+import { blocksPlay, deckProblems } from '@arena/shared/decks';
+import { loadBanlist } from './banlist.ts';
+import { clientCardList, loadCards, ruleCards } from './cards.ts';
+import { accountDeck, accountDecks, activeDeck } from './decks-api.ts';
 import { BASE, CLIENT_DIST, DEV, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
-import { loadDecks, summarise } from './decks.ts';
+import { loadDecks, summarise, type Deck } from './decks.ts';
 import { DB_ENABLED, migrate } from './db/index.ts';
 import { DuelRoom, type Viewer } from './duel/room.ts';
 import { SCENARIOS, firstFor, luaFor, setupFor } from './duel/scenarios.ts';
@@ -19,12 +23,16 @@ import { SCENARIOS, firstFor, luaFor, setupFor } from './duel/scenarios.ts';
 const t0 = performance.now();
 const cards = loadCards();
 const cardList = clientCardList(cards);
+const cardListTag = `"${createHash('sha1').update(cardList).digest('base64url').slice(0, 16)}"`;   // changes whenever the list does
 const decks = loadDecks(cards);
+const banlist = loadBanlist();
+const banlistJson = JSON.stringify(banlist);
+const ruleCard = ruleCards(cards);
 const rooms = new Map<string, DuelRoom>();
 const SPEEDS = new Set<Speed>(['slow', 'normal', 'fast', 'instant']);
 const speedOf = (s: unknown): Speed => (SPEEDS.has(s as Speed) ? (s as Speed) : 'normal');
 const TIMERS = new Set([0, 60, 90, 180]);
-console.log(`${cards.size} cards, ${decks.size} decks, engine ${ENGINE_NAME} (${(performance.now() - t0).toFixed(0)} ms)`);
+console.log(`${cards.size} cards, ${decks.size} decks, banlist ${banlist?.name ?? 'none'}, engine ${ENGINE_NAME} (${(performance.now() - t0).toFixed(0)} ms)`);
 
 // ---------- HTTP ----------
 const TYPES: Record<string, string> = {
@@ -63,14 +71,25 @@ const server = createServer(async (req, res) => {
   const rel = url.pathname.slice(BASE.length) || '/';
   if (rel === '/api/health') return json(res, { ok: true, duels: rooms.size, maxDuels: MAX_DUELS, engine: ENGINE_NAME });
   if (rel === '/api/cards') {
-    res.writeHead(200, { 'content-type': 'application/json', 'content-encoding': 'gzip', 'cache-control': 'public, max-age=3600', etag: `"${ENGINE_NAME}-${cards.size}"` });
+    res.writeHead(200, { 'content-type': 'application/json', 'content-encoding': 'gzip', 'cache-control': 'public, max-age=3600', etag: cardListTag });
     res.end(cardList); return;
   }
   if (rel === '/api/decks') return json(res, [...decks.values()].map(summarise));
+  if (rel === '/api/banlist') { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=600' }); res.end(banlistJson); return; }
   if (DB_ENABLED && await accountRoutes(req, res, rel)) return;
   if (rel.startsWith('/api/')) return json(res, { error: 'not found' }, 404);
   serveClient(req, res, rel);
 });
+
+/** One of your own decks, ready to duel with, or the reason it can't be used. */
+async function ownDeck(userId: string | undefined, id: string): Promise<Deck | string | undefined> {
+  if (!userId) return undefined;
+  const d = await accountDeck(userId, id);
+  if (!d) return undefined;
+  const stop = deckProblems(d, ruleCard, banlist).find(blocksPlay);
+  if (stop) return `${d.name} can't be used yet: ${stop.text[0].toLowerCase()}${stop.text.slice(1)}.`;
+  return { id: `acct:${d.id}`, name: d.name, main: d.main, extra: d.extra, source: 'account' };
+}
 
 // ---------- WebSocket: one connection per browser tab ----------
 // only pages from this site may connect (stops other sites opening a connection with a visitor's login cookie)
@@ -87,7 +106,16 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     let msg: ClientMessage;
     try { msg = JSON.parse(String(raw)); } catch { return; }
     const me = await who;
-    if (msg.type === 'listDecks') viewer.send({ type: 'decks', decks: [...decks.values()].map(summarise), ...(DEV ? { scenarios: Object.entries(SCENARIOS).map(([id, s]) => ({ id, name: s.name })) } : {}) });
+    if (msg.type === 'listDecks') {
+      // logged in: your own decks first (from the Decks page), then ours and the tournament decks
+      const own = me?.username ? (await accountDecks(me.id)).map(d => {
+        const problems = deckProblems(d, ruleCard, banlist);
+        return { id: `acct:${d.id}`, name: d.name, main: d.main.length, extra: d.extra.length, source: 'account' as const, legal: !problems.length, playable: !problems.some(blocksPlay) };
+      }) : [];
+      const active = me?.username ? await activeDeck(me.id) : null;
+      viewer.send({ type: 'decks', decks: [...own, ...[...decks.values()].map(summarise)], active: active && `acct:${active}`,
+        ...(DEV ? { scenarios: Object.entries(SCENARIOS).map(([id, s]) => ({ id, name: s.name })) } : {}) });
+    }
     else if (msg.type === 'watch') {
       leave();
       const pair = msg.decks.map(id => decks.get(id));
@@ -101,7 +129,8 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       r.join(viewer);
     } else if (msg.type === 'play') {
       leave();
-      const mine = decks.get(msg.deck), bot = decks.get(msg.botDeck);
+      const mine = String(msg.deck).startsWith('acct:') ? await ownDeck(me?.id, String(msg.deck).slice(5)) : decks.get(msg.deck), bot = decks.get(msg.botDeck);
+      if (typeof mine === 'string') return viewer.send({ type: 'error', message: mine });
       if (!mine || !bot) return viewer.send({ type: 'error', message: 'Unknown deck.' });
       if (full()) return;
       // logged in: your username; otherwise the name typed in the lobby (cleaned up)

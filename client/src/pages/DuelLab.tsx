@@ -49,9 +49,13 @@ export function DuelLab() {
     if (msg.type === 'decks') {
       setDecks(msg.decks);
       setScenarios(msg.scenarios ?? []);
-      const ids = new Set(msg.decks.map(d => d.id)), def = msg.decks.find(d => d.source === 'mine')?.id ?? msg.decks[0]?.id ?? '';
-      const ok = (id: string) => (ids.has(id) ? id : def);
-      setCh(c => ({ ...c, deck: ok(c.deck), botDeck: ok(c.botDeck), watch: [ok(c.watch[0]), ok(c.watch[1])] }));
+      // your deck: your "Dueling with" deck if it's ready, else what you picked last time, else ours
+      const usable = msg.decks.filter(d => d.playable !== false), server = msg.decks.filter(d => d.source !== 'account');
+      const has = (list: DeckSummary[], id: string) => list.some(d => d.id === id);
+      const fallback = server.find(d => d.source === 'mine')?.id ?? server[0]?.id ?? '';
+      const active = msg.active && has(usable, msg.active) ? msg.active : null;
+      const ok = (id: string) => (has(server, id) ? id : fallback);   // the bot and watched duels use the server's decks
+      setCh(c => ({ ...c, deck: active ?? (has(usable, c.deck) ? c.deck : fallback), botDeck: ok(c.botDeck), watch: [ok(c.watch[0]), ok(c.watch[1])] }));
     } else if (msg.type === 'duel') {
       setDuel(msg.duel); setFrame(null); setPrompt(null); setReveal(null); setLog([]); setEnding(null); setError(''); setReconnecting(false);
       saveSeat(msg.duel.seat ? { duel: msg.duel.id, seat: msg.duel.seat } : null);
@@ -115,7 +119,7 @@ export function DuelLab() {
         {!account && <label className="lobby-row"><span>Name</span>
           <input value={ch.name} maxLength={16} placeholder="Duelist" onChange={e => setCh(c => ({ ...c, name: e.target.value }))} /></label>}
         <label className="lobby-row"><span>Your deck</span><DeckSelect decks={decks} value={ch.deck} onChange={deck => setCh(c => ({ ...c, deck }))} /></label>
-        <label className="lobby-row"><span>Bot's deck</span><DeckSelect decks={decks} value={ch.botDeck} onChange={botDeck => setCh(c => ({ ...c, botDeck }))} /></label>
+        <label className="lobby-row"><span>Bot's deck</span><DeckSelect decks={decks.filter(d => d.source !== 'account')} value={ch.botDeck} onChange={botDeck => setCh(c => ({ ...c, botDeck }))} /></label>
         <div className="lobby-row"><span>First</span>
           {seg<First>(ch.first, [['me', 'You go first'], ['bot', 'Bot goes first'], ['random', 'Coin toss']], first => setCh(c => ({ ...c, first })))}</div>
         <div className="lobby-row"><span>Turn timer</span>
@@ -129,7 +133,7 @@ export function DuelLab() {
         <p>Two bots duel live on the real engine, with every card visible. Good for checking cards and the engine.</p>
         {(['Bot A', 'Bot B'] as const).map((who, i) => (
           <label key={who} className="lobby-row"><span>{who}</span>
-            <DeckSelect decks={decks} value={ch.watch[i]} onChange={id => setCh(c => ({ ...c, watch: i === 0 ? [id, c.watch[1]] : [c.watch[0], id] }))} /></label>
+            <DeckSelect decks={decks.filter(d => d.source !== 'account')} value={ch.watch[i]} onChange={id => setCh(c => ({ ...c, watch: i === 0 ? [id, c.watch[1]] : [c.watch[0], id] }))} /></label>
         ))}
         {speedRow}
       </>}
@@ -155,11 +159,14 @@ function ThemeButtons() {
 }
 
 function DeckSelect({ decks, value, onChange }: { decks: DeckSummary[]; value: string; onChange: (id: string) => void }) {
-  const label = (d: DeckSummary) => `${d.name} · ${d.main}+${d.extra}`;
-  const groups = (['mine', 'tournament'] as const).map(src => decks.filter(d => d.source === src));
+  const label = (d: DeckSummary) => `${d.name} · ${d.main}+${d.extra}${d.playable === false ? ' · not ready' : d.legal === false ? ' · not legal' : ''}`;
+  const groups: [DeckSummary['source'], string][] = [['account', 'My decks'], ['mine', 'Our decks'], ['tournament', 'Recent tournament decks']];
   return (
     <select value={value} onChange={e => onChange(e.target.value)}>
-      {groups.map((g, gi) => g.length > 0 && <optgroup key={gi} label={gi === 0 ? 'Our decks' : 'Recent tournament decks'}>{g.map(d => <option key={d.id} value={d.id}>{label(d)}</option>)}</optgroup>)}
+      {groups.map(([src, name]) => {
+        const list = decks.filter(d => d.source === src);
+        return list.length > 0 && <optgroup key={src} label={name}>{list.map(d => <option key={d.id} value={d.id} disabled={d.playable === false}>{label(d)}</option>)}</optgroup>;
+      })}
     </select>
   );
 }

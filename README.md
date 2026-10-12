@@ -13,7 +13,9 @@ Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no paymen
 - Milestone 3 (done): every choice the engine can ask for has its own screen: Level sums (e.g. Ritual Tributes), removing counters, ordering cards, declaring a Type, Attribute, number or card name (search with cards seen this duel offered first), and rock-paper-scissors. Field cards show their counters. The dev server has a test setup for each.
 - Milestone 4 (done): summon effects (Xyz, Synchro, Link, Fusion and Ritual each look different, with a banner), cards shattering, dissolving or sliding away as they leave the field, attackers lunging, the resolving chain link highlighted, life points counting down, an animated Victory/Defeat screen, and a "thinking" indicator. Responses: Smart (default: you're not asked to respond right after your own actions; your triggers and the opponent's moves still ask) or Always ask. A dropped connection or page reload rejoins the same duel (the seat is kept for 60 s).
 - The real pages, step 1 (done): accounts shared with DeckForge (same email and password, same decks). Sign up with an email code, a code when logging in on a new device (or trust it for 30 days), forgot password, Privacy and Terms (drafts), Home, and Settings (theme, Home artwork, field effects, username, email, password, trusted devices, log out everywhere, delete account, Responses, bot speed). The duel lab is the Duel page for now.
-- Next: the Decks page and editor (on DeckForge's decks), the real Duel page (solo vs the bot and Private duels between two people), then Profile and match history.
+- Any window shape: the background fills the window, the duel screen keeps its layout centred, and pages rearrange themselves in smaller windows instead of shrinking.
+- The real pages, step 2 (done): the Decks page and deck editor, on the same decks as DeckForge. Legality is checked live against the current TCG banlist (copy limits, Forbidden/Limited/Semi-Limited, deck sizes, cards not released in the TCG). Card search, drag and drop, right-click for the Side Deck, undo, sort, stats with opening-hand odds, test hands, .ydk import and export, a cover card, and a "Dueling with" deck that the duel lobby picks by default. Changes save themselves.
+- Next: the real Duel page (solo vs the bot and Private duels between two people), then Profile and match history.
 
 ## Layout
 
@@ -32,7 +34,7 @@ Needs Node 22.13 or newer.
 
 ```bash
 npm install
-npm run data        # card database + card scripts (first time, and after new sets)
+npm run data        # card database, card scripts and banlists (first time, and after new sets or banlists)
 npm run dev         # duel server on :3017 and the app on http://localhost:5185/millennium/
 ```
 
@@ -58,6 +60,8 @@ Accounts live in DeckForge's PostgreSQL database: its `users`, `decks` and `deck
 - Database: the standard `PGHOST`, `PGUSER`, `PGDATABASE` variables. Use peer authentication over a Unix socket, so no password is stored anywhere.
 - `ARENA_SECRET`: at least 32 random characters; protects the emailed codes.
 - Email: `RESEND_API_KEY` and `ARENA_MAIL_FROM`. In development (`ARENA_DEV=1`) emails are printed instead, and `GET <BASE_PATH>/api/dev/mail?to=<email>` shows the last one.
+
+Decks are DeckForge's own `decks` and `deck_cards` rows (one row per card and zone, with a copy count), so a deck changed on either site shows up on the other; DeckForge's unused `thumbnail` column holds the cover card. The deck rules live in `shared/decks.ts`, used by both the editor and the server, which refuses to start a duel with a deck that's the wrong size or has unknown cards.
 
 Passwords use bcrypt (cost 12, like DeckForge). Login, device and code values are stored only as hashes. The login cookie is HttpOnly and SameSite=Strict. Changes must be JSON from this site, and logins, sign-ups and codes are rate-limited. Changing or resetting the password, or "log out everywhere", also signs out DeckForge.
 

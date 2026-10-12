@@ -4,6 +4,8 @@ import { useEffect, type ComponentType } from 'react';
 import { navigate, usePath } from './lib/router.tsx';
 import { useSession } from './lib/session.tsx';
 import { Stage } from './lib/ui.tsx';
+import { DeckEditor } from './pages/DeckEditor.tsx';
+import { DeckList } from './pages/Decks.tsx';
 import { DuelLab } from './pages/DuelLab.tsx';
 import { Home, Soon } from './pages/Home.tsx';
 import { Settings } from './pages/Settings.tsx';
@@ -15,7 +17,7 @@ const SIGNED_IN: Record<string, ComponentType> = {
   '/home': Home,
   '/settings': Settings,
   '/duel': DuelLab,
-  '/decks': () => <Soon title="Decks" text="Building and editing decks here (shared with DeckForge) is the next step. Until then, DeckForge has your decks." />,
+  '/decks': DeckList,
   '/profile': () => <Soon title="Profile" text="Your record, match history and most-played cards arrive once duels are saved to your account." />,
 };
 
@@ -29,9 +31,11 @@ export function App() {
   const Public = PUBLIC[path], SignedOut = SIGNED_OUT[path], SignedIn = SIGNED_IN[path];
   if (Public) return <Public />;
   if (SignedOut) return me ? <Redirect to={named ? '/home' : '/choose-name'} /> : <SignedOut />;
-  if (!me) return <Redirect to={SignedIn || path === '/choose-name' ? '/login' : '/'} />;
+  if (!me) return <Redirect to={SignedIn || path === '/choose-name' || path.startsWith('/decks/') ? '/login' : '/'} />;
   if (path === '/choose-name') return named ? <Redirect to="/home" /> : <ChooseName />;
   if (!named) return <Redirect to="/choose-name" />;
+  const deckId = /^\/decks\/([\w-]{1,40})$/.exec(path)?.[1];
+  if (deckId) return <DeckEditor key={deckId} id={deckId} />;
   return SignedIn ? <SignedIn key={path} /> : <Redirect to="/home" />;
 }
 

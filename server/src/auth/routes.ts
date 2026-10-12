@@ -6,6 +6,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { BASE, DEV } from '../config.ts';
 import * as A from './accounts.ts';
+import { deckApi } from '../decks-api.ts';
 import { devOutbox } from './mailer.ts';
 import { limited } from './ratelimit.ts';
 import { sha256 } from './security.ts';
@@ -57,6 +58,7 @@ function send(res: ServerResponse, status: number, body: unknown, setCookies: st
   res.end(JSON.stringify(body));
 }
 
+const { Problem } = A;
 const tooMany = () => new A.Problem('Too many attempts. Wait a few minutes and try again.', 429);
 const deviceLabel = (req: IncomingMessage) => {
   const ua = String(req.headers['user-agent'] ?? '');
@@ -67,7 +69,7 @@ const deviceLabel = (req: IncomingMessage) => {
 
 /** Handles <base>/api/me, /api/auth/*, /api/account/* (and /api/dev/mail on the development server). Returns false if not one of these. */
 export async function accountRoutes(req: IncomingMessage, res: ServerResponse, rel: string): Promise<boolean> {
-  if (!(rel === '/api/me' || rel.startsWith('/api/auth/') || rel.startsWith('/api/account/') || (DEV && rel === '/api/dev/mail'))) return false;
+  if (!(rel === '/api/me' || rel.startsWith('/api/auth/') || rel.startsWith('/api/account/') || rel.startsWith('/api/decks/') || (DEV && rel === '/api/dev/mail'))) return false;
   const jar = cookies(req), ip = clientIp(req), ua = String(req.headers['user-agent'] ?? '');
   try {
     // development only: read the email a test account was sent (no real mailbox needed)
@@ -122,6 +124,12 @@ export async function accountRoutes(req: IncomingMessage, res: ServerResponse, r
     // ----- signed in -----
     const me = await A.sessionUser(jar[SESSION]);
     if (!me) throw new A.Problem('Please log in again.', 401);
+    // the deck editor saves as you build, so decks get their own, much looser limit
+    if (rel.startsWith('/api/decks/')) {
+      if (limited(`decks:${me.id}`, 900, 900_000)) throw tooMany();
+      if (!me.username) throw new Problem('Choose a username first.', 403);
+      return send(res, 200, await deckApi(rel.slice('/api/decks/'.length), me.id, body)), true;
+    }
     // trying out themes and artwork saves a lot, so settings get a looser limit than the account changes
     const light = rel === '/api/account/settings' || rel === '/api/account/devices';
     if (light ? limited(`settings:${me.id}`, 300, 900_000) : limited(`account:${me.id}`, 30, 900_000)) throw tooMany();

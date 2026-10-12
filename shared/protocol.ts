@@ -178,11 +178,16 @@ export type PromptAnswer =
   | { kind: 'number'; index: number }
   | { kind: 'rps'; hand: 1 | 2 | 3 };
 
-export interface DeckSummary { id: string; name: string; main: number; extra: number; source: 'mine' | 'tournament' }
+/** A deck to duel with: ours and tournament decks on the server, plus (logged in) your own, whose ids start "acct:". */
+export interface DeckSummary {
+  id: string; name: string; main: number; extra: number; source: 'mine' | 'tournament' | 'account';
+  /** Your decks only: legal in its format, and (even if not) able to be played at all (right size, known cards). */
+  legal?: boolean; playable?: boolean;
+}
 
 export type ServerMessage =
   /** `scenarios`: test set-ups, only offered by a development server. */
-  | { type: 'decks'; decks: DeckSummary[]; scenarios?: { id: string; name: string }[] }
+  | { type: 'decks'; decks: DeckSummary[]; scenarios?: { id: string; name: string }[]; /** your "Dueling with" deck */ active?: string | null }
   | { type: 'duel'; duel: DuelInfo }
   | { type: 'frame'; frame: Frame }
   /** Your turn to choose (null: nothing to answer right now). */
@@ -211,6 +216,8 @@ export type ClientMessage =
 export type CardRow = [
   code: number, name: string, alias: number, frame: string, typeLine: string, attribute: string,
   level: number, atk: number, def: number, text: string,
+  /** Where it's released: 0x1 OCG, 0x2 TCG, 0x100 not out yet. */
+  ot: number,
 ];
 
 /** A device that skips the login code (from POST /api/account/devices). */

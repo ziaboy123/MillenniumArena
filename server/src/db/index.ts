@@ -9,7 +9,10 @@ import pg from 'pg';
 
 export const DB_ENABLED = !!process.env.PGDATABASE;
 
-export const pool = new pg.Pool({ max: 8, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000 });
+// DeckForge's tables (made by Prisma) keep times as UTC in "timestamp without time zone" columns. Every connection
+// works in UTC, and those columns are read back as UTC (the driver would otherwise read them as this machine's local time).
+pg.types.setTypeParser(pg.types.builtins.TIMESTAMP, (v: string) => new Date(`${v.replace(' ', 'T')}Z`));
+export const pool = new pg.Pool({ max: 8, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000, options: '-c TimeZone=UTC' });
 pool.on('error', err => console.error(`database: ${err.message}`));
 
 /** A query with parameters ($1, $2…). Values are never pasted into SQL. */
@@ -78,6 +81,8 @@ const MIGRATIONS: string[] = [
      expires_at timestamptz not null
    );
    create index on arena.devices (user_id);`,
+  // 2: the deck you duel with by default ("Dueling with" on the Decks page); cleared if that deck is deleted
+  `alter table arena.profiles add column active_deck text references public.decks (id) on delete set null;`,
 ];
 
 export async function migrate() {
