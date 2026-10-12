@@ -29,3 +29,5 @@ export function imageFallback(e: React.SyntheticEvent<HTMLImageElement>, code: n
   const img = e.currentTarget;
   if (alias && !img.dataset.fallback) { img.dataset.fallback = '1'; img.src = img.src.replace(String(code), String(alias)); }
 }
+/** Just the artwork, cropped out of the card. */
+export const cropImage = (code: number) => `${IMAGES}/cards_cropped/${code}.jpg`;

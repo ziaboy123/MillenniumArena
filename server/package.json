@@ -9,12 +9,15 @@
   },
   "dependencies": {
     "@arena/shared": "*",
+    "bcryptjs": "^3.0.3",
     "ocgcore-wasm": "file:../engine/ocgcore",
+    "pg": "^8.23.1",
     "tsx": "^4.23.15",
     "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.2",
     "typescript": "^7.0.2"
   }

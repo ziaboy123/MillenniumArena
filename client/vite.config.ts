@@ -11,8 +11,9 @@ export default defineConfig({
   server: {
     port: 5185,
     strictPort: true,
+    // the object form keeps the browser's Host header (the shorthand rewrites it), which the server's same-site check compares with Origin
     proxy: {
-      '/millennium/api': SERVER,
+      '/millennium/api': { target: SERVER },
       '/millennium/ws': { target: SERVER.replace(/^http/, 'ws'), ws: true },
     },
   },

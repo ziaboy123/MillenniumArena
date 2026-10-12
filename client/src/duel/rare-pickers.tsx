@@ -118,9 +118,9 @@ export function DeclarePicker({ prompt, onAnswer }: { prompt: Of<'declare'>; onA
   return (
     <Window title={prompt.title} retry={prompt.retry} small status={`Choose ${prompt.count} ${what}${prompt.count === 1 ? '' : 's'}`}
       buttons={<button className="btn primary" disabled={sel.length !== prompt.count} onClick={() => onAnswer({ kind: 'declare', bits: sel })}>Declare</button>}>
-      <div className={`chips ${prompt.what}`}>
+      <div className={`dchips ${prompt.what}`}>
         {prompt.options.map(o => (
-          <button key={o.bit} className={`chip ${sel.includes(o.bit) ? 'on' : ''}`} onClick={() => toggle(o.bit)} onDoubleClick={() => prompt.count === 1 && onAnswer({ kind: 'declare', bits: [o.bit] })}
+          <button key={o.bit} className={`dchip ${sel.includes(o.bit) ? 'on' : ''}`} onClick={() => toggle(o.bit)} onDoubleClick={() => prompt.count === 1 && onAnswer({ kind: 'declare', bits: [o.bit] })}
             style={prompt.what === 'attribute' ? { ['--chip' as string]: ATTRIBUTE_COLOURS[o.label] ?? 'var(--accent)' } : undefined}>{o.label}</button>
         ))}
       </div>

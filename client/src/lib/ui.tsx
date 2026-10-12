@@ -10,7 +10,10 @@ export const Eye = ({ className }: { className?: string }) => <span className={c
 export const EyeSvg = () => <span style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: EYE }} />;
 
 export const THEMES = [
-  { k: 'c', name: 'Arena' }, { k: 'a', name: 'Pharaoh' }, { k: 'b', name: 'Hologram' }, { k: 'd', name: 'Shadow Game' },
+  { k: 'c', name: 'Arena', desc: 'The default. Graphite HUD: clean, competitive, clear.' },
+  { k: 'a', name: 'Pharaoh', desc: 'Obsidian and gold. Ornate, ceremonial, ancient.' },
+  { k: 'b', name: 'Hologram', desc: 'Electric cyan projections. Futuristic duel tech.' },
+  { k: 'd', name: 'Shadow Game', desc: 'Violet mist and ancient dark magic.' },
 ] as const;
 
 /** Arena is the default; the choice is remembered in this browser until accounts exist. */

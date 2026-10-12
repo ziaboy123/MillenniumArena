@@ -75,6 +75,23 @@ export interface DuelInfo {
 /** When to ask you to respond: 'smart' skips moments after your own actions (your triggers are still offered). */
 export type Responses = 'smart' | 'always';
 
+// ---------- accounts ----------
+/** What a player has chosen in Settings (saved to their account). */
+export interface UserSettings {
+  theme?: 'a' | 'b' | 'c' | 'd';
+  /** The card whose artwork fills the Home screen's Duel tile. */
+  artwork?: number;
+  responses?: Responses;
+  speed?: Speed;
+  timer?: number;
+  /** The light, mist and particles behind every screen: on (default) or off for slower laptops. */
+  effects?: boolean;
+  /** Volume, 0-100. */
+  sound?: number;
+}
+/** The logged-in account. `username` is null until chosen (accounts made on DeckForge start without one). */
+export interface Me { id: string; email: string; username: string | null; verified: boolean; settings: UserSettings; nextNameChange: string | null }
+
 /** How fast the bot's moves play out. */
 export type Speed = 'slow' | 'normal' | 'fast' | 'instant';
 
@@ -195,3 +212,6 @@ export type CardRow = [
   code: number, name: string, alias: number, frame: string, typeLine: string, attribute: string,
   level: number, atk: number, def: number, text: string,
 ];
+
+/** A device that skips the login code (from POST /api/account/devices). */
+export interface TrustedDevice { id: string; label: string; created_at: string; expires_at: string; current: boolean }

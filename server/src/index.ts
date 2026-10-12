@@ -5,9 +5,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ClientMessage, ServerMessage, Side, Speed } from '@arena/shared';
+import { sessionUser } from './auth/accounts.ts';
+import { MAIL_READY } from './auth/mailer.ts';
+import { accountRoutes, cookies, sameOrigin } from './auth/routes.ts';
+import { AUTH_READY } from './auth/security.ts';
 import { clientCardList, loadCards } from './cards.ts';
 import { BASE, CLIENT_DIST, DEV, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
 import { loadDecks, summarise } from './decks.ts';
+import { DB_ENABLED, migrate } from './db/index.ts';
 import { DuelRoom, type Viewer } from './duel/room.ts';
 import { SCENARIOS, firstFor, luaFor, setupFor } from './duel/scenarios.ts';
 
@@ -37,7 +42,22 @@ function serveClient(req: IncomingMessage, res: ServerResponse, rel: string) {
   createReadStream(file).pipe(res);
 }
 
-const server = createServer((req, res) => {
+/** Headers on every response: no sniffing, no framing, a strict content policy for the app's pages. */
+function securityHeaders(req: IncomingMessage, res: ServerResponse) {
+  const host = String(req.headers.host ?? '').replace(/[^\w.:-]/g, '');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https://images.ygoprodeck.com", `connect-src 'self' wss://${host} ws://${host}`, "frame-ancestors 'none'", "base-uri 'self'",
+    "form-action 'self'", "object-src 'none'",
+  ].join('; '));
+}
+
+const server = createServer(async (req, res) => {
+  securityHeaders(req, res);
   const url = new URL(req.url ?? '/', 'http://localhost');
   if (!url.pathname.startsWith(BASE)) { res.writeHead(302, { location: BASE + '/' }); res.end(); return; }
   const rel = url.pathname.slice(BASE.length) || '/';
@@ -47,21 +67,26 @@ const server = createServer((req, res) => {
     res.end(cardList); return;
   }
   if (rel === '/api/decks') return json(res, [...decks.values()].map(summarise));
+  if (DB_ENABLED && await accountRoutes(req, res, rel)) return;
   if (rel.startsWith('/api/')) return json(res, { error: 'not found' }, 404);
   serveClient(req, res, rel);
 });
 
 // ---------- WebSocket: one connection per browser tab ----------
-const wss = new WebSocketServer({ server, path: `${BASE}/ws`, maxPayload: 64 * 1024 });
-wss.on('connection', (ws: WebSocket) => {
+// only pages from this site may connect (stops other sites opening a connection with a visitor's login cookie)
+const wss = new WebSocketServer({ server, path: `${BASE}/ws`, maxPayload: 64 * 1024, verifyClient: ({ req }: { req: IncomingMessage }) => sameOrigin(req) });
+wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+  // who's connected (if logged in); messages wait for this
+  const who = DB_ENABLED ? sessionUser(cookies(req).ma_session).catch(() => null) : Promise.resolve(null);
   let room: DuelRoom | null = null;
   const viewer: Viewer = { side: null, send: (msg: ServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg)); } };
   const leave = (dropped = false) => { room?.leave(viewer, dropped); room = null; viewer.side = null; };
   const full = () => rooms.size >= MAX_DUELS && (viewer.send({ type: 'error', message: 'The server is running as many duels as it can right now. Try again in a minute.' }), true);
 
-  ws.on('message', raw => {
+  ws.on('message', async raw => {
     let msg: ClientMessage;
     try { msg = JSON.parse(String(raw)); } catch { return; }
+    const me = await who;
     if (msg.type === 'listDecks') viewer.send({ type: 'decks', decks: [...decks.values()].map(summarise), ...(DEV ? { scenarios: Object.entries(SCENARIOS).map(([id, s]) => ({ id, name: s.name })) } : {}) });
     else if (msg.type === 'watch') {
       leave();
@@ -79,7 +104,8 @@ wss.on('connection', (ws: WebSocket) => {
       const mine = decks.get(msg.deck), bot = decks.get(msg.botDeck);
       if (!mine || !bot) return viewer.send({ type: 'error', message: 'Unknown deck.' });
       if (full()) return;
-      const name = String(msg.name ?? '').replace(/[^\p{L}\p{N} _.'-]/gu, '').trim().slice(0, 16) || 'Duelist';
+      // logged in: your username; otherwise the name typed in the lobby (cleaned up)
+      const name = me?.username ?? (String(msg.name ?? '').replace(/[^\p{L}\p{N} _.'-]/gu, '').trim().slice(0, 16) || 'Duelist');
       const first = (DEV && firstFor(msg.scenario)) || msg.first;
       const side: Side = first === 'me' || first === 'you' ? 0 : first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
       const r = new DuelRoom(side === 0 ? [mine, bot] : [bot, mine], side === 0 ? [name, 'Bot'] : ['Bot', name], [side],
@@ -101,4 +127,9 @@ wss.on('connection', (ws: WebSocket) => {
   ws.on('close', () => leave(true));
 });
 
+if (DB_ENABLED) {
+  await migrate();
+  if (!AUTH_READY) console.error('ARENA_SECRET is missing (64 hex characters): accounts will not work');
+  if (!MAIL_READY) console.error('RESEND_API_KEY / ARENA_MAIL_FROM are missing: no email can be sent');
+} else console.warn('No database configured (PGDATABASE): accounts are off');
 server.listen(PORT, () => console.log(`Millennium Arena on http://localhost:${PORT}${BASE}/  (WebSocket ${BASE}/ws)`));

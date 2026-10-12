@@ -49,12 +49,16 @@ function useFleeting<T extends { id: number }>(ms: number) {
   return [items, add] as const;
 }
 
-export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave, reconnecting }: {
+export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave, reconnecting, embedded, initialDetail }: {
   duel: DuelInfo; frame: Frame | null; log: LogRow[]; ending: Ending | null;
   prompt: Prompt | null; promptAt: number; onAnswer: (a: PromptAnswer) => void;
   reveal: Reveal | null; onCloseReveal: () => void; onSurrender: () => void; onLeave: () => void; reconnecting?: boolean;
+  /** Shown as a picture inside another page (the Welcome page's preview): no window scaling, no clicks. */
+  embedded?: boolean;
+  /** The card shown in the detail panel before anything is hovered. */
+  initialDetail?: number;
 }) {
-  const [detail, setDetail] = useState<number | null>(null);
+  const [detail, setDetail] = useState<number | null>(initialDetail ?? null);
   const [pile, setPile] = useState<[Side, PileKind] | null>(null);
   const [showEnd, setShowEnd] = useState(true);
   const [pops, addPops] = useFleeting<{ id: number; p: Side; amount: number; cost?: boolean }>(1500);
@@ -159,8 +163,9 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
     if (code) setDetail(code);
   };
 
+  const Wrap = embedded ? EmbeddedStage : Stage;
   return (
-    <Stage>
+    <Wrap>
       <div onMouseOver={onHover} onMouseDown={e => { if (menu && !(e.target as HTMLElement).closest('.actmenu')) setMenu(null); }}>
         <section className="layer layer-3d">
           <Background />
@@ -223,9 +228,12 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
           )}
         </section>
       </div>
-    </Stage>
+    </Wrap>
   );
 }
+
+/** The duel screen at its full 1600×900, for a page to scale down and show (it can't be clicked). */
+const EmbeddedStage = ({ children }: { children: React.ReactNode }) => <div className="stage embedded-stage" inert>{children}</div>;
 
 function CardDetail({ code }: { code: number | null }) {
   const c = code ? card(code) : undefined;

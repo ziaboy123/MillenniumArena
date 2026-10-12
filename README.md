@@ -12,7 +12,8 @@ Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no paymen
   - A smarter bot: it wins about 69% of duels against the old random bot over 1,000 test duels.
 - Milestone 3 (done): every choice the engine can ask for has its own screen: Level sums (e.g. Ritual Tributes), removing counters, ordering cards, declaring a Type, Attribute, number or card name (search with cards seen this duel offered first), and rock-paper-scissors. Field cards show their counters. The dev server has a test setup for each.
 - Milestone 4 (done): summon effects (Xyz, Synchro, Link, Fusion and Ritual each look different, with a banner), cards shattering, dissolving or sliding away as they leave the field, attackers lunging, the resolving chain link highlighted, life points counting down, an animated Victory/Defeat screen, and a "thinking" indicator. Responses: Smart (default: you're not asked to respond right after your own actions; your triggers and the opponent's moves still ask) or Always ask. A dropped connection or page reload rejoins the same duel (the seat is kept for 60 s).
-- Next: the real pages from the design mockups (accounts, Decks, Profile, Settings) and Private duels between two people.
+- The real pages, step 1 (done): accounts shared with DeckForge (same email and password, same decks). Sign up with an email code, a code when logging in on a new device (or trust it for 30 days), forgot password, Privacy and Terms (drafts), Home, and Settings (theme, Home artwork, field effects, username, email, password, trusted devices, log out everywhere, delete account, Responses, bot speed). The duel lab is the Duel page for now.
+- Next: the Decks page and editor (on DeckForge's decks), the real Duel page (solo vs the bot and Private duels between two people), then Profile and match history.
 
 ## Layout
 
@@ -48,7 +49,17 @@ ARENA_PORT=3017 npm start
 
 Settings (environment variables): `ARENA_DEV=1` (development only: offers test scenarios in the lobby, see `server/src/duel/scenarios.ts`), `ARENA_PORT` (default 3017), `BASE_PATH` (default `/millennium`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives), `ARENA_PACE` (duel playback speed, 1 = normal, 0 = no pauses for automated tests).
 
-Behind a reverse proxy, pass `<BASE_PATH>/` through unchanged and allow WebSocket upgrades on `<BASE_PATH>/ws`.
+Behind a reverse proxy, pass `<BASE_PATH>/` through unchanged (including the `Host` header, which the server compares with `Origin`) and allow WebSocket upgrades on `<BASE_PATH>/ws`.
+
+### Accounts
+
+Accounts live in DeckForge's PostgreSQL database: its `users`, `decks` and `deck_cards` tables, plus an `arena` schema the server creates on start (usernames, settings, login sessions, trusted devices, email codes). Without a database the site runs as the duel lab only.
+
+- Database: the standard `PGHOST`, `PGUSER`, `PGDATABASE` variables. Use peer authentication over a Unix socket, so no password is stored anywhere.
+- `ARENA_SECRET`: at least 32 random characters; protects the emailed codes.
+- Email: `RESEND_API_KEY` and `ARENA_MAIL_FROM`. In development (`ARENA_DEV=1`) emails are printed instead, and `GET <BASE_PATH>/api/dev/mail?to=<email>` shows the last one.
+
+Passwords use bcrypt (cost 12, like DeckForge). Login, device and code values are stored only as hashes. The login cookie is HttpOnly and SameSite=Strict. Changes must be JSON from this site, and logins, sign-ups and codes are rate-limited. Changing or resetting the password, or "log out everywhere", also signs out DeckForge.
 
 ## Updating cards and the engine
 
