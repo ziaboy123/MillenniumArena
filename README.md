@@ -11,7 +11,8 @@ Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no paymen
   - Cards an effect shows you (e.g. Galaxy Hundred and the opponent's Extra Deck) open in a window and can be picked from.
   - A smarter bot: it wins about 69% of duels against the old random bot over 1,000 test duels.
 - Milestone 3 (done): every choice the engine can ask for has its own screen: Level sums (e.g. Ritual Tributes), removing counters, ordering cards, declaring a Type, Attribute, number or card name (search with cards seen this duel offered first), and rock-paper-scissors. Field cards show their counters. The dev server has a test setup for each.
-- Next: polish (summoning and attack animations, a setting to skip responding to your own effects, rejoining a duel after a dropped connection).
+- Milestone 4 (done): summon effects (Xyz, Synchro, Link, Fusion and Ritual each look different, with a banner), cards shattering, dissolving or sliding away as they leave the field, attackers lunging, the resolving chain link highlighted, life points counting down, an animated Victory/Defeat screen, and a "thinking" indicator. Responses: Smart (default: you're not asked to respond right after your own actions; your triggers and the opponent's moves still ask) or Always ask. A dropped connection or page reload rejoins the same duel (the seat is kept for 60 s).
+- Next: the real pages from the design mockups (accounts, Decks, Profile, Settings) and Private duels between two people.
 
 ## Layout
 

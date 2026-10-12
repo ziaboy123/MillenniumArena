@@ -15,7 +15,7 @@ const t0 = performance.now();
 const cards = loadCards();
 const cardList = clientCardList(cards);
 const decks = loadDecks(cards);
-const rooms = new Set<DuelRoom>();
+const rooms = new Map<string, DuelRoom>();
 const SPEEDS = new Set<Speed>(['slow', 'normal', 'fast', 'instant']);
 const speedOf = (s: unknown): Speed => (SPEEDS.has(s as Speed) ? (s as Speed) : 'normal');
 const TIMERS = new Set([0, 60, 90, 180]);
@@ -56,7 +56,7 @@ const wss = new WebSocketServer({ server, path: `${BASE}/ws`, maxPayload: 64 * 1
 wss.on('connection', (ws: WebSocket) => {
   let room: DuelRoom | null = null;
   const viewer: Viewer = { side: null, send: (msg: ServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg)); } };
-  const leave = () => { room?.leave(viewer); room = null; viewer.side = null; };
+  const leave = (dropped = false) => { room?.leave(viewer, dropped); room = null; viewer.side = null; };
   const full = () => rooms.size >= MAX_DUELS && (viewer.send({ type: 'error', message: 'The server is running as many duels as it can right now. Try again in a minute.' }), true);
 
   ws.on('message', raw => {
@@ -70,8 +70,8 @@ wss.on('connection', (ws: WebSocket) => {
       if (full()) return;
       const mirror = pair[0].id === pair[1].id;
       const r = new DuelRoom([pair[0], pair[1]], mirror ? ['Bot A', 'Bot B'] : [`Bot (${pair[0].name})`, `Bot (${pair[1].name})`], [],
-        msg.fullView ?? true, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r), { speed: speedOf(msg.speed) });
-      rooms.add(r);
+        msg.fullView ?? true, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r.id), { speed: speedOf(msg.speed) });
+      rooms.set(r.id, r);
       room = r;
       r.join(viewer);
     } else if (msg.type === 'play') {
@@ -83,16 +83,22 @@ wss.on('connection', (ws: WebSocket) => {
       const first = (DEV && firstFor(msg.scenario)) || msg.first;
       const side: Side = first === 'me' || first === 'you' ? 0 : first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
       const r = new DuelRoom(side === 0 ? [mine, bot] : [bot, mine], side === 0 ? [name, 'Bot'] : ['Bot', name], [side],
-        false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r),
-        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined });
-      rooms.add(r);
+        false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r.id),
+        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, responses: msg.responses === 'always' ? 'always' : 'smart', setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined });
+      rooms.set(r.id, r);
       room = r;
       viewer.side = side;
       r.join(viewer);
     } else if (msg.type === 'answer') room?.answer(viewer, msg.id, msg.answer);
-    else if (msg.type === 'leave') leave();
+    else if (msg.type === 'resume') {
+      // back into a duel after a dropped connection or a page reload
+      leave();
+      const r = rooms.get(String(msg.duel));
+      if (r && r.rejoin(viewer, String(msg.seat))) room = r;
+      else viewer.send({ type: 'gone' });
+    } else if (msg.type === 'leave') leave();
   });
-  ws.on('close', leave);
+  ws.on('close', () => leave(true));
 });
 
 server.listen(PORT, () => console.log(`Millennium Arena on http://localhost:${PORT}${BASE}/  (WebSocket ${BASE}/ws)`));

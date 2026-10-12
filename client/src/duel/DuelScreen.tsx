@@ -1,10 +1,10 @@
 // The duel screen: field + interface panels. You play from the bottom (side 0); when you're only watching,
 // both sides are bots. Prompts from the engine light up the cards you can use.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Side, ZoneRef } from '@arena/shared';
+import type { DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Side, SummonKind, ZoneRef } from '@arena/shared';
 import { bigImage, card, cardName, imageFallback, smallImage } from '../lib/cards.ts';
 import { Background, Eye, EyeSvg, Stage } from '../lib/ui.tsx';
-import { Field, cellIndex, pileCell, type Mark, type PileKind } from './Field.tsx';
+import { Field, cellIndex, pileCell, type CellFx, type Mark, type PileKind } from './Field.tsx';
 import { ActionMenu, CardPicker, PositionPicker, PromptPanel, actionsByCard, type CardActions, type MenuItem } from './prompt-ui.tsx';
 import { CardNamePicker, CounterPicker, DeclarePicker, SortPicker, SumPicker } from './rare-pickers.tsx';
 
@@ -30,15 +30,37 @@ const clockText = (ms: number) => { const s = Math.ceil(Math.max(0, ms) / 1000);
 type Menu = { x: number; y: number; below: boolean; title?: string; items: MenuItem[] };
 const sameZone = (a: ZoneRef, b: ZoneRef) => a.p === b.p && a.loc === b.loc && a.seq === b.seq;
 
-export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave }: {
+/** The big summons get a banner across the screen. */
+const BANNERS: Partial<Record<SummonKind, string>> = { xyz: 'Xyz Summon', synchro: 'Synchro Summon', link: 'Link Summon', fusion: 'Fusion Summon', ritual: 'Ritual Summon' };
+
+/** Short-lived things (damage numbers, effects, banners): added now, removed after `ms`. Removal isn't cancelled by the
+ *  next frame (it used to be, so damage numbers piled up in the page). */
+function useFleeting<T extends { id: number }>(ms: number) {
+  const [items, setItems] = useState<T[]>([]);
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const add = useCallback((fresh: T[]) => {
+    if (!fresh.length) return;
+    setItems(x => [...x, ...fresh]);
+    const ids = new Set(fresh.map(f => f.id));
+    const t = setTimeout(() => { timers.current.delete(t); setItems(x => x.filter(i => !ids.has(i.id))); }, ms);
+    timers.current.add(t);
+  }, [ms]);
+  return [items, add] as const;
+}
+
+export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave, reconnecting }: {
   duel: DuelInfo; frame: Frame | null; log: LogRow[]; ending: Ending | null;
   prompt: Prompt | null; promptAt: number; onAnswer: (a: PromptAnswer) => void;
-  reveal: Reveal | null; onCloseReveal: () => void; onSurrender: () => void; onLeave: () => void;
+  reveal: Reveal | null; onCloseReveal: () => void; onSurrender: () => void; onLeave: () => void; reconnecting?: boolean;
 }) {
   const [detail, setDetail] = useState<number | null>(null);
   const [pile, setPile] = useState<[Side, PileKind] | null>(null);
   const [showEnd, setShowEnd] = useState(true);
-  const [pops, setPops] = useState<{ id: number; p: Side; amount: number; cost?: boolean }[]>([]);
+  const [pops, addPops] = useFleeting<{ id: number; p: Side; amount: number; cost?: boolean }>(1500);
+  const [fx, addFx] = useFleeting<CellFx>(1300);
+  const [banners, addBanner] = useFleeting<{ id: number; title: string; code: number; theirs: boolean }>(1700);
+  const lastFrameAt = useRef(Date.now());
   const [menu, setMenu] = useState<Menu | null>(null);
   const [zones, setZones] = useState<ZoneRef[]>([]);
   const [confirm, setConfirm] = useState<'home' | 'surrender' | null>(null);
@@ -54,7 +76,9 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
   useEffect(() => { setMenu(null); setZones([]); }, [prompt?.id]);
 
   // turn timer: the prompt's clock counts down while it's on screen; between prompts your turn's time is paused
-  const now = useNow(prompt?.time ? 250 : 0);
+  const now = useNow(prompt?.time ? 250 : !prompt && !ending ? 500 : 0);
+  // nothing to answer and nothing new for a while: the engine (or the bot) is working something out
+  const thinking = !!frame && !prompt && !ending && !reconnecting && now - lastFrameAt.current > 2200;
   const left = prompt?.time ? prompt.time.left - (now - promptAt) : null;
   const bank = useRef(duel.timer * 1000);
   if (prompt?.time?.turn && left !== null) bank.current = Math.max(0, left);
@@ -116,13 +140,17 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
     answer({ kind: 'place', zones: [...zones, ...order.filter(z => !zones.some(p => sameZone(p, z)))].slice(0, prompt.count) });
   };
 
-  // damage numbers float off the life-point panels
+  // each step's moments: damage numbers off the life-point panels, summon bursts, cards leaving the field, big-summon banners
   useEffect(() => {
-    if (!frame?.damage.length) return;
-    const fresh = frame.damage.map((d, i) => ({ ...d, id: frame.step * 10 + i }));
-    setPops(p => [...p, ...fresh]);
-    const t = setTimeout(() => setPops(p => p.filter(x => !fresh.includes(x))), 1500);
-    return () => clearTimeout(t);
+    if (!frame) return;
+    lastFrameAt.current = Date.now();
+    const id = frame.step * 100;
+    addPops(frame.damage.map((d, i) => ({ ...d, id: id + i })));
+    addFx([
+      ...frame.summons.map((x, i): CellFx => ({ id: id + 10 + i, kind: 'summon', cell: cellIndex(x.zone), summon: x.kind })),
+      ...frame.leaves.map((x, i): CellFx => ({ id: id + 50 + i, kind: 'leave', cell: cellIndex(x.zone), code: x.code, to: x.to, theirs: x.zone.p === 1 })),
+    ].filter(f => f.cell >= 0));
+    addBanner(frame.summons.filter(x => BANNERS[x.kind]).slice(0, 1).map(x => ({ id, title: BANNERS[x.kind]!, code: x.code, theirs: x.zone.p === 1 })));
   }, [frame?.step]);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPile(null); setConfirm(null); onCloseReveal(); } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [onCloseReveal]);
 
@@ -136,7 +164,7 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
       <div onMouseOver={onHover} onMouseDown={e => { if (menu && !(e.target as HTMLElement).closest('.actmenu')) setMenu(null); }}>
         <section className="layer layer-3d">
           <Background />
-          {frame ? <Field frame={frame} onPile={onPile} marks={marks} onCell={onCell} /> : <div className="loadmsg">Waiting for the duel to start…</div>}
+          {frame ? <Field frame={frame} onPile={onPile} marks={marks} onCell={onCell} fx={fx} /> : <div className="loadmsg">Waiting for the duel to start…</div>}
         </section>
 
         <section className="layer layer-ui">
@@ -152,6 +180,7 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
             <PhaseBar duel={duel} frame={frame} />
             <div className="rightcol">
               {prompt?.time && left !== null && <TimerBar left={left} full={prompt.time.turn ? duel.timer * 1000 : RESPONSE_MS} turn={prompt.time.turn} />}
+              {thinking && <div className="panel thinking"><span className="dots"><i /><i /><i /></span>{frame.turnPlayer === 0 && duel.you === 0 ? 'Working it out…' : `${duel.players[frame.turnPlayer]} is thinking…`}</div>}
               <ChainPanel duel={duel} frame={frame} />
               {prompt && <PromptPanel key={prompt.id} prompt={prompt} phase={frame.phase} loose={loose} zonesLeft={prompt.kind === 'place' ? prompt.count - zones.length : 0} onAnswer={answer} onAutoZone={autoZone} />}
             </div>
@@ -165,6 +194,10 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
             {pops.map(d => <div key={d.id} className={`dmg ${d.cost ? 'cost' : ''}`} style={{ left: d.p === 0 ? 174 : 1406, top: d.p === 0 ? 730 : 110 }}>−{d.amount}</div>)}
             {pile && <PileViewer duel={duel} frame={frame} pile={pile} setPile={setPile} actions={pileActions} onAct={openActions} />}
             {reveal && <RevealPanel reveal={reveal} onClose={onCloseReveal} />}
+            {banners.map(b => (
+              <div key={b.id} className={`summon-banner ${b.theirs ? 'theirs' : ''}`}><span>{b.title}</span><b>{cardName(b.code)}</b></div>
+            ))}
+            {reconnecting && <div className="panel reconnecting"><span className="dots"><i /><i /><i /></span>Connection lost. Reconnecting to the duel…</div>}
           </>}
           <LogPanel log={log} step={frame?.step ?? -1} duel={duel} />
           {menu && <ActionMenu {...menu} onClose={closeMenu} />}
@@ -180,7 +213,7 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
             </div></div>
           )}
           {ending && showEnd && (
-            <div className="ending on"><div className="panel">
+            <div className={`ending on ${duel.you === 0 ? (ending.winner === 0 ? 'victory' : ending.winner === 1 ? 'defeat' : '') : ''}`}><div className="panel">
               <div className="eyebrow">Duel over · {ending.turns} turns</div>
               <h2>{duel.you === 0 ? (ending.winner === 0 ? 'Victory' : ending.winner === 1 ? 'Defeat' : ending.winner === 2 ? 'Draw' : 'Duel ended')
                 : ending.winner === 0 || ending.winner === 1 ? `${duel.players[ending.winner]} wins` : ending.winner === 2 ? 'Draw' : 'Stopped'}</h2>
@@ -234,16 +267,37 @@ function RevealPanel({ reveal, onClose }: { reveal: Reveal; onClose: () => void 
   );
 }
 
+/** Life points count down (or up) to their new value instead of jumping, and the panel flinches when they drop. */
+function useCountTo(target: number, ms = 700) {
+  const [shown, setShown] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    const start = performance.now(), a = from.current;
+    if (a === target) return;
+    let raf = 0;
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - start) / ms), v = Math.round(a + (target - a) * (1 - (1 - k) ** 3));
+      from.current = v; setShown(v);
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return shown;
+}
+
 function LifePanel({ side, duel, frame, clock }: { side: Side; duel: DuelInfo; frame: Frame; clock?: number | null }) {
   const lp = frame.board[side].lp, name = duel.players[side];
+  const shown = useCountTo(lp);
+  const hit = shown > lp;   // still counting down
   return (
-    <div className={`panel ${side === 0 ? 'me' : 'opp'}`}>
+    <div className={`panel ${side === 0 ? 'me' : 'opp'} ${hit ? 'hit' : ''}`}>
       <div className="av">{name[0]}</div>
       <div className="who">
         <div className="name">{name} <span className={`rank ${clock !== undefined && clock !== null && clock < 10_000 ? 'low' : ''}`}>
           {frame.turnPlayer === side ? (duel.you === side ? 'Your turn' : 'Their turn') : ''}{clock !== undefined && clock !== null ? ` · ${clockText(clock)}` : ''}</span></div>
-        <div className="lp"><small>LP</small>{lp}</div>
-        <div className="bar"><i style={{ width: `${Math.min(100, lp / 80)}%` }} /></div>
+        <div className="lp"><small>LP</small>{shown}</div>
+        <div className="bar"><i style={{ width: `${Math.min(100, shown / 80)}%` }} /></div>
       </div>
     </div>
   );
@@ -282,7 +336,10 @@ function ChainPanel({ duel, frame }: { duel: DuelInfo; frame: Frame }) {
   return (
     <div className="panel chain on">
       <div className="eyebrow">Chain</div>
-      {frame.chain.map((c, i) => <div key={i} className="row" data-code={c.code}><div className="n">{i + 1}</div><div><b>{cardName(c.code)}</b><div className="sub">{duel.players[c.p]}</div></div></div>)}
+      {frame.chain.map((c, i) => (
+        <div key={i} className={`row ${frame.solving === i + 1 ? 'solving' : ''}`} data-code={c.code}><div className="n">{i + 1}</div>
+          <div><b>{cardName(c.code)}</b><div className="sub">{duel.players[c.p]}{frame.solving === i + 1 ? ' · resolving' : ''}</div></div></div>
+      ))}
     </div>
   );
 }

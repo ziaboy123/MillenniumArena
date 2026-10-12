@@ -167,3 +167,94 @@ button.opt { font: inherit; color: inherit; text-align: left; width: 100%; }
 .ctrs { position: absolute; right: -8px; top: -8px; z-index: 4; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: #2bb3a3; color: #04211e;
   font: 700 12px/22px var(--font-ui); text-align: center; box-shadow: 0 0 0 2px rgba(0,0,0,.5), 0 0 12px rgba(43,179,163,.5); }
 .ctrs::before { content: '●'; font-size: 8px; margin-right: 2px; vertical-align: 1px; }
+
+/* ---------- Milestone 4: the big moments ----------
+   Cards animate with the individual translate/scale/rotate properties, so they never fight the transform that turns
+   the opponent's cards (or Defense Position cards) around. */
+
+/* a card arriving in a zone drops in (each new card gets a fresh element, so this plays once) */
+.zone .card.enter { animation: card-enter .45s cubic-bezier(.2,.9,.3,1.15) both; }
+.zone.theirs .card.enter { animation-name: card-enter-theirs; }
+.zone.flash .card.enter { animation: card-enter .45s cubic-bezier(.2,.9,.3,1.15) both, flash 1s ease-out .2s; }
+@keyframes card-enter { from { opacity: 0; translate: 0 -46px; scale: 1.25; filter: brightness(1.8); } 60% { opacity: 1; } to { opacity: 1; translate: 0 0; scale: 1; filter: none; } }
+@keyframes card-enter-theirs { from { opacity: 0; translate: 0 46px; scale: 1.25; filter: brightness(1.8); } 60% { opacity: 1; } to { opacity: 1; translate: 0 0; scale: 1; filter: none; } }
+
+/* summon bursts: rings and a flash in the summon's colour */
+.fx-summon { position: absolute; pointer-events: none; z-index: 6; --fxc: var(--accent); }
+.fx-summon::before { content: ''; position: absolute; inset: -46px; border-radius: 50%; background: radial-gradient(circle, var(--fxc) 0%, transparent 62%); opacity: 0; animation: fx-burst .75s ease-out forwards; }
+.fx-summon i { position: absolute; left: 50%; top: 50%; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; border: 3px solid var(--fxc); box-shadow: 0 0 18px var(--fxc); opacity: 0; animation: fx-ring 1s ease-out forwards; }
+.fx-summon i:nth-child(2) { animation-delay: .12s; }
+.fx-summon i:nth-child(3) { animation-delay: .24s; }
+@keyframes fx-burst { 0% { opacity: .9; scale: .4; } 100% { opacity: 0; scale: 1.35; } }
+@keyframes fx-ring { 0% { opacity: .95; scale: .2; } 100% { opacity: 0; scale: 1.7; } }
+.fx-summon.s-tribute { --fxc: #ffb347; }
+.fx-summon.s-flip { --fxc: #ffffff; }
+.fx-summon.s-special { --fxc: var(--accent-hi); }
+.fx-summon.s-ritual { --fxc: #4aa8ff; }
+.fx-summon.s-fusion { --fxc: #b06cff; }
+.fx-summon.s-fusion i { border-style: dashed; animation-name: fx-ring-spin; }
+.fx-summon.s-synchro { --fxc: #f2f2f2; }
+.fx-summon.s-synchro i { border-width: 2px; }
+.fx-summon.s-xyz { --fxc: #e2c35a; }
+.fx-summon.s-xyz i { box-shadow: 0 0 22px #e2c35a, inset 0 0 26px rgba(0,0,0,.9); animation-name: fx-ring-spin; }
+.fx-summon.s-xyz::before { background: radial-gradient(circle, #000 0%, rgba(226,195,90,.55) 30%, transparent 62%); }
+.fx-summon.s-link { --fxc: #3b8cff; }
+.fx-summon.s-link i { border-radius: 6px; animation-name: fx-ring-link; }
+@keyframes fx-ring-spin { 0% { opacity: .95; scale: .2; rotate: 0deg; } 100% { opacity: 0; scale: 1.7; rotate: 160deg; } }
+@keyframes fx-ring-link { 0% { opacity: .95; scale: .2; rotate: 45deg; } 100% { opacity: 0; scale: 1.5; rotate: 45deg; } }
+
+/* a card leaving the field: its ghost shatters (GY), dissolves (banished), slides away (hand/Deck) or is drawn in (material) */
+.fx-leave { position: absolute; pointer-events: none; z-index: 6; }
+.fx-leave .card { position: absolute; inset: 0; animation: fx-to-gy .7s ease-in forwards; }
+.fx-leave.theirs .card { transform: rotate(180deg); }
+.fx-leave.to-ban .card { animation-name: fx-to-ban; }
+.fx-leave.to-hand .card, .fx-leave.to-deck .card, .fx-leave.to-extra .card { animation-name: fx-away; }
+.fx-leave.theirs.to-hand .card, .fx-leave.theirs.to-deck .card, .fx-leave.theirs.to-extra .card { animation-name: fx-away-theirs; }
+.fx-leave.to-material .card { animation-name: fx-material; }
+@keyframes fx-to-gy { 0% { opacity: 1; filter: brightness(1.4); box-shadow: 0 0 0 2px #ff6b4a, 0 0 30px rgba(255,80,50,.8); } 100% { opacity: 0; scale: 1.25; filter: brightness(2.4) blur(6px); box-shadow: 0 0 0 2px #ff6b4a, 0 0 60px rgba(255,80,50,0); } }
+@keyframes fx-to-ban { 0% { opacity: 1; filter: none; box-shadow: 0 0 30px rgba(160,90,255,.9); } 100% { opacity: 0; scale: .55; rotate: 25deg; filter: hue-rotate(80deg) blur(5px) brightness(1.6); } }
+@keyframes fx-away { 0% { opacity: 1; } 100% { opacity: 0; translate: 0 70px; scale: .85; } }
+@keyframes fx-away-theirs { 0% { opacity: 1; } 100% { opacity: 0; translate: 0 -70px; scale: .85; } }
+@keyframes fx-material { 0% { opacity: 1; filter: none; } 100% { opacity: 0; scale: .25; filter: brightness(2) sepia(1); } }
+
+/* attacks: the attacker lunges at its target, which flinches */
+.zone.attacker .card { animation: lunge .55s cubic-bezier(.3,.7,.3,1); }
+.zone.theirs.attacker .card { animation-name: lunge-theirs; }
+.zone.target .card { animation: flinch .45s ease-out .3s; }
+@keyframes lunge { 35% { translate: 0 -34px; scale: 1.12; } 100% { translate: 0 0; scale: 1; } }
+@keyframes lunge-theirs { 35% { translate: 0 34px; scale: 1.12; } 100% { translate: 0 0; scale: 1; } }
+@keyframes flinch { 20%, 60% { translate: -6px 0; } 40%, 80% { translate: 6px 0; } }
+
+/* the chain link resolving right now */
+.link.solving { animation: link-pulse .8s ease-in-out infinite; background: #fff; }
+@keyframes link-pulse { 50% { scale: 1.25; box-shadow: 0 0 34px var(--glow); } }
+.chain .row.solving .n { background: #fff; animation: link-pulse .8s ease-in-out infinite; }
+.chain .row.solving b { color: var(--accent-hi); }
+
+/* big summons get a banner across the screen */
+.summon-banner { position: absolute; left: 0; right: 0; top: 300px; height: 120px; z-index: 45; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,.78) 22%, rgba(0,0,0,.78) 78%, transparent); animation: banner 1.7s cubic-bezier(.2,.8,.2,1) forwards; }
+.summon-banner span { font: 700 50px/1 var(--font-display); letter-spacing: .16em; text-transform: uppercase; color: var(--accent-hi); text-shadow: 0 0 34px var(--glow); animation: banner-word 1.7s cubic-bezier(.2,.8,.2,1) forwards; }
+.summon-banner b { font: 600 15px/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
+.summon-banner.theirs span { color: var(--atk); text-shadow: 0 0 34px rgba(255,90,60,.55); }
+@keyframes banner { 0% { opacity: 0; clip-path: inset(50% 0 50% 0); } 14% { opacity: 1; clip-path: inset(0 0 0 0); } 78% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes banner-word { 0% { letter-spacing: .5em; } 30% { letter-spacing: .16em; } }
+
+/* the engine or the bot is working something out; the connection dropped */
+.rightcol > .thinking { padding: 10px 14px; display: flex; align-items: center; gap: 10px; font: 600 12.5px/1 var(--font-ui); color: var(--muted); animation: fadein .3s; }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: dot 1.2s infinite; }
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 80%, 100% { opacity: .25; scale: .8; } 40% { opacity: 1; scale: 1; } }
+.panel.reconnecting { left: 50%; top: 22px; translate: -50% 0; z-index: 80; padding: 12px 18px; display: flex; gap: 10px; align-items: center; font: 600 13px/1 var(--font-ui); border-color: #e0503a; box-shadow: 0 0 30px rgba(224,80,58,.3); }
+
+/* Victory / Defeat */
+.ending.victory { background: radial-gradient(circle at 50% 45%, rgba(217,185,74,.22), rgba(0,0,0,.62) 62%); }
+.ending.defeat { background: radial-gradient(circle at 50% 45%, rgba(200,50,30,.22), rgba(0,0,0,.66) 62%); }
+.ending .panel { animation: end-panel .6s cubic-bezier(.2,1.2,.4,1); }
+.ending h2 { animation: end-word .9s cubic-bezier(.2,.8,.2,1); }
+.ending.victory h2 { color: #f0cf6a; text-shadow: 0 0 40px rgba(240,207,106,.55); }
+.ending.defeat h2 { color: var(--atk); text-shadow: 0 0 40px rgba(255,90,60,.45); }
+@keyframes end-panel { from { opacity: 0; scale: .9; } }
+@keyframes end-word { from { opacity: 0; letter-spacing: .5em; filter: blur(8px); } }

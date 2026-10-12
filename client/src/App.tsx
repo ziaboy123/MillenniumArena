@@ -1,6 +1,6 @@
 // The test lobby while the real pages are built: duel the bot yourself (Milestone 2), or watch two bots duel.
 import { useCallback, useEffect, useState } from 'react';
-import type { DeckSummary, DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Speed } from '@arena/shared';
+import type { DeckSummary, DuelInfo, Frame, Prompt, PromptAnswer, Responses, ServerMessage, Speed } from '@arena/shared';
 import { DuelScreen, type LogRow, type Reveal } from './duel/DuelScreen.tsx';
 import { loadCards } from './lib/cards.ts';
 import { useArenaSocket } from './lib/socket.ts';
@@ -9,11 +9,16 @@ import { Background, Eye, Stage, THEMES, useTheme } from './lib/ui.tsx';
 type Ending = Extract<ServerMessage, { type: 'end' }>;
 type Mode = 'play' | 'watch';
 type First = 'me' | 'bot' | 'random';
-interface LobbyChoices { mode: Mode; name: string; deck: string; botDeck: string; first: First; watch: [string, string]; speed: Speed; timer: number }
+interface LobbyChoices { mode: Mode; name: string; deck: string; botDeck: string; first: First; watch: [string, string]; speed: Speed; timer: number; responses: Responses }
+
+// the seat you're playing, kept for this tab so a dropped connection or a reload rejoins the same duel
+const SEAT_KEY = 'ma-seat';
+const savedSeat = (): { duel: string; seat: string } | null => { try { return JSON.parse(sessionStorage.getItem(SEAT_KEY) ?? 'null'); } catch { return null; } };
+const saveSeat = (v: { duel: string; seat: string } | null) => { try { if (v) sessionStorage.setItem(SEAT_KEY, JSON.stringify(v)); else sessionStorage.removeItem(SEAT_KEY); } catch {} };
 
 // the lobby remembers your last choices in this browser
 function loadChoices(): LobbyChoices {
-  const blank: LobbyChoices = { mode: 'play', name: '', deck: '', botDeck: '', first: 'random', watch: ['', ''], speed: 'normal', timer: 90 };
+  const blank: LobbyChoices = { mode: 'play', name: '', deck: '', botDeck: '', first: 'random', watch: ['', ''], speed: 'normal', timer: 90, responses: 'smart' };
   try { return { ...blank, ...JSON.parse(localStorage.getItem('ma-lobby') ?? '{}') }; } catch { return blank; }
 }
 
@@ -32,6 +37,7 @@ export function App() {
   const [log, setLog] = useState<LogRow[]>([]);
   const [ending, setEnding] = useState<Ending | null>(null);
   const [error, setError] = useState('');
+  const [reconnecting, setReconnecting] = useState(false);
 
   const { connected, send } = useArenaSocket(msg => {
     if (msg.type === 'decks') {
@@ -40,22 +46,34 @@ export function App() {
       const ids = new Set(msg.decks.map(d => d.id)), def = msg.decks.find(d => d.source === 'mine')?.id ?? msg.decks[0]?.id ?? '';
       const ok = (id: string) => (ids.has(id) ? id : def);
       setCh(c => ({ ...c, deck: ok(c.deck), botDeck: ok(c.botDeck), watch: [ok(c.watch[0]), ok(c.watch[1])] }));
-    } else if (msg.type === 'duel') { setDuel(msg.duel); setFrame(null); setPrompt(null); setReveal(null); setLog([]); setEnding(null); setError(''); }
+    } else if (msg.type === 'duel') {
+      setDuel(msg.duel); setFrame(null); setPrompt(null); setReveal(null); setLog([]); setEnding(null); setError(''); setReconnecting(false);
+      saveSeat(msg.duel.seat ? { duel: msg.duel.id, seat: msg.duel.seat } : null);
+    }
+    else if (msg.type === 'backlog') setLog(msg.lines.map(r => ({ ...r, isTurn: r.text.startsWith('Turn ') })));
+    else if (msg.type === 'gone') {
+      // the duel finished (or the server restarted) while we were away
+      saveSeat(null); setReconnecting(false); setPrompt(null);
+      if (duel) setEnding(e => e ?? { type: 'end', winner: null, reason: 'The duel ended while you were disconnected', turns: frame?.turn ?? 0 });
+    }
     else if (msg.type === 'frame') {
       setFrame(msg.frame);
       const f = msg.frame;
       if (f.lines.length) setLog(l => [...l, ...f.lines.map(text => ({ step: f.step, turn: f.turn, text, isTurn: text.startsWith('Turn ') }))]);
     } else if (msg.type === 'prompt') { setPrompt(msg.prompt); setPromptAt(Date.now()); }
     else if (msg.type === 'reveal') setReveal({ ...msg, at: Date.now() });
-    else if (msg.type === 'end') { setEnding(msg); setPrompt(null); }
+    else if (msg.type === 'end') { setEnding(msg); setPrompt(null); saveSeat(null); }
     else if (msg.type === 'error') setError(msg.message);
   });
 
   useEffect(() => { loadCards().then(() => setCardsReady(true)).catch(e => setError(`Couldn't load card data (${e.message}).`)); }, []);
-  useEffect(() => { if (connected) send({ type: 'listDecks' }); }, [connected]);
-  // a dropped connection ends the duel for now (rejoining a running duel comes later)
+  // on (re)connecting: fetch decks, and rejoin the duel this tab was playing, if any
   useEffect(() => {
-    if (!connected && duel && !ending) { setPrompt(null); setEnding({ type: 'end', winner: null, reason: 'The connection to the duel server was lost', turns: frame?.turn ?? 0 }); }
+    if (connected) {
+      send({ type: 'listDecks' });
+      const s = savedSeat();
+      if (s) send({ type: 'resume', duel: s.duel, seat: s.seat });
+    } else if (duel && !ending) { setReconnecting(true); setPrompt(null); }
   }, [connected]);
   useEffect(() => { try { localStorage.setItem('ma-lobby', JSON.stringify(ch)); } catch {} }, [ch]);
   // a glimpse of a revealed card closes itself; looking at hidden cards stays until closed
@@ -63,15 +81,15 @@ export function App() {
 
   const closeReveal = useCallback(() => setReveal(null), []);
   const answer = (a: PromptAnswer) => { if (prompt) { send({ type: 'answer', id: prompt.id, answer: a }); setPrompt(null); } };
-  const surrender = () => { send({ type: 'leave' }); setPrompt(null); setEnding({ type: 'end', winner: 1, reason: 'You surrendered', turns: frame?.turn ?? 0 }); };
-  const leave = () => { send({ type: 'leave' }); setDuel(null); setPrompt(null); };
+  const surrender = () => { send({ type: 'leave' }); saveSeat(null); setPrompt(null); setEnding({ type: 'end', winner: 1, reason: 'You surrendered', turns: frame?.turn ?? 0 }); };
+  const leave = () => { send({ type: 'leave' }); saveSeat(null); setDuel(null); setPrompt(null); setReconnecting(false); };
 
   if (duel && cardsReady) return <DuelScreen duel={duel} frame={frame} log={log} ending={ending} prompt={prompt} promptAt={promptAt} onAnswer={answer}
-    reveal={reveal} onCloseReveal={closeReveal} onSurrender={surrender} onLeave={leave} />;
+    reveal={reveal} onCloseReveal={closeReveal} onSurrender={surrender} onLeave={leave} reconnecting={reconnecting} />;
 
   const ready = connected && cardsReady && decks.length > 0;
   const start = () => ch.mode === 'play'
-    ? send({ type: 'play', deck: ch.deck, botDeck: ch.botDeck, first: ch.first, name: ch.name, speed: ch.speed, timer: ch.timer, ...(scenario ? { scenario } : {}) })
+    ? send({ type: 'play', deck: ch.deck, botDeck: ch.botDeck, first: ch.first, name: ch.name, speed: ch.speed, timer: ch.timer, responses: ch.responses, ...(scenario ? { scenario } : {}) })
     : send({ type: 'watch', decks: ch.watch, fullView: true, speed: ch.speed });
   const seg = <T extends string | number>(value: T, options: [T, string][], set: (v: T) => void) => (
     <div className="seg">{options.map(([k, label]) => <button key={String(k)} className={value === k ? 'on' : ''} onClick={() => set(k)}>{label}</button>)}</div>
@@ -100,6 +118,8 @@ export function App() {
               {seg<First>(ch.first, [['me', 'You go first'], ['bot', 'Bot goes first'], ['random', 'Coin toss']], first => setCh(c => ({ ...c, first })))}</div>
             <div className="lobby-row"><span>Turn timer</span>
               {seg<number>(ch.timer, [[0, 'Off'], [60, '60 s'], [90, '90 s'], [180, '180 s']], timer => setCh(c => ({ ...c, timer })))}</div>
+            <div className="lobby-row"><span>Responses</span>
+              {seg<Responses>(ch.responses, [['smart', 'Smart: skip my own actions'], ['always', 'Always ask']], responses => setCh(c => ({ ...c, responses })))}</div>
             {speedRow}
             {scenarios.length > 0 && <label className="lobby-row"><span>Test setup</span>
               <select value={scenario} onChange={e => setScenario(e.target.value)}><option value="">None (normal duel)</option>{scenarios.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>}

@@ -5,10 +5,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parentPort, workerData } from 'node:worker_threads';
 import createCore, {
-  OcgDuelMode, OcgHintType, OcgLocation, OcgMessageType as M, OcgPhase, OcgPosition, OcgProcessResult, OcgQueryFlags, OcgResponseType,
+  OcgDuelMode, OcgHintType, OcgLocation, OcgMessageType as M, OcgPhase, OcgPosition, OcgProcessResult, OcgQueryFlags, OcgResponseType, OcgType,
   SelectBattleCMDAction, SelectIdleCMDAction,
 } from 'ocgcore-wasm';
-import { NEGATED, type Frame, type Phase, type Prompt, type PromptAnswer, type Side, type SideView, type ZoneRef } from '@arena/shared';
+import { NEGATED, type Frame, type LeaveTo, type Phase, type Prompt, type PromptAnswer, type Side, type SideView, type SummonKind, type ZoneRef } from '@arena/shared';
 import { loadCards } from '../cards.ts';
 import { ENGINE_DATA } from '../config.ts';
 import { sysString, victoryString } from '../strings.ts';
@@ -26,6 +26,8 @@ export interface WorkerInput {
   /** Cards placed before the duel starts (test scenarios on the dev server). */
   setup?: { team: Side; code: number; location: number; sequence: number; position: number }[];
   setupLua?: string;
+  /** Sides that only want to be asked to respond when the opponent did something (their own triggers are still asked). */
+  smart?: Side[];
   seed: number;
 }
 export type WorkerOutput =
@@ -100,6 +102,11 @@ async function run() {
   const chain: (ZoneRef & { code: number })[] = [];
   let turn = 0, turnPlayer: Side = 0, phase: Phase = 'DP', winner: Side | 2 | null = null, winReason = '', step = 0;
   let lines: string[] = [], attack: Frame['attack'] = null, damage: Frame['damage'] = [], highlight: ZoneRef[] = [];
+  let summons: Frame['summons'] = [], leaves: Frame['leaves'] = [], solving: number | null = null;
+  // where each monster arrived from (to tell an Xyz Summon from a revival), and who did the last thing on screen
+  const cameFrom = new Map<string, number>();
+  let lastActor: Side = 0;
+  const smart = new Set(input.smart ?? []);
   let lastKey = '', lastPrompt: any = null, tries = 0, responses = 0, board = null as [SideView, SideView] | null, promptId = 0;
   const hints: [bigint, bigint] = [0n, 0n], lastCard = [0, 0];
   // chain links as they're activated (owner, and whether a column-negating card was Set first); negated columns this turn
@@ -136,14 +143,22 @@ async function run() {
       if (c && c[1] & OcgPosition.FACEDOWN) setInZone.set(`${p}:${seq}`, c[0]);
       else if (!c) setInZone.delete(`${p}:${seq}`);
     }));
-    const key = JSON.stringify([board, phase, turn, chain.length, columns.length]);
-    if (!lines.length && !attack && key === lastKey) return;   // nothing visible changed
+    const key = JSON.stringify([board, phase, turn, chain.length, columns.length, solving]);
+    if (!lines.length && !attack && !summons.length && !leaves.length && key === lastKey) return;   // nothing visible changed
     lastKey = key;
-    post({ type: 'frame', frame: { step: step++, turn, turnPlayer, phase, lines, attack, chain: chain.map(c => ({ ...c })), damage, highlight, columns: [...columns], board } });
-    lines = []; attack = null; damage = []; highlight = [];
+    post({ type: 'frame', frame: { step: step++, turn, turnPlayer, phase, lines, attack, chain: chain.map(c => ({ ...c })), damage, highlight, columns: [...columns], summons, leaves, solving, board } });
+    lines = []; attack = null; damage = []; highlight = []; summons = []; leaves = [];
   }
   const say = (s: string) => lines.push(s);
   const once = (s: string) => { if (lines.at(-1) !== s) lines.push(s); };   // the same hint can reach both players
+
+  /** What kind of Special Summon this was, from the card's type and where it came from. */
+  function summonKind(m: any): SummonKind {
+    const type = cards.get(m.code)?.type ?? 0, from = cameFrom.get(`${m.controller}:${m.sequence}`);
+    if (from === OcgLocation.EXTRA) return type & OcgType.XYZ ? 'xyz' : type & OcgType.SYNCHRO ? 'synchro' : type & OcgType.LINK ? 'link' : type & OcgType.FUSION ? 'fusion' : 'special';
+    if (from === OcgLocation.HAND && type & OcgType.RITUAL) return 'ritual';
+    return 'special';
+  }
 
   const view = (m: any): BotView => ({ board: board ?? snapshot(), chain: links.map(l => ({ code: l.code, p: l.p })), hint: m.selectHint ?? 0n });
   const bot = (m: any, p: Side) => decide(m, r, bots[p], tries, cards, view(m), levels[p]);
@@ -163,6 +178,9 @@ async function run() {
     const p = m.player as Side;
     // most "respond?" moments offer nothing to activate: pass without asking
     if (m.type === M.SELECT_CHAIN && !m.selects.length && !m.forced) return { type: OcgResponseType.SELECT_CHAIN, index: null };
+    // Smart responses: don't ask right after your own action (your own chain link, summon or phase change);
+    // trigger effects (spe_count) and anything the opponent does are still asked
+    if (m.type === M.SELECT_CHAIN && smart.has(p) && !m.forced && !m.spe_count && (links.at(-1)?.p ?? lastActor) === p) return { type: OcgResponseType.SELECT_CHAIN, index: null };
     const prompt = toPrompt(m, { cards, board: board ?? snapshot(), hint: m.selectHint ?? 0n, chainTop: chain.at(-1)?.code ?? 0, lastCard: lastCard[p], known: known[p] });
     if (!prompt) {
       say(`${players[p]}: ${NOT_YET[m.type] ?? 'a choice'} was picked automatically (this choice comes in a later update)`);
@@ -211,30 +229,46 @@ async function run() {
           }
           else if (m.hint_type === OcgHintType.NUMBER) once(`Number chosen: ${m.hint}`);
           break;
-        case M.NEW_PHASE: phase = PHASES[m.phase] ?? phase; break;
+        case M.NEW_PHASE: phase = PHASES[m.phase] ?? phase; lastActor = turnPlayer; break;
+        case M.CHAIN_SOLVING: solving = m.chain_size; break;
         case M.NEW_TURN: turn++; turnPlayer = m.player; phase = 'DP'; columns = []; bots.forEach(b => { b.acts = 0; b.attacks = 0; }); say(`Turn ${turn} · ${players[m.player]}`); break;
         case M.DRAW: say(`${players[m.player]} draws ${m.drawn.length}`); break;
-        case M.SUMMONING: highlight.push(zoneOf(m)); say(`${players[m.controller]} Normal Summons ${nameOf(m.code)}`); break;
-        case M.SPSUMMONING: highlight.push(zoneOf(m)); say(`${players[m.controller]} Special Summons ${nameOf(m.code)}`); break;
-        case M.FLIPSUMMONING: highlight.push(zoneOf(m)); say(`${players[m.controller]} Flip Summons ${nameOf(m.code)}`); break;
+        case M.SUMMONING:
+          highlight.push(zoneOf(m)); lastActor = m.controller;
+          summons.push({ zone: zoneOf(m), code: m.code, kind: (cards.get(m.code)?.level ?? 0) >= 5 ? 'tribute' : 'normal' });
+          say(`${players[m.controller]} Normal Summons ${nameOf(m.code)}`);
+          break;
+        case M.SPSUMMONING:
+          highlight.push(zoneOf(m)); lastActor = m.controller;
+          summons.push({ zone: zoneOf(m), code: m.code, kind: summonKind(m) });
+          say(`${players[m.controller]} Special Summons ${nameOf(m.code)}`);
+          break;
+        case M.FLIPSUMMONING:
+          highlight.push(zoneOf(m)); lastActor = m.controller;
+          summons.push({ zone: zoneOf(m), code: m.code, kind: 'flip' });
+          say(`${players[m.controller]} Flip Summons ${nameOf(m.code)}`);
+          break;
         case M.SET: say(`${players[m.controller]} Sets a card`); break;
         case M.CHAINING: {
           const zone = `${m.controller}:${m.sequence}`, wasSet = m.location === OcgLocation.SZONE && setInZone.get(zone) === m.code;
           if (m.location === OcgLocation.SZONE) setInZone.delete(zone);
           links.push({ code: m.code, p: m.controller, seq: m.sequence, columnFromSet: COLUMN_NEGATORS.has(m.code) && wasSet, negated: false });
+          lastActor = m.controller;
         }
           chain.push({ code: m.code, ...zoneOf(m) }); highlight.push(zoneOf(m)); say(`${players[m.controller]} activates ${nameOf(m.code)}${m.chain_size > 1 ? ` (chain link ${m.chain_size})` : ''}`); break;
         case M.CHAIN_NEGATED: if (links[m.chain_size - 1]) links[m.chain_size - 1].negated = true; say(`Chain link ${m.chain_size}'s activation is negated`); break;
         case M.CHAIN_DISABLED: if (links[m.chain_size - 1]) links[m.chain_size - 1].negated = true; say(`Chain link ${m.chain_size}'s effect is negated`); break;
         case M.CHAIN_SOLVED: {
+          if (solving === m.chain_size) solving = null;
           const link = links[m.chain_size - 1];
           if (link?.columnFromSet && !link.negated && link.seq < 5) { columns.push({ p: link.p, seq: link.seq }); say(`${nameOf(link.code)} negates its column for the rest of this turn`); }
           break;
         }
-        case M.CHAIN_END: chain.length = 0; links.length = 0; known[0].clear(); known[1].clear(); break;
+        case M.CHAIN_END: chain.length = 0; links.length = 0; solving = null; known[0].clear(); known[1].clear(); break;
         case M.SHUFFLE_DECK: case M.SHUFFLE_HAND: case M.SHUFFLE_EXTRA: known[0].clear(); known[1].clear(); break;   // places changed
         case M.ATTACK: {
           attack = { from: zoneOf(m.card), to: m.target ? zoneOf(m.target) : null };
+          lastActor = m.card.controller;
           // a face-down target isn't named: it's only flipped (and revealed) in the Damage Step
           const a = codeAt(m.card), d = m.target && codeAt(m.target), hidden = m.target && (m.target.position & OcgPosition.FACEDOWN);
           say(`${nameOf(a)} attacks ${!m.target ? 'directly' : hidden ? 'a face-down monster' : nameOf(d)}`);
@@ -248,6 +282,14 @@ async function run() {
           // only moves everyone can see are named (the log goes to both players): never a card going into a hand or Deck.
           // Xyz Materials are reported at their Xyz monster's location, with an overlay_sequence
           const from = m.from.location, to = m.to.location, L = OcgLocation;
+          if (to === L.MZONE && m.to.overlay_sequence === undefined) cameFrom.set(`${m.to.controller}:${m.to.sequence}`, from);
+          // a card leaving the field (not moving between zones, not a material being detached) gets an exit effect;
+          // it's only named if everyone knew what it was or can see where it went
+          if ((from & L.ONFIELD) && m.from.overlay_sequence === undefined && !(to & L.ONFIELD && m.to.overlay_sequence === undefined)) {
+            const dest: LeaveTo = m.to.overlay_sequence !== undefined ? 'material' : to === L.GRAVE ? 'gy' : to === L.REMOVED ? 'ban' : to === L.HAND ? 'hand' : to === L.EXTRA ? 'extra' : 'deck';
+            const seen = !(m.from.position & OcgPosition.FACEDOWN) || dest === 'gy' || (dest === 'ban' && !(m.to.position & OcgPosition.FACEDOWN));
+            leaves.push({ zone: { p: m.from.controller, loc: from === L.MZONE ? 'm' : 's', seq: m.from.sequence }, code: seen ? m.card : 0, to: dest });
+          }
           if (m.to.overlay_sequence !== undefined) break;   // becoming material: the summon line covers it
           const fromWhere = m.from.overlay_sequence !== undefined ? '' : from === L.DECK ? ' from the Deck' : from === L.HAND ? ' from the hand' : from === L.EXTRA ? ' from the Extra Deck' : '';
           if (to === L.GRAVE && from !== L.GRAVE) say(`${nameOf(m.card)} is sent to the GY${fromWhere}`);
@@ -271,7 +313,10 @@ async function run() {
           const to = m.player as Side, owner = m.cards[0]?.controller as Side, where = m.cards[0]?.location;
           for (const c of m.cards) known[to].add(`${c.controller}:${c.location}:${c.sequence}`);
           if (humans.has(to) && m.cards.length) {
-            const glimpse = owner !== to && where === OcgLocation.HAND && m.cards.length <= 2;
+            // stays open only when your own effect is letting you look (e.g. Galaxy Hundred); anything the opponent's
+            // effects show you is a glimpse that closes itself
+            const yours = solving !== null && links[solving - 1]?.p === to;
+            const glimpse = !yours || (owner !== to && where === OcgLocation.HAND && m.cards.length <= 2);
             const title = glimpse ? `${players[owner]} reveals` : `${owner === to ? 'Your' : `${players[owner]}'s`} ${LOC_NAMES[where] ?? 'cards'}`;
             post({ type: 'reveal', side: to, title, cards: m.cards.map((c: any) => c.code), brief: glimpse });
           }

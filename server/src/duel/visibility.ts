@@ -22,7 +22,7 @@ function turnAround(f: Frame): Frame {
   return {
     ...f, turnPlayer: (1 - f.turnPlayer) as Side, board: [f.board[1], f.board[0]],
     attack: f.attack && { from: flip(f.attack.from), to: f.attack.to && flip(f.attack.to) },
-    chain: f.chain.map(flip), damage: f.damage.map(flip), highlight: f.highlight.map(flip), columns: f.columns.map(flip),
+    chain: f.chain.map(flip), damage: f.damage.map(flip), highlight: f.highlight.map(flip), columns: f.columns.map(flip), summons: f.summons.map(x => ({ ...x, zone: flip(x.zone) })), leaves: f.leaves.map(x => ({ ...x, zone: flip(x.zone) })),
   };
 }
 

@@ -1,8 +1,8 @@
 // One duel: its worker thread, the people connected to it, paced delivery of frames, prompts for players and
 // their clocks.
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
-import type { DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Side, Speed } from '@arena/shared';
+import type { DuelInfo, Frame, Prompt, PromptAnswer, Responses, ServerMessage, Side, Speed } from '@arena/shared';
 import { ENGINE_NAME, PACE } from '../config.ts';
 import type { Deck } from '../decks.ts';
 import type { BotLevel } from './bot.ts';
@@ -18,6 +18,8 @@ export interface RoomOptions {
   /** Seconds each player gets per turn; 0 = no timer. */
   timer?: number;
   bots?: [BotLevel, BotLevel];
+  /** For the people playing: when to ask them to respond. */
+  responses?: Responses;
   setup?: WorkerInput['setup'];
   setupLua?: string;
 }
@@ -25,6 +27,8 @@ export interface RoomOptions {
 const SPEED: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.45, instant: 0.12 };
 /** On the opponent's turn each response has its own limit, so the turn's time is only spent on your own turn. */
 const RESPONSE_MS = 30_000;
+/** How long a player's seat is kept after their connection drops, so they can rejoin. */
+const REJOIN_MS = 60_000;
 
 type Reveal = Extract<ServerMessage, { type: 'reveal' }>;
 type Queued = { frame: Frame } | { prompt: Prompt; side: Side } | { reveal: Reveal; side: Side | 'all' };
@@ -44,6 +48,11 @@ export class DuelRoom {
   private turnPlayer: Side = 0;
   private clock: { id: number; side: Side; started: number; limit: number; turn: boolean; timeout: NodeJS.Timeout } | null = null;
   private readonly seconds: number;
+  // rejoining: a secret key per player seat, the log so far (for a reloaded page), and seats whose connection dropped
+  private readonly seats = new Map<Side, string>();
+  private readonly log: { step: number; turn: number; text: string }[] = [];
+  private readonly away = new Map<Side, NodeJS.Timeout>();
+  private ended: Extract<ServerMessage, { type: 'end' }> | null = null;
   private readonly speed: number;
   readonly startedAt = Date.now();
   closed = false;
@@ -52,7 +61,9 @@ export class DuelRoom {
   constructor(private decks: [Deck, Deck], private players: [string, string], private humans: Side[], readonly fullView: boolean, seed: number, private onClose: () => void, options: RoomOptions = {}) {
     this.seconds = Math.max(0, Math.min(600, Math.round(options.timer ?? 0)));
     this.speed = SPEED[options.speed ?? 'normal'] ?? 1;
-    const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup, setupLua: options.setupLua };
+    const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup, setupLua: options.setupLua,
+      smart: options.responses === 'always' ? [] : humans };
+    for (const side of humans) this.seats.set(side, randomBytes(18).toString('base64url'));
     this.worker = new Worker(new URL('./duel-worker.ts', import.meta.url), { workerData: input, execArgv: ['--import', 'tsx'] });
     this.worker.on('message', (msg: WorkerOutput) => {
       if (msg.type === 'frame') { this.queue.push({ frame: msg.frame }); this.pump(); }
@@ -65,19 +76,40 @@ export class DuelRoom {
   }
 
   info(side: Side | null): DuelInfo {
-    return { id: this.id, players: seat(this.players, side), decks: seat([this.decks[0].name, this.decks[1].name], side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME, timer: this.seconds };
+    const key = side === null ? undefined : this.seats.get(side);
+    return { id: this.id, players: seat(this.players, side), decks: seat([this.decks[0].name, this.decks[1].name], side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME, timer: this.seconds, ...(key ? { seat: key } : {}) };
   }
 
-  join(viewer: Viewer) {
+  /** `rejoining`: also send the log so far (the page may have been reloaded). */
+  join(viewer: Viewer, rejoining = false) {
     this.viewers.add(viewer);
     viewer.send({ type: 'duel', duel: this.info(viewer.side) });
+    if (rejoining) viewer.send({ type: 'backlog', lines: this.log });
     if (this.latest) viewer.send({ type: 'frame', frame: frameFor(this.latest, viewer.side, this.fullView) });
     if (this.pending && this.pending.side === viewer.side) viewer.send({ type: 'prompt', prompt: this.timed(this.pending.prompt) });
+    if (this.ended) viewer.send({ ...this.ended, winner: seatSide(this.ended.winner, viewer.side) });
   }
 
-  leave(viewer: Viewer) {
+  /** Back into a seat after a dropped connection; false if the key doesn't match. */
+  rejoin(viewer: Viewer, key: string): boolean {
+    const side = [...this.seats].find(([, k]) => k === key)?.[0];
+    if (side === undefined || this.closed) return false;
+    clearTimeout(this.away.get(side));
+    this.away.delete(side);
+    viewer.side = side;
+    this.join(viewer, true);
+    return true;
+  }
+
+  /** `dropped`: the connection was lost (the seat is kept for a minute) rather than the player leaving. */
+  leave(viewer: Viewer, dropped = false) {
     this.viewers.delete(viewer);
-    if (!this.viewers.size) this.close();
+    const side = viewer.side;
+    if (dropped && side !== null && this.seats.has(side) && !this.ended && ![...this.viewers].some(v => v.side === side)) {
+      this.away.set(side, setTimeout(() => { this.away.delete(side); if (![...this.viewers].some(v => v.side !== null)) this.close(); }, REJOIN_MS));
+      return;
+    }
+    if (!this.viewers.size && !this.away.size) this.close();
   }
 
   /** A player's answer to the prompt they were shown. Anything stale or from the wrong seat is ignored. */
@@ -94,6 +126,7 @@ export class DuelRoom {
     this.closed = true;
     if (this.timer) clearTimeout(this.timer);
     if (this.clock) clearTimeout(this.clock.timeout);
+    for (const t of this.away.values()) clearTimeout(t);
     this.worker.terminate();
     this.onClose();
   }
@@ -106,6 +139,7 @@ export class DuelRoom {
     if (!next) {
       if (this.ending) {
         const end = this.ending;
+        this.ended = end;
         for (const v of this.viewers) v.send({ ...end, winner: seatSide(end.winner, v.side) });
         this.ending = null;
       }
@@ -123,6 +157,7 @@ export class DuelRoom {
     }
     const f = next.frame;
     this.latest = f;
+    for (const text of f.lines) this.log.push({ step: f.step, turn: f.turn, text });
     if (f.turn !== this.turn) { this.turn = f.turn; this.turnPlayer = f.turnPlayer; this.bank[f.turnPlayer] = this.seconds * 1000; }   // a fresh turn's time
     for (const v of this.viewers) v.send({ type: 'frame', frame: frameFor(f, v.side, this.fullView) });
     this.timer = setTimeout(() => { this.timer = null; this.pump(); }, this.pace(f) * PACE);
@@ -131,9 +166,11 @@ export class DuelRoom {
   /** How long a frame stays up: watching bots is unhurried; with a person playing, their own turn moves quicker. Scaled by the chosen speed. */
   private pace(f: Frame) {
     const n = Math.min(f.lines.length, 5);
-    if (!this.humans.length) return (n ? 650 + 380 * (n - 1) : 260) * this.speed;
-    if (this.humans.includes(f.turnPlayer)) return (n ? 320 + 160 * (n - 1) : 90) * Math.min(this.speed, 1);
-    return (n ? 520 + 300 * (n - 1) : 180) * this.speed;
+    const ms = !this.humans.length ? (n ? 650 + 380 * (n - 1) : 260) * this.speed
+      : this.humans.includes(f.turnPlayer) ? (n ? 320 + 160 * (n - 1) : 90) * Math.min(this.speed, 1)
+      : (n ? 520 + 300 * (n - 1) : 180) * this.speed;
+    // an attack stays up long enough for the attacker's lunge to play out
+    return f.attack ? Math.max(ms, 700 * Math.min(this.speed, 1)) : ms;
   }
 
   // ---------- clocks ----------

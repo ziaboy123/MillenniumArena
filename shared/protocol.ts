@@ -43,8 +43,18 @@ export interface Frame {
   highlight: ZoneRef[];
   /** Columns whose cards are negated for the rest of the turn (e.g. a Set Infinite Impermanence), named by player p's Spell/Trap zone `seq`. */
   columns: { p: Side; seq: number }[];
+  /** Monsters summoned in this step, for the summon effect. */
+  summons: { zone: ZoneRef; code: number; kind: SummonKind }[];
+  /** Cards that left the field in this step, for the exit effect. Code 0 when the card was never revealed. */
+  leaves: { zone: ZoneRef; code: number; to: LeaveTo }[];
+  /** The chain link resolving right now (1 = the first link), or null. */
+  solving: number | null;
   board: [SideView, SideView];
 }
+
+export type SummonKind = 'normal' | 'tribute' | 'flip' | 'special' | 'ritual' | 'fusion' | 'synchro' | 'xyz' | 'link';
+/** Where a card that left the field went ('material' = it became an Xyz Material). */
+export type LeaveTo = 'gy' | 'ban' | 'hand' | 'deck' | 'extra' | 'material';
 
 export interface DuelInfo {
   id: string;
@@ -58,7 +68,12 @@ export interface DuelInfo {
   engine: string;
   /** Seconds each player gets per turn (0 = no timer). */
   timer: number;
+  /** Rejoin key for this seat (players only): sent back with `resume` after a dropped connection or a page reload. */
+  seat?: string;
 }
+
+/** When to ask you to respond: 'smart' skips moments after your own actions (your triggers are still offered). */
+export type Responses = 'smart' | 'always';
 
 /** How fast the bot's moves play out. */
 export type Speed = 'slow' | 'normal' | 'fast' | 'instant';
@@ -155,6 +170,10 @@ export type ServerMessage =
   | { type: 'frame'; frame: Frame }
   /** Your turn to choose (null: nothing to answer right now). */
   | { type: 'prompt'; prompt: Prompt | null }
+  /** After rejoining: the duel log so far. */
+  | { type: 'backlog'; lines: { step: number; turn: number; text: string }[] }
+  /** The duel you asked to rejoin has ended or doesn't exist any more. */
+  | { type: 'gone' }
   /** Cards the engine shows you (e.g. Galaxy Hundred lets you look at the opponent's Extra Deck). `brief`: just a glimpse, it closes itself. */
   | { type: 'reveal'; title: string; cards: number[]; brief: boolean }
   | { type: 'end'; winner: Side | 2 | null; reason: string; turns: number }
@@ -165,7 +184,9 @@ export type ClientMessage =
   /** Milestone 1: two bots duel and this connection watches. */
   | { type: 'watch'; decks: [string, string]; fullView?: boolean; seed?: number; speed?: Speed }
   /** Milestone 2: duel the bot. */
-  | { type: 'play'; deck: string; botDeck: string; first: 'me' | 'bot' | 'random'; name?: string; seed?: number; speed?: Speed; timer?: number; scenario?: string }
+  | { type: 'play'; deck: string; botDeck: string; first: 'me' | 'bot' | 'random'; name?: string; seed?: number; speed?: Speed; timer?: number; responses?: Responses; scenario?: string }
+  /** Rejoin a duel in progress with the seat key from DuelInfo. */
+  | { type: 'resume'; duel: string; seat: string }
   | { type: 'answer'; id: number; answer: PromptAnswer }
   | { type: 'leave' };
 

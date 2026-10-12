@@ -2,7 +2,7 @@
 //   row 0  opp Deck | opp S/T 4..0 | opp Extra          row 3  your Field | your monsters 0..4 | your GY
 //   row 1  opp GY   | opp monsters 4..0 | opp Field     row 4  your Extra | your S/T 0..4 | your Deck
 //   row 2  opp banished | Extra Monster Zones (shared) | your banished
-import { NEGATED, type FieldCard, type Frame, type Side, type ZoneRef } from '@arena/shared';
+import { NEGATED, type FieldCard, type Frame, type LeaveTo, type Side, type SummonKind, type ZoneRef } from '@arena/shared';
 import { imageFallback, smallImage } from '../lib/cards.ts';
 import { EyeSvg } from '../lib/ui.tsx';
 
@@ -46,6 +46,11 @@ export function pileCell(p: Side, kind: PileKind): number {
 }
 export const cellIndex = (z: Pick<ZoneRef, 'p' | 'loc' | 'seq'>) => { const g = gridOf(z); return g ? g[0] * 7 + g[1] : -1; };
 
+/** A short effect played on a field cell: a summon burst, or the ghost of a card leaving the field. */
+export type CellFx =
+  | { id: number; kind: 'summon'; cell: number; summon: SummonKind }
+  | { id: number; kind: 'leave'; cell: number; code: number; to: LeaveTo; theirs: boolean };
+
 /** How a cell is marked while you're choosing: `can` = has something you can do, `pick` = a zone you can choose. */
 export type Mark = 'can' | 'pick' | 'picked';
 
@@ -55,7 +60,8 @@ function CardFace({ card, monster }: { card: FieldCard; monster: boolean }) {
   const [code, pos, atk, def, mats, , flags, counters] = card;
   const down = (pos & FACEDOWN) !== 0, sideways = monster && (pos & DEFENSE) !== 0, negated = !down && ((flags ?? 0) & NEGATED) !== 0;
   return <>
-    <div className={`card ${code ? '' : 'back'} ${sideways ? 'def' : ''}`} data-code={code || undefined}>
+    {/* `enter` plays once: a card that newly appears in a zone gets a fresh element (see the key where CardFace is used) */}
+    <div className={`card enter ${code ? '' : 'back'} ${sideways ? 'def' : ''}`} data-code={code || undefined}>
       {code ? <img src={smallImage(code)} alt="" loading="lazy" onError={e => imageFallback(e, code)} /> : <EyeSvg />}
       {negated && <div className="negx" title="Effects negated" />}
     </div>
@@ -65,9 +71,9 @@ function CardFace({ card, monster }: { card: FieldCard; monster: boolean }) {
   </>;
 }
 
-export function Field({ frame, onPile, marks, onCell }: {
+export function Field({ frame, onPile, marks, onCell, fx = [] }: {
   frame: Frame; onPile: (p: Side, kind: PileKind, el: HTMLElement) => void;
-  marks?: Map<number, Mark>; onCell?: (cell: number, el: HTMLElement) => void;
+  marks?: Map<number, Mark>; onCell?: (cell: number, el: HTMLElement) => void; fx?: CellFx[];
 }) {
   const b = frame.board;
   const cells = CELLS.map((cell, i) => {
@@ -95,10 +101,10 @@ export function Field({ frame, onPile, marks, onCell }: {
         : <div className="card back"><EyeSvg /></div>)}<div className="count">{list.length}</div></>;
     } else if (cell.kind === 'emz') {
       const owner = cell.slots.find(([p, seq]) => b[p].m[seq]);
-      if (owner) { content = <CardFace card={b[owner[0]].m[owner[1]]!} monster />; theirs = owner[0] === 1; }
+      if (owner) { const fc = b[owner[0]].m[owner[1]]!; content = <CardFace key={`${owner[0]}-${fc[0]}`} card={fc} monster />; theirs = owner[0] === 1; }
     } else if (cell.kind === 'm' || cell.kind === 'st' || cell.kind === 'fieldz') {
       const card = (cell.kind === 'm' ? b[cell.p].m : b[cell.p].s)[cell.seq];
-      if (card) { content = <CardFace card={card} monster={cell.kind === 'm'} />; if (card[0] && card[1] & FACEDOWN) extra = 'peek'; }
+      if (card) { content = <CardFace key={card[0]} card={card} monster={cell.kind === 'm'} />; if (card[0] && card[1] & FACEDOWN) extra = 'peek'; }
     } else if (cell.kind === 'emblem') content = <EyeSvg />;
 
     const kindClass = cell.kind === 'emblem' ? 'none emblem' : cell.kind;
@@ -110,7 +116,7 @@ export function Field({ frame, onPile, marks, onCell }: {
     return (
       <div key={i} className={`zone ${kindClass} ${extra} ${flags} ${theirs ? 'theirs' : ''} ${mark ?? ''}`} data-label={label} onClick={click}>
         {content}
-        {chainLinks.map(n => <div key={n} className="link">{n}</div>)}
+        {chainLinks.map(n => <div key={n} className={`link ${frame.solving === n ? 'solving' : ''}`}>{n}</div>)}
       </div>
     );
   });
@@ -122,7 +128,20 @@ export function Field({ frame, onPile, marks, onCell }: {
         {/* a negated column (e.g. a Set Infinite Impermanence): your zone seq k is grid column k+1, theirs is 5-k */}
         {frame.columns.map((c, i) => <div key={i} className="colneg" style={{ left: (c.p === 0 ? c.seq + 1 : 5 - c.seq) * COL - 6, width: W + 12 }}><span>Column negated</span></div>)}
         {frame.attack && <AttackArrow attack={frame.attack} />}
+        {fx.map(f => <Fx key={f.id} fx={f} />)}
       </div>
+    </div>
+  );
+}
+
+/** Effects sit on the field grid at their cell, independent of the cards, so they finish even if the board moves on. */
+function Fx({ fx }: { fx: CellFx }) {
+  const r = Math.floor(fx.cell / 7), c = fx.cell % 7;
+  const style = { left: c * COL, top: r * ROW, width: W, height: H };
+  if (fx.kind === 'summon') return <div className={`fx-summon s-${fx.summon}`} style={style}><i /><i /><i /></div>;
+  return (
+    <div className={`fx-leave to-${fx.to} ${fx.theirs ? 'theirs' : ''}`} style={style}>
+      <div className={`card ${fx.code ? '' : 'back'}`}>{fx.code ? <img src={smallImage(fx.code)} alt="" onError={e => imageFallback(e, fx.code)} /> : <EyeSvg />}</div>
     </div>
   );
 }

@@ -57,6 +57,16 @@ export const SCENARIOS: Record<string, Scenario> = {
     ],
     lua: 'Duel.GetFieldCard({you},LOCATION_MZONE,1):AddCounter(COUNTER_SPELL,2) Duel.GetFieldCard({you},LOCATION_MZONE,3):AddCounter(COUNTER_SPELL,1)',
   },
+  xyz: {
+    // animations check: on your turn Xyz Summon with the two Delta Wings, then attack the bot's Photon Orbital
+    name: 'Xyz Summon, then attack (animations)',
+    first: 'bot',
+    setup: [
+      { who: 'you', code: 47051709, place: 'm', seq: 1 },                  // Photon Delta Wing (Level 4)
+      { who: 'you', code: 47051709, place: 'm', seq: 3 },                  // Photon Delta Wing (Level 4)
+      { who: 'bot', code: 89132148, place: 'm', seq: 2 },                  // Photon Orbital (500 ATK), something to destroy
+    ],
+  },
   rps: {
     // the bot goes first; on your turn attack its face-down monster and activate Transmission Gear during damage calculation
     name: 'Rock, paper, scissors (Transmission Gear)',
