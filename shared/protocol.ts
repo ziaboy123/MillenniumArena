@@ -92,7 +92,37 @@ export type Prompt = { id: number; title: string; retry?: boolean; time?: { left
   /** Choose `count` of these free zones. */
   | { kind: 'place'; count: number; zones: ZoneRef[] }
   | { kind: 'position'; code: number; positions: number[] }
+  /**
+   * Choose cards whose values (usually Levels) add up to `target`: exactly, or (`exact` false, Ritual style) at
+   * least the target with no card to spare. A card may offer two values. `must` cards are already included.
+   */
+  | { kind: 'sum'; cards: SumCard[]; must: SumCard[]; target: number; exact: boolean; min: number; max: number }
+  /** Remove `count` counters in total from these cards (`has` = how many each holds). */
+  | { kind: 'counters'; counter: string; count: number; cards: (PromptCard & { has: number })[] }
+  /** Put these cards in order: the first is placed on top (or resolves first, for a chain). */
+  | { kind: 'sort'; cards: PromptCard[]; chain: boolean }
+  /** Declare `count` Types or Attributes from the options. */
+  | { kind: 'declare'; what: 'type' | 'attribute'; count: number; options: { bit: number; label: string }[] }
+  /** Declare a card name: `codes` are every card that may be declared. */
+  | { kind: 'cardname'; codes: number[] }
+  | { kind: 'number'; options: number[] }
+  /** Rock, paper, scissors (1 scissors, 2 rock, 3 paper, as the engine counts them). */
+  | { kind: 'rps' }
 );
+export type SumCard = PromptCard & { values: number[] };
+
+/** Do these cards' values reach the target the way the engine requires? Each card counts as one of its values. */
+export function sumIsValid(cards: number[][], target: number, exact: boolean): boolean {
+  if (!cards.length) return false;
+  if (!exact) {
+    // at least the target, and dropping any one card would fall short (no spare card)
+    const low = cards.map(v => Math.min(...v)), high = cards.map(v => Math.max(...v));
+    const sum = low.reduce((a, b) => a + b, 0);
+    return high.reduce((a, b) => a + b, 0) >= target && sum - Math.min(...low) < target;
+  }
+  const reach = (i: number, left: number): boolean => (i === cards.length ? left === 0 : cards[i].some(v => v > 0 && v <= left && reach(i + 1, left - v)));
+  return reach(0, target);
+}
 export type PromptKind = Prompt['kind'];
 
 export type PromptAnswer =
@@ -105,7 +135,16 @@ export type PromptAnswer =
   /** index into cards, then picked (cards.length + i); null = finish (or cancel) */
   | { kind: 'unselect'; index: number | null }
   | { kind: 'place'; zones: ZoneRef[] }
-  | { kind: 'position'; position: number };
+  | { kind: 'position'; position: number }
+  | { kind: 'sum'; indices: number[] }
+  /** counters removed from each card, in the prompt's order */
+  | { kind: 'counters'; counts: number[] }
+  /** order[i] = the place given to cards[i] (0 = first); null keeps the current order */
+  | { kind: 'sort'; order: number[] | null }
+  | { kind: 'declare'; bits: number[] }
+  | { kind: 'cardname'; code: number }
+  | { kind: 'number'; index: number }
+  | { kind: 'rps'; hand: 1 | 2 | 3 };
 
 export interface DeckSummary { id: string; name: string; main: number; extra: number; source: 'mine' | 'tournament' }
 

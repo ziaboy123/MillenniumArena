@@ -1,17 +1,21 @@
 #!/bin/sh
-# Builds the duel engine ourselves: EDOPro's ygopro-core at its latest commit, compiled to WebAssembly
+# Builds the duel engine ourselves: EDOPro's ygopro-core (latest commit, or ENGINE_REF=<commit>), compiled to WebAssembly
 # with the ocgcore-wasm wrapper (https://github.com/n1xx1/ocgcore-wasm) plus our fixes (patches/).
 # Output: engine/ocgcore/, a ready-to-install package that is committed, so servers never need Emscripten.
 # Needs Emscripten (brew install emscripten). Rebuild when card scripts need a newer engine,
-# then `npm run data` so engine and scripts match.
+# then `npm run data` so engine and scripts match. To rebuild the same engine with changed patches:
+#   ENGINE_REF=$(cut -d' ' -f1 engine/ENGINE_COMMIT) npm run engine
+# or, without network, rebuild exactly what's already in core-build/: OFFLINE=1 npm run engine
 set -e
 cd "$(dirname "$0")"
 ENGINE="$PWD"
 mkdir -p core-build && cd core-build
-if [ -d src/.git ]; then git -C src checkout --quiet -- . && git -C src pull --quiet --ff-only
+if [ -d src/.git ]; then git -C src checkout --quiet -- . && { [ -n "$OFFLINE" ] || git -C src pull --quiet --ff-only; }
 else git clone --quiet --depth 1 --recurse-submodules --shallow-submodules https://github.com/n1xx1/ocgcore-wasm.git src; fi
-git -C src/cpp/ygo fetch --quiet --depth 1 origin master
-git -C src/cpp/ygo checkout --quiet FETCH_HEAD
+if [ -z "$OFFLINE" ]; then
+  git -C src/cpp/ygo fetch --quiet --depth 1 origin "${ENGINE_REF:-master}"
+  git -C src/cpp/ygo checkout --quiet FETCH_HEAD
+fi
 echo "engine: ygopro-core $(git -C src/cpp/ygo log -1 --format='%h %cs')"
 
 # our fixes to the wrapper: decoders that don't match the current engine, plus mismatch detection

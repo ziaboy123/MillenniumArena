@@ -68,6 +68,19 @@ index fbef2fd..543c87e 100644
        };
      case OcgMessageType.ANNOUNCE_CARD:
        return {
+diff --git a/src/opcodes.ts b/src/opcodes.ts
+index 1d627d1..500cbd9 100644
+--- a/src/opcodes.ts
++++ b/src/opcodes.ts
+@@ -245,7 +245,7 @@ export function cardMatchesOpcode(card: OcgCardData, opcodes: OcgOpCode[]) {
+       case OcgOpCode.ISATTRIBUTE:
+         if (stack.length >= 1) {
+           const val = stack.pop() as bigint;
+-          stack.push((BigInt(card.code) & val) != 0n ? 1n : 0n);
++          stack.push((BigInt(card.attribute) & val) != 0n ? 1n : 0n);
+         }
+         break;
+       case OcgOpCode.GETCODE:
 diff --git a/src/queries.ts b/src/queries.ts
 index 9fc7c68..04e8eb5 100644
 --- a/src/queries.ts
@@ -91,6 +104,19 @@ index 9fc7c68..04e8eb5 100644
      }
    }
    return result;
+diff --git a/src/responses.ts b/src/responses.ts
+index 610b90b..4ad8455 100644
+--- a/src/responses.ts
++++ b/src/responses.ts
+@@ -79,7 +79,7 @@ export function createResponse(response: OcgResponse) {
+         writer.i8(-1);
+         break;
+       }
+-      writer.i8(response.order.length);
++      // the engine reads one position per card and nothing else (no count first)
+       for (const i of response.order) {
+         writer.i8(i);
+       }
 diff --git a/src/type_message.ts b/src/type_message.ts
 index 6c52923..bda4294 100644
 --- a/src/type_message.ts

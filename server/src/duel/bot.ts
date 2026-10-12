@@ -5,10 +5,11 @@
 //     effects aimed at the opponent and costs paid with its least useful cards, chains when the opponent acts.
 //     It doesn't know any deck's combos, so it is still beatable.
 import {
-  OcgLocation, OcgMessageType as M, OcgPosition, OcgResponseType as R, OcgType, SelectBattleCMDAction, SelectIdleCMDAction, cardMatchesOpcode,
+  OcgLocation, OcgMessageType as M, OcgPosition, OcgResponseType as R, OcgType, SelectBattleCMDAction, SelectIdleCMDAction,
 } from 'ocgcore-wasm';
 import type { Side, SideView } from '@arena/shared';
 import type { EngineCard } from '../cards.ts';
+import { declarableCodes } from './declare.ts';
 
 export type Rng = () => number;
 export type BotLevel = 'smart' | 'random';
@@ -122,10 +123,11 @@ function random(m: any, r: Rng, s: BotState, tries: number, cards: Map<number, E
       return m.type === M.ANNOUNCE_RACE ? { type: R.ANNOUNCE_RACE, races: bits } : { type: R.ANNOUNCE_ATTRIB, attributes: bits.map(Number) };
     }
     case M.ANNOUNCE_CARD: {
-      const fit = [...cards.values()].filter(c => cardMatchesOpcode(c as any, m.opcodes));
-      return { type: R.ANNOUNCE_CARD, card: fit.length ? fit[Math.floor(r() * fit.length)].code : 46986414 };
+      const fit = declarableCodes(cards, m.opcodes);   // the engine's own rule (the wrapper's matcher misreads Attributes)
+      return { type: R.ANNOUNCE_CARD, card: fit.length ? fit[Math.floor(r() * fit.length)] : 46986414 };
     }
-    case M.ANNOUNCE_NUMBER: return { type: R.ANNOUNCE_NUMBER, value: tries ? Number(m.options[0]) : Math.floor(r() * m.options.length) };
+    // the engine wants the option's position in the list, not the number itself
+    case M.ANNOUNCE_NUMBER: return { type: R.ANNOUNCE_NUMBER, value: tries ? 0 : Math.floor(r() * m.options.length) };
     case M.ROCK_PAPER_SCISSORS: return { type: R.ROCK_PAPER_SCISSORS, value: 1 + Math.floor(r() * 3) };
   }
   return null;
