@@ -39,6 +39,8 @@ export type WorkerOutput =
   | { type: 'prompt'; side: Side; prompt: Prompt }
   | { type: 'reveal'; side: Side | 'all'; title: string; cards: number[]; brief: boolean }
   | { type: 'end'; winner: Side | 2 | null; reason: string; turns: number }
+  /** A player summoned, activated or Set a card (for "most-played cards" on their profile). */
+  | { type: 'use'; side: Side; code: number }
   | { type: 'error'; message: string };
 /** The room sends a player's answer, or `timeout` when their time ran out. */
 export type WorkerCommand = { type: 'answer'; id: number; answer: PromptAnswer } | { type: 'timeout'; id: number };
@@ -125,6 +127,8 @@ async function run() {
   // face-up, so "was it Set?" is answered from this)
   const setInZone = new Map<string, number>();
 
+  /** Counts a card a player summoned, activated or Set (tokens don't count). */
+  const used = (side: Side, code: number) => { if (code && !((cards.get(code)?.type ?? 0) & OcgType.TOKEN)) post({ type: 'use', side, code }); };
   const zoneOf = (l: any): ZoneRef => ({ p: l.controller, loc: l.location === OcgLocation.MZONE ? 'm' : l.location === OcgLocation.SZONE ? 's' : l.location === OcgLocation.HAND ? 'hand' : 'other', seq: l.sequence });
   const codeAt = (l: any) => lib.duelQuery(handle, { flags: OcgQueryFlags.CODE, controller: l.controller, location: l.location, sequence: l.sequence, overlaySequence: 0 })?.code;
 
@@ -239,26 +243,27 @@ async function run() {
         case M.NEW_TURN: turn++; turnPlayer = m.player; phase = 'DP'; columns = []; bots.forEach(b => { b.acts = 0; b.attacks = 0; }); say(`Turn ${turn} · ${players[m.player]}`); break;
         case M.DRAW: say(`${players[m.player]} draws ${m.drawn.length}`); break;
         case M.SUMMONING:
-          highlight.push(zoneOf(m)); lastActor = m.controller;
+          highlight.push(zoneOf(m)); lastActor = m.controller; used(m.controller, m.code);
           summons.push({ zone: zoneOf(m), code: m.code, kind: (cards.get(m.code)?.level ?? 0) >= 5 ? 'tribute' : 'normal' });
           say(`${players[m.controller]} Normal Summons ${nameOf(m.code)}`);
           break;
         case M.SPSUMMONING:
-          highlight.push(zoneOf(m)); lastActor = m.controller;
+          highlight.push(zoneOf(m)); lastActor = m.controller; used(m.controller, m.code);
           summons.push({ zone: zoneOf(m), code: m.code, kind: summonKind(m) });
           say(`${players[m.controller]} Special Summons ${nameOf(m.code)}`);
           break;
         case M.FLIPSUMMONING:
-          highlight.push(zoneOf(m)); lastActor = m.controller;
+          highlight.push(zoneOf(m)); lastActor = m.controller; used(m.controller, m.code);
           summons.push({ zone: zoneOf(m), code: m.code, kind: 'flip' });
           say(`${players[m.controller]} Flip Summons ${nameOf(m.code)}`);
           break;
-        case M.SET: say(`${players[m.controller]} Sets a card`); break;
+        case M.SET: used(m.controller, m.code); say(`${players[m.controller]} Sets a card`); break;
         case M.CHAINING: {
           const zone = `${m.controller}:${m.sequence}`, wasSet = m.location === OcgLocation.SZONE && setInZone.get(zone) === m.code;
           if (m.location === OcgLocation.SZONE) setInZone.delete(zone);
           links.push({ code: m.code, p: m.controller, seq: m.sequence, columnFromSet: COLUMN_NEGATORS.has(m.code) && wasSet, negated: false });
           lastActor = m.controller;
+          used(m.controller, m.code);
         }
           chain.push({ code: m.code, ...zoneOf(m) }); highlight.push(zoneOf(m)); say(`${players[m.controller]} activates ${nameOf(m.code)}${m.chain_size > 1 ? ` (chain link ${m.chain_size})` : ''}`); break;
         case M.CHAIN_NEGATED: if (links[m.chain_size - 1]) links[m.chain_size - 1].negated = true; say(`Chain link ${m.chain_size}'s activation is negated`); break;

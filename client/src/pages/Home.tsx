@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import type { SavedDeck } from '@arena/shared/decks';
 import { api } from '../lib/api.ts';
-import { cropImage } from '../lib/cards.ts';
+import { cropImage, imageFallback, smallImage } from '../lib/cards.ts';
 import { navigate } from '../lib/router.tsx';
 import { useSession } from '../lib/session.tsx';
 import { Eye, EyeSvg, THEMES } from '../lib/ui.tsx';
@@ -16,15 +16,19 @@ export function Home() {
   const { me } = useSession();
   const [fanOpen, setFanOpen] = useState(false);
   const [decks, setDecks] = useState<{ count: number; active: string | null } | null>(null);
+  const [record, setRecord] = useState<{ duels: number; wins: number; losses: number; mostPlayed: number[] } | null>(null);
   useEffect(() => {
     api<{ decks: SavedDeck[]; active: string | null }>('decks/list')
       .then(r => setDecks({ count: r.decks.length, active: r.decks.find(d => d.id === r.active)?.name ?? null })).catch(() => {});
+    api<{ duels: number; wins: number; losses: number; mostPlayed: number[] }>('profile/summary').then(setRecord).catch(() => {});
   }, []);
   if (!me?.username) return null;
   const art = me.settings.artwork ?? DEFAULT_ARTWORK;
   const theme = THEMES.find(t => t.k === (me.settings.theme ?? 'c'))?.name ?? 'Arena';
-  const duels = 0;   // match history arrives with the Profile page
+  const duels = record?.duels ?? 0;
   const left = FAVOURITES_AFTER - duels;
+  // the fan shows your three most-played cards once you've played enough duels, card backs until then
+  const favourites = duels >= FAVOURITES_AFTER && (record?.mostPlayed.length ?? 0) >= 3 ? record!.mostPlayed : null;
   const go = <div className="go"><Icon name="arrow" className="" /></div>;
   const fan = (i: number) => fanOpen
     ? `translate(${(i - 1) * 70}px, ${Math.abs(i - 1) * 10 - 8}px) rotate(${(i - 1) * 14}deg)`
@@ -55,9 +59,11 @@ export function Home() {
             <div className="eyebrow">Build</div>
             <h2>Decks</h2>
             <p>{decks ? (decks.count ? `${decks.count} ${decks.count === 1 ? 'deck' : 'decks'}${decks.active ? ` · Dueling with ${decks.active}` : ''}` : 'No decks yet · shared with DeckForge') : 'Your decks, shared with DeckForge.'}</p>
-            <p className="fanhint">Your most-played cards show here after {left} more {left === 1 ? 'duel' : 'duels'}</p>
+            <p className="fanhint">{favourites ? 'Your most-played cards' : `Your most-played cards show here after ${left} more ${left === 1 ? 'duel' : 'duels'}`}</p>
           </div>
-          <div className="fan">{[0, 1, 2].map(i => <div key={i} className="card back" style={{ transform: fan(i) }}><EyeSvg /></div>)}</div>
+          <div className="fan">{[0, 1, 2].map(i => favourites
+            ? <div key={i} className="card" style={{ transform: fan(i) }}><img src={smallImage(favourites[i])} alt="" onError={e => imageFallback(e, favourites[i])} /></div>
+            : <div key={i} className="card back" style={{ transform: fan(i) }}><EyeSvg /></div>)}</div>
           {go}
         </div>
 
@@ -67,8 +73,8 @@ export function Home() {
             <h2>Profile</h2>
             <div className="stats">
               <div><b>Unranked</b><span>Rank</span></div>
-              <div><b>0 – 0</b><span>Wins – Losses</span></div>
-              <div><b>–</b><span>Win rate</span></div>
+              <div><b>{record ? `${record.wins} – ${record.losses}` : '0 – 0'}</b><span>Wins – Losses</span></div>
+              <div><b>{record?.duels ? `${Math.round((record.wins / record.duels) * 100)}%` : '–'}</b><span>Win rate</span></div>
             </div>
           </div>
           <div className="big-av">{me.username[0].toUpperCase()}</div>
@@ -84,20 +90,6 @@ export function Home() {
           <div className="big-gear"><svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg></div>
           {go}
         </div>
-      </div>
-    </Page>
-  );
-}
-
-/** Pages that arrive in later steps. */
-export function Soon({ title, text }: { title: string; text: string }) {
-  return (
-    <Page back="/home" className="center">
-      <div className="panel auth soon">
-        <div className="eyebrow">Coming next</div>
-        <h2>{title}</h2>
-        <p className="sub">{text}</p>
-        <button className="bigbtn" onClick={() => navigate('/home')}>Back to Home</button>
       </div>
     </Page>
   );

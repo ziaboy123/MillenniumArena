@@ -287,7 +287,7 @@ export function Privacy() {
       <h3>What we store</h3>
       <ul>
         <li><b>Your account:</b> email address, username, and your password, stored only as a secure hash (never the password itself).</li>
-        <li><b>What you build and play:</b> your decks and settings (match history and stats once those arrive).</li>
+        <li><b>What you build and play:</b> your decks and settings; your match history (who you played, the result, your deck's name, how long it took) and which cards you use most.</li>
         <li><b>Security:</b> your logins and the devices you've chosen to trust, so we know when to ask for a login code. These are random keys stored only in scrambled (hashed) form. Email codes expire after 10 minutes.</li>
       </ul>
       <h3>How we use your email</h3>
@@ -295,11 +295,11 @@ export function Privacy() {
       <h3>Cookies</h3>
       <p>One cookie keeps you logged in. If you tick "Trust this device", a second one remembers that for 30 days. Your theme and duel choices are also kept in your browser. There are no analytics or advertising cookies.</p>
       <h3>Who can see what</h3>
-      <p>Opponents and spectators see your username. Your email and decks stay private: in a private duel your opponent doesn't even see your deck's name.</p>
+      <p>Opponents and spectators see your username. Other players can open your profile and see your record (wins, losses, streaks); your match history, decks and most-played cards are shown only to you. Your email and decks stay private: in a private duel your opponent doesn't even see your deck's name.</p>
       <h3>Chat</h3>
       <p>Chat in a private room goes only to the people in that room, and isn't saved: it's gone when the room closes.</p>
       <h3>Your rights</h3>
-      <p>You can delete your account at any time in Settings. That removes it everywhere, including your DeckForge decks. For anything else, email <a href="mailto:daniyal@daniyalzia.co.uk">daniyal@daniyalzia.co.uk</a>.</p>
+      <p>You can delete your account at any time in Settings. That removes it everywhere, including your DeckForge decks and your match history, and your name is taken off other players' histories. For anything else, email <a href="mailto:daniyal@daniyalzia.co.uk">daniyal@daniyalzia.co.uk</a>.</p>
     </Doc>
   );
 }

@@ -20,5 +20,7 @@ export async function api<T = { ok: true; me?: Me | null }>(path: string, body: 
 export async function fetchMe(): Promise<{ accounts: boolean; me: Me | null }> {
   const res = await fetch(`${import.meta.env.BASE_URL}api/me`, { credentials: 'same-origin' });
   if (res.status === 404) return { accounts: false, me: null };
+  // the server (or its database) is struggling: that says nothing about whether you're logged in
+  if (!res.ok) throw new ApiError("Can't reach the server right now.", res.status);
   return { accounts: true, me: (await res.json()).me ?? null };
 }

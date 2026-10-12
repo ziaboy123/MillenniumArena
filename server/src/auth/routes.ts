@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { BASE, DEV } from '../config.ts';
 import * as A from './accounts.ts';
 import { deckApi } from '../decks-api.ts';
+import { historyOf, profileOf, summaryOf, userByName } from '../history.ts';
 import { devOutbox } from './mailer.ts';
 import { limited } from './ratelimit.ts';
 import { sha256 } from './security.ts';
@@ -67,9 +68,25 @@ const deviceLabel = (req: IncomingMessage) => {
   return [browser, os].filter(Boolean).join(' on ');
 };
 
+/** Profiles: yours in full, anyone else's record only. */
+async function profileApi(action: string, userId: string, body: Record<string, unknown>) {
+  switch (action) {
+    case 'me': return { profile: await profileOf(userId, true) };
+    case 'user': {
+      const id = await userByName(String(body.name ?? ''));
+      const profile = id && await profileOf(id, id === userId);
+      if (!profile) throw new A.Problem('No player has that name.', 404);
+      return { profile };
+    }
+    case 'history': return { history: await historyOf(userId, Number(body.before) || undefined) };
+    case 'summary': return await summaryOf(userId);
+    default: throw new A.Problem('Not found.', 404);
+  }
+}
+
 /** Handles <base>/api/me, /api/auth/*, /api/account/* (and /api/dev/mail on the development server). Returns false if not one of these. */
 export async function accountRoutes(req: IncomingMessage, res: ServerResponse, rel: string): Promise<boolean> {
-  if (!(rel === '/api/me' || rel.startsWith('/api/auth/') || rel.startsWith('/api/account/') || rel.startsWith('/api/decks/') || (DEV && rel === '/api/dev/mail'))) return false;
+  if (!(rel === '/api/me' || rel.startsWith('/api/auth/') || rel.startsWith('/api/account/') || rel.startsWith('/api/decks/') || rel.startsWith('/api/profile/') || (DEV && rel === '/api/dev/mail'))) return false;
   const jar = cookies(req), ip = clientIp(req), ua = String(req.headers['user-agent'] ?? '');
   try {
     // development only: read the email a test account was sent (no real mailbox needed)
@@ -129,6 +146,10 @@ export async function accountRoutes(req: IncomingMessage, res: ServerResponse, r
       if (limited(`decks:${me.id}`, 900, 900_000)) throw tooMany();
       if (!me.username) throw new Problem('Choose a username first.', 403);
       return send(res, 200, await deckApi(rel.slice('/api/decks/'.length), me.id, body)), true;
+    }
+    if (rel.startsWith('/api/profile/')) {
+      if (limited(`settings:${me.id}`, 300, 900_000)) throw tooMany();
+      return send(res, 200, await profileApi(rel.slice('/api/profile/'.length), me.id, body)), true;
     }
     // trying out themes and artwork saves a lot, so settings get a looser limit than the account changes
     const light = rel === '/api/account/settings' || rel === '/api/account/devices';

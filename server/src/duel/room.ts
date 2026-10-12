@@ -66,6 +66,8 @@ export class DuelRoom {
   private readonly speed: number;
   readonly startedAt = Date.now();
   private readonly options: RoomOptions;
+  /** Cards each side summoned, activated or Set: code → times. */
+  readonly uses: [Map<number, number>, Map<number, number>] = [new Map(), new Map()];
   closed = false;
 
   /** `decks` and `players` are in engine order: side 0 goes first. `humans` are the sides people play. */
@@ -82,6 +84,7 @@ export class DuelRoom {
       else if (msg.type === 'prompt') { this.queue.push({ prompt: msg.prompt, side: msg.side }); this.pump(); }
       else if (msg.type === 'reveal') { this.queue.push({ reveal: { type: 'reveal', title: msg.title, cards: msg.cards, brief: msg.brief }, side: msg.side }); this.pump(); }
       else if (msg.type === 'end') { this.ending = { type: 'end', winner: msg.winner, reason: msg.reason, turns: msg.turns }; this.pump(); }
+      else if (msg.type === 'use') this.uses[msg.side].set(msg.code, (this.uses[msg.side].get(msg.code) ?? 0) + 1);
       else this.broadcast({ type: 'error', message: `The duel engine hit a problem: ${msg.message}` });
     });
     this.worker.on('error', err => this.broadcast({ type: 'error', message: `The duel engine crashed: ${err.message}` }));
@@ -163,6 +166,8 @@ export class DuelRoom {
 
   /** Who's connected to the duel right now. */
   get people() { return this.viewers; }
+  /** The duel has a result (or is about to show it). */
+  get finished() { return !!(this.ended || this.ending); }
 
   close() {
     if (this.closed) return;

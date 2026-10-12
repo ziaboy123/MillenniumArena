@@ -11,6 +11,7 @@
 import bcrypt from 'bcryptjs';
 import type { Me, UserSettings } from '@arena/shared';
 import { one, q, tx } from '../db/index.ts';
+import { forgetName } from '../history.ts';
 import { codeMail, sendMail } from './mailer.ts';
 import { codeHash, newCode, newId, newToken, sameHash, sha256 } from './security.ts';
 
@@ -262,6 +263,7 @@ export async function deleteAccount(userId: string, password: unknown, typed: un
   await checkCurrentPassword(userId, password);
   const want = (username ?? email).toLowerCase();
   if (String(typed ?? '').trim().toLowerCase() !== want) throw new Problem(`Type ${username ? 'your username' : 'your email'} to confirm.`);
+  await forgetName(userId);
   await q('delete from public.users where id = $1', [userId]);
 }
 

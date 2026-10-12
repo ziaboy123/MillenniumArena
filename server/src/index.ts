@@ -14,6 +14,7 @@ import { blocksPlay, deckProblems } from '@arena/shared/decks';
 import { loadBanlist } from './banlist.ts';
 import { clientCardList, loadCards, ruleCards } from './cards.ts';
 import { accountDeck, accountDecks, activeDeck } from './decks-api.ts';
+import { recordMatch } from './history.ts';
 import { cleanRules, PrivateMatch, RoomError, type Account, type MatchDeps } from './match.ts';
 import { limited } from './auth/ratelimit.ts';
 import { BASE, CLIENT_DIST, DEV, ENGINE_DATA, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
@@ -93,7 +94,7 @@ const matches = new Map<string, PrivateMatch>();   // by room code
 const matchOf = new Map<string, PrivateMatch>();   // by account: one room at a time
 const matchDeps: MatchDeps = {
   banlists: { TCG: banlist, OCG: ocgBanlist }, ruleCard, loadDeck: accountDeck, full: () => rooms.size >= MAX_DUELS,
-  track: r => rooms.set(r.id, r), untrack: r => rooms.delete(r.id),
+  track: r => rooms.set(r.id, r), untrack: r => rooms.delete(r.id), record: recordMatch,
   closed: m => { matches.delete(m.code); for (const [user, x] of matchOf) if (x === m) matchOf.delete(user); },
 };
 const roomCode = (v: unknown) => String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
@@ -105,7 +106,7 @@ async function ownDeck(userId: string | undefined, id: string): Promise<Deck | s
   if (!d) return undefined;
   const stop = deckProblems(d, ruleCard, banlist).find(blocksPlay);
   if (stop) return `${d.name} can't be used yet: ${stop.text[0].toLowerCase()}${stop.text.slice(1)}.`;
-  return { id: `acct:${d.id}`, name: d.name, main: d.main, extra: d.extra, source: 'account' };
+  return { id: `acct:${d.id}`, name: d.name, main: d.main, extra: d.extra, source: 'account', cover: d.cover ?? d.main[0] ?? null };
 }
 
 // ---------- WebSocket: one connection per browser tab ----------
@@ -117,7 +118,12 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   let room: DuelRoom | null = null;
   let match: PrivateMatch | null = null;   // the private room this tab is in
   const viewer: Viewer = { side: null, send: (msg: ServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg)); } };
-  const leave = (dropped = false) => { room?.leave(viewer, dropped); room = null; viewer.side = null; };
+  let playerName = '';
+  const leave = (dropped = false) => {
+    // leaving a duel against the bot before it's over counts as a loss (a dropped connection gets a minute to come back)
+    if (!dropped && room && viewer.side !== null && !room.finished) room.concede(viewer.side, `${playerName} left the duel`);
+    room?.leave(viewer, dropped); room = null; viewer.side = null;
+  };
   const full = () => rooms.size >= MAX_DUELS && (viewer.send({ type: 'error', message: 'The server is running as many duels as it can right now. Try again in a minute.' }), true);
 
   /** Leave whatever private room this account is in (before creating or joining another). */
@@ -219,16 +225,25 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       if (full()) return;
       // logged in: your username; otherwise the name typed in the lobby (cleaned up)
       const name = me?.username ?? (String(msg.name ?? '').replace(/[^\p{L}\p{N} _.'-]/gu, '').trim().slice(0, 16) || 'Duelist');
+      playerName = name;
       const first = (DEV && firstFor(msg.scenario)) || msg.first;
       const side: Side = first === 'me' || first === 'you' ? 0 : first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
       const r = new DuelRoom(side === 0 ? [mine, bot] : [bot, mine], side === 0 ? [name, 'Bot'] : ['Bot', name], [side],
         false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r.id),
-        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, responses: msg.responses === 'always' ? 'always' : 'smart', setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined });
+        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, responses: msg.responses === 'always' ? 'always' : 'smart', setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined,
+          // logged in, a finished duel goes into your match history (test setups don't)
+          onEnd: me?.username && !(DEV && msg.scenario) ? end => {
+            const won = end.winner === side, lost = end.winner === 1 - side;
+            recordMatch({ kind: 'bot', bo: 1, games: 1, turns: end.turns, reason: end.reason, startedAt: r.startedAt, players: [{
+              userId: me.id, opponent: 'Bot', opponentId: null, deckName: mine.name, deckId: mine.source === 'account' ? mine.id.slice(5) : null, cover: mine.cover ?? mine.main[0] ?? null,
+              result: won ? 'win' : lost ? 'loss' : 'draw', scoreFor: won ? 1 : 0, scoreAgainst: lost ? 1 : 0, uses: r.uses[side] }] });
+          } : undefined });
       rooms.set(r.id, r);
       room = r;
       viewer.side = side;
       r.join(viewer);
     } else if (msg.type === 'answer') (room ?? match?.room)?.answer(viewer, msg.id, msg.answer);
+    else if (msg.type === 'surrender') { if (room && viewer.side !== null) room.concede(viewer.side, `${playerName} surrendered`); }
     else if (msg.type === 'resume') {
       // back into a duel after a dropped connection or a page reload
       leave();
@@ -241,7 +256,10 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
 });
 
 if (DB_ENABLED) {
-  await migrate();
+  // duels against the bot don't need the database, so the server starts anyway and keeps trying to reach it
+  const connect = () => migrate().then(() => console.log('database ready'))
+    .catch(e => { console.error(`database unreachable (${e.message}): accounts won't work until it's back; trying again in 30 s`); setTimeout(connect, 30_000).unref(); });
+  connect();
   if (!AUTH_READY) console.error('ARENA_SECRET is missing (64 hex characters): accounts will not work');
   if (!MAIL_READY) console.error('RESEND_API_KEY / ARENA_MAIL_FROM are missing: no email can be sent');
 } else console.warn('No database configured (PGDATABASE): accounts are off');

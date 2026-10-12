@@ -12,7 +12,8 @@ export const DB_ENABLED = !!process.env.PGDATABASE;
 // DeckForge's tables (made by Prisma) keep times as UTC in "timestamp without time zone" columns. Every connection
 // works in UTC, and those columns are read back as UTC (the driver would otherwise read them as this machine's local time).
 pg.types.setTypeParser(pg.types.builtins.TIMESTAMP, (v: string) => new Date(`${v.replace(' ', 'T')}Z`));
-export const pool = new pg.Pool({ max: 8, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000, options: '-c TimeZone=UTC' });
+// generous connection timeout: in development the database is reached through an SSH tunnel over the VPN
+export const pool = new pg.Pool({ max: 8, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 15_000, options: '-c TimeZone=UTC' });
 pool.on('error', err => console.error(`database: ${err.message}`));
 
 /** A query with parameters ($1, $2…). Values are never pasted into SQL. */
@@ -26,6 +27,10 @@ export async function one<T extends pg.QueryResultRow = any>(text: string, param
 /** Run `fn` in a transaction: everything or nothing. */
 export async function tx<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
   const c = await pool.connect();
+  // a connection that drops while it's checked out (between queries) must not take the server down with it
+  let broken: Error | null = null;
+  const onError = (e: Error) => { broken = e; console.error(`database: connection lost mid-transaction: ${e.message}`); };
+  c.on('error', onError);
   try {
     await c.query('begin');
     const out = await fn(c);
@@ -35,7 +40,8 @@ export async function tx<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
     await c.query('rollback').catch(() => {});
     throw e;
   } finally {
-    c.release();
+    c.off('error', onError);
+    c.release(broken ?? undefined);   // a broken connection is thrown away, not reused
   }
 }
 
@@ -83,6 +89,37 @@ const MIGRATIONS: string[] = [
    create index on arena.devices (user_id);`,
   // 2: the deck you duel with by default ("Dueling with" on the Decks page); cleared if that deck is deleted
   `alter table arena.profiles add column active_deck text references public.decks (id) on delete set null;`,
+  // 3: match history (one row per player per match, so each person's history is theirs alone) and the cards each
+  //    account summons, activates or Sets most (the Home screen's Decks tile and the Profile page)
+  `create table arena.history (
+     id           bigserial primary key,
+     user_id      text not null references public.users (id) on delete cascade,
+     match_id     uuid not null,
+     kind         text not null check (kind in ('private', 'bot')),
+     bo           smallint not null,
+     opponent     text not null,
+     opponent_id  text references public.users (id) on delete set null,
+     deck_name    text not null,
+     deck_id      text references public.decks (id) on delete set null,
+     deck_cover   integer,
+     result       text not null check (result in ('win', 'loss', 'draw')),
+     score_for    smallint not null,
+     score_against smallint not null,
+     games        smallint not null,
+     turns        integer not null,
+     reason       text not null,
+     started_at   timestamptz not null,
+     ended_at     timestamptz not null default now()
+   );
+   create index on arena.history (user_id, ended_at desc);
+   create table arena.card_use (
+     user_id text not null references public.users (id) on delete cascade,
+     code    integer not null,
+     uses    integer not null default 0,
+     primary key (user_id, code)
+   );`,
+  // 4: a match is saved once per player, however many times saving is retried
+  `create unique index history_user_match on arena.history (user_id, match_id);`,
 ];
 
 export async function migrate() {

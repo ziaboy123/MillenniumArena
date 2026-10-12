@@ -5,7 +5,7 @@ import type { DeckSummary } from '@arena/shared';
 import { DECK_DIRS } from './config.ts';
 import type { EngineCard } from './cards.ts';
 
-export interface Deck { id: string; name: string; main: number[]; extra: number[]; source: DeckSummary['source'] }
+export interface Deck { id: string; name: string; main: number[]; extra: number[]; source: DeckSummary['source']; /** the card on its tile */ cover?: number | null }
 
 export function parseYdk(text: string, fallbackName: string, cards: Map<number, EngineCard>) {
   const deck = { name: fallbackName, main: [] as number[], extra: [] as number[], unknown: [] as number[] };

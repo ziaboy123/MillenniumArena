@@ -219,6 +219,8 @@ export type ClientMessage =
   /** Rejoin a duel in progress with the seat key from DuelInfo. */
   | { type: 'resume'; duel: string; seat: string }
   | { type: 'answer'; id: number; answer: PromptAnswer }
+  /** Give up the duel against the bot (it counts as a loss). */
+  | { type: 'surrender' }
   | { type: 'leave' }
   // ----- private rooms (logged in only); decks are your own decks' ids (without "acct:") -----
   | { type: 'room.create'; rules: RoomRules; password?: string; deck: string }
@@ -306,3 +308,29 @@ export type CardRow = [
 
 /** A device that skips the login code (from POST /api/account/devices). */
 export interface TrustedDevice { id: string; label: string; created_at: string; expires_at: string; current: boolean }
+
+// ---------- profiles and match history ----------
+export type MatchResult = 'win' | 'loss' | 'draw';
+export type MatchKind = 'private' | 'bot';
+export interface RecordStats {
+  duels: number; wins: number; losses: number; draws: number;
+  /** The run you're on now (most recent results first). */
+  streak: { result: MatchResult; length: number } | null;
+  bestWinStreak: number;
+  /** The last 10 results, newest first. */
+  form: MatchResult[];
+}
+export interface HistoryRow {
+  id: number; kind: MatchKind; bo: number; opponent: string; deck: string; cover: number | null; result: MatchResult;
+  scoreFor: number; scoreAgainst: number; games: number; turns: number; reason: string; startedAt: string; endedAt: string;
+}
+export interface DeckRecord { name: string; cover: number | null; duels: number; wins: number; losses: number }
+/** A profile: anyone logged in can see the record; the rest (history, decks, cards) only its owner. */
+export interface Profile {
+  name: string; memberSince: string; artwork: number | null; you: boolean;
+  stats: Record<'all' | MatchKind, RecordStats>;
+  decks?: Record<'all' | MatchKind, DeckRecord[]>;
+  history?: HistoryRow[];
+  /** Cards you summon, activate or Set most, most first. */
+  mostPlayed?: number[];
+}

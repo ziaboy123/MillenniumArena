@@ -100,7 +100,7 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
     }
     return <DuelScreen duel={d.duel} frame={d.frame} log={d.log} ending={d.ending} prompt={d.prompt} promptAt={d.promptAt} onAnswer={answer}
       reveal={d.reveal} onCloseReveal={d.closeReveal} reconnecting={d.reconnecting}
-      onSurrender={() => { send({ type: 'leave' }); saveSeat(null); d.setPrompt(null); d.setEnding({ type: 'end', winner: 1, reason: 'You surrendered', turns: d.frame?.turn ?? 0 }); }}
+      onSurrender={() => { send({ type: 'surrender' }); d.setPrompt(null); }}
       onLeave={() => { send({ type: 'leave' }); saveSeat(null); d.clear(); navigate('/home'); }}
       endAction={{ label: 'Back to Solo', run: () => { send({ type: 'leave' }); d.clear(); setView('solo'); } }} />;
   }

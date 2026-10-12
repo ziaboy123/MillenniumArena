@@ -60,7 +60,7 @@ export function DuelLab() {
   }, [connected]);
   useEffect(() => { try { localStorage.setItem('ma-lobby', JSON.stringify(ch)); } catch {} }, [ch]);
   const answer = (a: PromptAnswer) => { if (prompt) { send({ type: 'answer', id: prompt.id, answer: a }); d.setPrompt(null); } };
-  const surrender = () => { send({ type: 'leave' }); saveSeat(null); d.setPrompt(null); d.setEnding({ type: 'end', winner: 1, reason: 'You surrendered', turns: frame?.turn ?? 0 }); };
+  const surrender = () => { send({ type: 'surrender' }); d.setPrompt(null); };
   const leave = () => { send({ type: 'leave' }); saveSeat(null); d.clear(); if (account) navigate('/home'); };
 
   if (duel && cardsReady) return <DuelScreen duel={duel} frame={frame} log={d.log} ending={ending} prompt={prompt} promptAt={d.promptAt} onAnswer={answer}

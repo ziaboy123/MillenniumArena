@@ -5,6 +5,7 @@ import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 import { DEFAULT_RULES, type ChatLine, type RoomPhase, type RoomPreview, type RoomRole, type RoomRules, type RoomView, type ServerMessage, type Side } from '@arena/shared';
 import { deckBlocker, ZONE_MAX, type Banlist, type DeckLists, type RuleCard, type SavedDeck } from '@arena/shared/decks';
 import { DuelRoom, type Viewer } from './duel/room.ts';
+import type { MatchRecord } from './history.ts';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no 0/O or 1/I to mix up
 const AWAY_MS = 90_000;        // how long someone's place is kept after their last connection drops
@@ -20,6 +21,8 @@ export interface MatchDeps {
   /** A duel started / finished (for the server's count of running duels), and the match closed. */
   track: (room: DuelRoom) => void;
   untrack: (room: DuelRoom) => void;
+  /** Save a finished match to both players' histories. */
+  record: (m: MatchRecord) => void;
   closed: (match: PrivateMatch) => void;
 }
 /** Who's acting: a logged-in account with a username. */
@@ -30,6 +33,8 @@ interface Member extends Person {
   role: RoomRole; ready: boolean; smart: boolean; wins: number;
   deck: { id: string; name: string; cover: number | null; registered: DeckLists; current: DeckLists } | null;
   sided: boolean;
+  /** Cards summoned, activated or Set over this match's games. */
+  uses: Map<number, number>;
 }
 interface Request extends Person { accepted: Set<RoomRole> }
 
@@ -69,11 +74,15 @@ export class PrivateMatch {
   private hostSide: Side = 0;
   private readonly chat: ChatLine[] = [];
   private readonly chatTimes = new Map<string, number[]>();
+  // for the match history: when game 1 started, turns over all games, and whether it's been saved
+  private startedAt = 0;
+  private turns = 0;
+  private recorded = false;
   closed = false;
 
   constructor(readonly code: string, readonly rules: RoomRules, password: string, host: Account, private deps: MatchDeps) {
     this.password = password ? hashPassword(password) : null;
-    this.host = { userId: host.id, name: host.name, viewers: new Set(), role: 'host', ready: true, smart: host.smart, wins: 0, deck: null, sided: false };
+    this.host = { userId: host.id, name: host.name, viewers: new Set(), role: 'host', ready: true, smart: host.smart, wins: 0, deck: null, sided: false, uses: new Map() };
   }
 
   static newCode(taken: (code: string) => boolean) {
@@ -158,7 +167,7 @@ export class PrivateMatch {
     if (why) throw new RoomError(why);
     if (this.guest) return this.attach(me.id, viewer);
     const lists = { main: [...d.main], extra: [...d.extra], side: [...d.side] };
-    this.guest = { userId: me.id, name: me.name, viewers: new Set(), role: 'guest', ready: false, smart: me.smart, wins: 0, sided: false,
+    this.guest = { userId: me.id, name: me.name, viewers: new Set(), role: 'guest', ready: false, smart: me.smart, wins: 0, sided: false, uses: new Map(),
       deck: { id: d.id, name: d.name, cover: d.cover ?? d.main[0] ?? null, registered: lists, current: lists } };
     this.spectators.delete(me.id);
     this.requests.delete(me.id);
@@ -208,16 +217,18 @@ export class PrivateMatch {
   /** Leaving: the host closes the room; a duelist leaving mid-match loses it; others just go. */
   leave(userId: string, reason?: string) {
     const m = this.member(userId);
+    if (m) {
+      // leaving a match before it's decided loses it
+      if (this.phase === 'dueling' && this.room) this.room.concede(this.sideOf(m), reason ?? `${m.name} left`);
+      if (this.game > 0 && this.phase !== 'over') this.finish(m.role === 'host' ? 'guest' : 'host', reason ?? `${m.name} left`);
+    }
     if (m?.role === 'host') return this.close(reason ? `${reason}, so the room closed.` : 'The host closed the room.', reason ? undefined : userId);
     if (m) {
-      if (this.phase === 'dueling' && this.room) this.room.concede(this.sideOf(m), reason ?? `${m.name} left`);
-      const midMatch = this.game > 0 && this.phase !== 'over';
       for (const v of m.viewers) this.room?.leave(v);
       this.tell(m, { type: 'room', room: null });
       this.guest = null;
       this.system(reason ?? `${m.name} left the room`);
-      if (midMatch) { this.phase = 'over'; this.winner = 'host'; this.last = this.last ?? { winner: 'host', reason: reason ?? `${m.name} left` }; }
-      else if (this.phase !== 'over') { this.phase = 'lobby'; this.toss = this.chooser = null; }
+      if (this.phase !== 'over') { this.phase = 'lobby'; this.toss = this.chooser = null; }
       return this.sync();
     }
     const p = this.spectators.get(userId) ?? this.requests.get(userId);
@@ -271,6 +282,7 @@ export class PrivateMatch {
     if (this.deps.full()) throw new RoomError('The server is running as many duels as it can right now. Try again in a minute.');
     const guest = this.guest!;
     this.room?.close();
+    if (this.game === 0) { this.startedAt = Date.now(); this.turns = 0; this.recorded = false; }
     this.hostSide = first === 'host' ? 0 : 1;
     const bySide: [Member, Member] = this.hostSide === 0 ? [this.host, guest] : [guest, this.host];
     const deck = (m: Member) => ({ id: m.deck!.id, name: m.deck!.name, main: m.deck!.current.main, extra: m.deck!.current.extra, source: 'account' as const });
@@ -296,12 +308,12 @@ export class PrivateMatch {
     const winner: RoomRole | null = end.winner === 0 || end.winner === 1 ? (end.winner === this.hostSide ? 'host' : 'guest') : null;
     if (winner) this.member(winner === 'host' ? this.host.userId : this.guest!.userId)!.wins++;
     this.last = { winner, reason: end.reason };
+    this.turns += end.turns;
+    for (const m of this.members()) for (const [code, n] of room.uses[this.sideOf(m)]) m.uses.set(code, (m.uses.get(code) ?? 0) + n);
     const need = this.rules.bo === 3 ? 2 : 1, top = this.members().find(m => m.wins >= need);
     if (top || this.game >= (this.rules.bo === 3 ? 5 : 1)) {
       // the match is decided (best of 3 stops after five games at most, in case of draws)
-      this.phase = 'over';
-      this.winner = top?.role ?? null;
-      this.system(top ? `${top.name} wins the match${this.rules.bo === 3 ? ` ${this.host.wins}-${this.guest?.wins ?? 0}` : ''}` : 'The match is a draw');
+      this.finish(top?.role ?? null, end.reason);
     } else {
       // best of 3: side decking, then the loser of the game picks who goes first (after a draw, the same person picks again)
       this.phase = 'siding';
@@ -310,6 +322,21 @@ export class PrivateMatch {
       this.system(winner ? `${this.nameOf(winner)} wins game ${this.game}` : `Game ${this.game} is a draw`);
     }
     this.sync();
+  }
+
+  /** The match is over: say so, and save it to both players' histories (once). */
+  private finish(winner: RoomRole | null, reason: string) {
+    this.phase = 'over';
+    this.winner = winner;
+    if (this.last?.reason !== reason) this.last = { winner, reason };   // e.g. someone left between games
+    const host = this.host, guest = this.guest;
+    this.system(winner ? `${this.nameOf(winner)} wins the match${this.rules.bo === 3 ? ` ${host.wins}-${guest?.wins ?? 0}` : ''}` : 'The match is a draw');
+    if (this.recorded || !guest || !host.deck || !guest.deck || this.game === 0) return;
+    this.recorded = true;
+    const result = (m: Member) => (!winner ? 'draw' : winner === m.role ? 'win' : 'loss') as 'win' | 'loss' | 'draw';
+    const player = (m: Member, them: Member) => ({ userId: m.userId, opponent: them.name, opponentId: them.userId, deckName: m.deck!.name, deckId: m.deck!.id,
+      cover: m.deck!.cover, result: result(m), scoreFor: m.wins, scoreAgainst: them.wins, uses: m.uses });
+    this.deps.record({ kind: 'private', bo: this.rules.bo, games: this.game, turns: this.turns, reason, startedAt: this.startedAt, players: [player(host, guest), player(guest, host)] });
   }
 
   /** Best of 3: a duelist's deck after side decking. Cards may only move between the Main/Extra Deck and the Side Deck. */
@@ -351,7 +378,7 @@ export class PrivateMatch {
     this.game = 0;
     this.toss = this.chooser = this.winner = null;
     this.last = null;
-    for (const m of this.members()) { m.wins = 0; m.sided = false; m.ready = m.role === 'host'; if (m.deck) m.deck.current = m.deck.registered; }
+    for (const m of this.members()) { m.wins = 0; m.sided = false; m.uses = new Map(); m.ready = m.role === 'host'; if (m.deck) m.deck.current = m.deck.registered; }
     this.system('Back in the room for another match');
     this.sync();
   }
