@@ -19,6 +19,7 @@ export interface RoomOptions {
   timer?: number;
   bots?: [BotLevel, BotLevel];
   setup?: WorkerInput['setup'];
+  setupLua?: string;
 }
 
 const SPEED: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.45, instant: 0.12 };
@@ -51,7 +52,7 @@ export class DuelRoom {
   constructor(private decks: [Deck, Deck], private players: [string, string], private humans: Side[], readonly fullView: boolean, seed: number, private onClose: () => void, options: RoomOptions = {}) {
     this.seconds = Math.max(0, Math.min(600, Math.round(options.timer ?? 0)));
     this.speed = SPEED[options.speed ?? 'normal'] ?? 1;
-    const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup };
+    const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup, setupLua: options.setupLua };
     this.worker = new Worker(new URL('./duel-worker.ts', import.meta.url), { workerData: input, execArgv: ['--import', 'tsx'] });
     this.worker.on('message', (msg: WorkerOutput) => {
       if (msg.type === 'frame') { this.queue.push({ frame: msg.frame }); this.pump(); }

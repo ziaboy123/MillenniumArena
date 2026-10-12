@@ -52,7 +52,7 @@ export type Mark = 'can' | 'pick' | 'picked';
 const sameCell = (z: ZoneRef, r: number, c: number) => { const g = gridOf(z); return !!g && g[0] === r && g[1] === c; };
 
 function CardFace({ card, monster }: { card: FieldCard; monster: boolean }) {
-  const [code, pos, atk, def, mats, , flags] = card;
+  const [code, pos, atk, def, mats, , flags, counters] = card;
   const down = (pos & FACEDOWN) !== 0, sideways = monster && (pos & DEFENSE) !== 0, negated = !down && ((flags ?? 0) & NEGATED) !== 0;
   return <>
     <div className={`card ${code ? '' : 'back'} ${sideways ? 'def' : ''}`} data-code={code || undefined}>
@@ -61,6 +61,7 @@ function CardFace({ card, monster }: { card: FieldCard; monster: boolean }) {
     </div>
     {monster && !down && atk !== null && <div className="stat">{sideways ? <>{atk} / <b>{def}</b></> : <><b>{atk}</b>{def !== null && <> / {def}</>}</>}</div>}
     {mats > 0 && <div className="mats" title="Xyz materials">{mats}</div>}
+    {counters > 0 && <div className="ctrs" title={`${counters} counter${counters === 1 ? '' : 's'}`}>{counters}</div>}
   </>;
 }
 

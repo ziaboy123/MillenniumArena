@@ -10,7 +10,8 @@ Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no paymen
   - Negated cards get an X, and a Set Infinite Impermanence marks its column as negated for the turn.
   - Cards an effect shows you (e.g. Galaxy Hundred and the opponent's Extra Deck) open in a window and can be picked from.
   - A smarter bot: it wins about 69% of duels against the old random bot over 1,000 test duels.
-- Next: the rarer choices (declaring a card name, Type, Attribute or number; Level sums; card order; counters). The bot picks these for you until then, and the log says so.
+- Milestone 3 (done): every choice the engine can ask for has its own screen: Level sums (e.g. Ritual Tributes), removing counters, ordering cards, declaring a Type, Attribute, number or card name (search with cards seen this duel offered first), and rock-paper-scissors. Field cards show their counters. The dev server has a test setup for each.
+- Next: polish (summoning and attack animations, a setting to skip responding to your own effects, rejoining a duel after a dropped connection).
 
 ## Layout
 

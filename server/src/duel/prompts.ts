@@ -5,9 +5,10 @@ import {
   OcgLocation as L, OcgMessageType as M, OcgPosition as P, OcgResponseType as R, OcgType as T,
   SelectBattleCMDAction as B, SelectIdleCMDAction as I,
 } from 'ocgcore-wasm';
-import type { IdleAct, Loc, Prompt, PromptAction, PromptAnswer, PromptCard, Side, SideView, ZoneRef } from '@arena/shared';
+import { sumIsValid, type IdleAct, type Loc, type Prompt, type PromptAction, type PromptAnswer, type PromptCard, type Side, type SideView, type ZoneRef } from '@arena/shared';
 import type { EngineCard } from '../cards.ts';
-import { sysString } from '../strings.ts';
+import { counterString, sysString } from '../strings.ts';
+import { declarableCodes } from './declare.ts';
 
 export interface PromptContext {
   cards: Map<number, EngineCard>;
@@ -158,8 +159,47 @@ export function toPrompt(m: any, ctx: PromptContext): Prompt | null {
     }
     case M.SELECT_POSITION:
       return { ...base, kind: 'position', title: sysString(561) || 'Select the battle position', code: m.code, positions: [P.FACEUP_ATTACK, P.FACEUP_DEFENSE, P.FACEDOWN_DEFENSE, P.FACEDOWN_ATTACK].filter(p => m.positions & p) };
+    case M.SELECT_SUM: {
+      // the wrapper calls the mode byte select_max: 0 = exactly the amount, 1 = at least it with no card to spare
+      const cards = offered(ctx, m, 'selects', player).map((c, i) => ({ ...c, values: sumValues(m.selects[m.order.selects[i]].amount) }));
+      const must = (m.selects_must as any[]).map(c => ({ ...card(ctx, c, player), values: sumValues(c.amount) }));
+      return { ...base, kind: 'sum', title: hinted(sysString(560) || 'Select'), cards, must, target: m.amount, exact: m.select_max === 0, min: m.min, max: m.max };
+    }
+    case M.SELECT_COUNTER: {
+      const name = counterString(m.counter_type);
+      return {
+        ...base, kind: 'counters', title: `Remove ${m.count} ${name}${m.count === 1 ? '' : 's'}`, counter: name, count: m.count,
+        cards: (m.cards as any[]).map(c => ({ ...card(ctx, c, player), has: c.count })),
+      };
+    }
+    case M.SORT_CARD: case M.SORT_CHAIN:
+      return {
+        ...base, kind: 'sort', chain: m.type === M.SORT_CHAIN, cards: (m.cards as any[]).map(c => card(ctx, c, player)),
+        title: hinted(sysString(m.type === M.SORT_CHAIN ? 206 : 205) || 'Choose the order'),
+      };
+    case M.ANNOUNCE_RACE: case M.ANNOUNCE_ATTRIB: {
+      // names are system strings: Attributes from 1010, Types from 1020, one per bit
+      const race = m.type === M.ANNOUNCE_RACE, available = BigInt(m.available), options: { bit: number; label: string }[] = [];
+      for (let bit = 0; bit < 64; bit++) if (available & (1n << BigInt(bit))) options.push({ bit, label: sysString((race ? 1020 : 1010) + bit) || `#${bit}` });
+      return { ...base, kind: 'declare', what: race ? 'type' : 'attribute', count: m.count, options, title: hinted(sysString(race ? 563 : 562) || (race ? 'Declare a Type' : 'Declare an Attribute')) };
+    }
+    case M.ANNOUNCE_CARD: {
+      const codes = declarableCodes(ctx.cards, m.opcodes);
+      m.allowed = new Set(codes);   // checked again when the answer comes back
+      return { ...base, kind: 'cardname', title: hinted(sysString(564) || 'Declare a card name'), codes };
+    }
+    case M.ANNOUNCE_NUMBER:
+      return { ...base, kind: 'number', title: hinted(sysString(565) || 'Declare a number'), options: (m.options as bigint[]).map(Number) };
+    case M.ROCK_PAPER_SCISSORS:
+      return { ...base, kind: 'rps', title: 'Rock, paper, scissors' };
   }
   return null;
+}
+
+/** A card's sum values: Level (low 16 bits) and, for some cards, a second value it may count as instead. */
+function sumValues(amount: number): number[] {
+  const a = amount & 0xffff, b = amount >>> 16;
+  return b && b !== a ? [a, b] : [a];
 }
 
 const isIndex = (i: unknown, n: number): i is number => Number.isInteger(i) && (i as number) >= 0 && (i as number) < n;
@@ -218,13 +258,38 @@ export function toResponse(m: any, a: PromptAnswer): any | null {
     }
     case M.SELECT_POSITION:
       return a.kind === 'position' && [1, 2, 4, 8].includes(a.position) && (m.positions & a.position) ? { type: R.SELECT_POSITION, position: a.position } : null;
+    case M.SELECT_SUM: {
+      if (a.kind !== 'sum' || !Array.isArray(a.indices) || !a.indices.every(i => isIndex(i, m.selects.length))) return null;
+      const picks = a.indices.map(i => engineIndex(m, 'selects', i));
+      const exact = m.select_max === 0;
+      if (new Set(picks).size !== picks.length || (exact && (picks.length < m.min || picks.length > m.max))) return null;
+      const values = [...(m.selects_must as any[]).map(c => sumValues(c.amount)), ...picks.map(i => sumValues(m.selects[i].amount))];
+      return sumIsValid(values, m.amount, exact) ? { type: R.SELECT_SUM, indicies: picks.sort((x, y) => x - y) } : null;
+    }
+    case M.SELECT_COUNTER: {
+      if (a.kind !== 'counters' || !Array.isArray(a.counts) || a.counts.length !== m.cards.length) return null;
+      if (!a.counts.every((n, i) => Number.isInteger(n) && n >= 0 && n <= m.cards[i].count)) return null;
+      return a.counts.reduce((sum, n) => sum + n, 0) === m.count ? { type: R.SELECT_COUNTER, counters: a.counts } : null;
+    }
+    case M.SORT_CARD: case M.SORT_CHAIN: {
+      if (a.kind !== 'sort') return null;
+      if (a.order === null) return { type: R.SORT_CARD, order: null };
+      const n = m.cards.length;
+      if (!Array.isArray(a.order) || a.order.length !== n || new Set(a.order).size !== n || !a.order.every(v => isIndex(v, n))) return null;
+      return { type: R.SORT_CARD, order: a.order };
+    }
+    case M.ANNOUNCE_RACE: case M.ANNOUNCE_ATTRIB: {
+      if (a.kind !== 'declare' || !Array.isArray(a.bits) || a.bits.length !== m.count || new Set(a.bits).size !== a.bits.length) return null;
+      const available = BigInt(m.available);
+      if (!a.bits.every(b => Number.isInteger(b) && b >= 0 && b < 64 && (available & (1n << BigInt(b))) !== 0n)) return null;
+      return m.type === M.ANNOUNCE_RACE ? { type: R.ANNOUNCE_RACE, races: a.bits.map(b => 1n << BigInt(b)) } : { type: R.ANNOUNCE_ATTRIB, attributes: a.bits.map(b => 1 << b) };
+    }
+    case M.ANNOUNCE_CARD: return a.kind === 'cardname' && m.allowed?.has(a.code) ? { type: R.ANNOUNCE_CARD, card: a.code } : null;
+    case M.ANNOUNCE_NUMBER: return a.kind === 'number' && isIndex(a.index, m.options.length) ? { type: R.ANNOUNCE_NUMBER, value: a.index } : null;
+    case M.ROCK_PAPER_SCISSORS: return a.kind === 'rps' && [1, 2, 3].includes(a.hand) ? { type: R.ROCK_PAPER_SCISSORS, value: a.hand } : null;
   }
   return null;
 }
 
-/** Names for the prompt kinds the duel screen doesn't handle yet (Milestone 3); the bot answers these for now. */
-export const NOT_YET: Record<number, string> = {
-  [M.SELECT_SUM]: 'cards adding up to a Level', [M.SELECT_COUNTER]: 'counters to remove', [M.SORT_CARD]: 'card order', [M.SORT_CHAIN]: 'chain order',
-  [M.ANNOUNCE_RACE]: 'a Type to declare', [M.ANNOUNCE_ATTRIB]: 'an Attribute to declare', [M.ANNOUNCE_CARD]: 'a card name to declare',
-  [M.ANNOUNCE_NUMBER]: 'a number to declare', [M.ROCK_PAPER_SCISSORS]: 'rock, paper, scissors',
-};
+/** Prompt kinds the duel screen doesn't handle (the bot answers them, with a log line). Since Milestone 3: none. */
+export const NOT_YET: Record<number, string> = {};

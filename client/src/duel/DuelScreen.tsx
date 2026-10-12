@@ -6,6 +6,7 @@ import { bigImage, card, cardName, imageFallback, smallImage } from '../lib/card
 import { Background, Eye, EyeSvg, Stage } from '../lib/ui.tsx';
 import { Field, cellIndex, pileCell, type Mark, type PileKind } from './Field.tsx';
 import { ActionMenu, CardPicker, PositionPicker, PromptPanel, actionsByCard, type CardActions, type MenuItem } from './prompt-ui.tsx';
+import { CardNamePicker, CounterPicker, DeclarePicker, SortPicker, SumPicker } from './rare-pickers.tsx';
 
 const PHASES = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP'] as const;
 const FACEDOWN = 0xa, FACEUP = 0x5;
@@ -43,6 +44,13 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
   const [confirm, setConfirm] = useState<'home' | 'surrender' | null>(null);
   const playing = duel.you === 0 && !ending;
   const closeMenu = useCallback(() => setMenu(null), []);
+  // every card seen face-up this duel (newest first), offered first when declaring a card name
+  const seen = useRef<number[]>([]);
+  useEffect(() => {
+    if (!frame) return;
+    const codes = frame.board.flatMap(s => [...s.m, ...s.s].filter(c => c && c[0]).map(c => c![0]).concat(s.gy, s.ban.map(b => b[0]))).concat(frame.chain.map(c => c.code));
+    for (const c of codes) if (c && !seen.current.includes(c)) seen.current.unshift(c);
+  }, [frame?.step]);
   useEffect(() => { setMenu(null); setZones([]); }, [prompt?.id]);
 
   // turn timer: the prompt's clock counts down while it's on screen; between prompts your turn's time is paused
@@ -149,6 +157,11 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
             </div>
             {(prompt?.kind === 'cards' || prompt?.kind === 'unselect') && <CardPicker key={prompt.id} prompt={prompt} onAnswer={answer} />}
             {prompt?.kind === 'position' && <PositionPicker key={prompt.id} prompt={prompt} onAnswer={answer} />}
+            {prompt?.kind === 'sum' && <SumPicker key={prompt.id} prompt={prompt} onAnswer={answer} />}
+            {prompt?.kind === 'counters' && <CounterPicker key={prompt.id} prompt={prompt} onAnswer={answer} />}
+            {prompt?.kind === 'sort' && <SortPicker key={prompt.id} prompt={prompt} onAnswer={answer} />}
+            {prompt?.kind === 'declare' && <DeclarePicker key={prompt.id} prompt={prompt} onAnswer={answer} />}
+            {prompt?.kind === 'cardname' && <CardNamePicker key={prompt.id} prompt={prompt} seen={seen.current} onAnswer={answer} />}
             {pops.map(d => <div key={d.id} className={`dmg ${d.cost ? 'cost' : ''}`} style={{ left: d.p === 0 ? 174 : 1406, top: d.p === 0 ? 730 : 110 }}>−{d.amount}</div>)}
             {pile && <PileViewer duel={duel} frame={frame} pile={pile} setPile={setPile} actions={pileActions} onAct={openActions} />}
             {reveal && <RevealPanel reveal={reveal} onClose={onCloseReveal} />}

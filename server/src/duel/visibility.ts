@@ -33,7 +33,7 @@ export const seatSide = (side: Side | 2 | null, viewer: Side | null) => (viewer 
 function hide(frame: Frame, viewer: Side | null): Frame {
   const board = frame.board.map((side, p): SideView => {
     const mine = viewer === p;
-    const field = (c: FieldCard | null): FieldCard | null => (c && (c[1] & FACEDOWN) && !mine ? [0, c[1], null, null, c[4], 0, 0] : c);
+    const field = (c: FieldCard | null): FieldCard | null => (c && (c[1] & FACEDOWN) && !mine ? [0, c[1], null, null, c[4], 0, 0, c[7]] : c);
     return {
       lp: side.lp, deck: side.deck, extra: side.extra, gy: side.gy,
       hand: mine ? side.hand : side.hand.map(() => 0),

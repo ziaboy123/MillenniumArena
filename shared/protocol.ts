@@ -2,8 +2,8 @@
 
 export type Side = 0 | 1;
 
-/** A card on the field: [code, position flags, ATK, DEF, Xyz materials, card type, flags]. Code 0 = hidden from this viewer. */
-export type FieldCard = [code: number, position: number, atk: number | null, def: number | null, materials: number, type: number, flags: number];
+/** A card on the field: [code, position flags, ATK, DEF, Xyz materials, card type, flags, counters]. Code 0 = hidden from this viewer. */
+export type FieldCard = [code: number, position: number, atk: number | null, def: number | null, materials: number, type: number, flags: number, counters: number];
 /** FieldCard flags: its effects are negated. */
 export const NEGATED = 1;
 

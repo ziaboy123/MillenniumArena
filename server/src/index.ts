@@ -9,7 +9,7 @@ import { clientCardList, loadCards } from './cards.ts';
 import { BASE, CLIENT_DIST, DEV, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
 import { loadDecks, summarise } from './decks.ts';
 import { DuelRoom, type Viewer } from './duel/room.ts';
-import { SCENARIOS, setupFor } from './duel/scenarios.ts';
+import { SCENARIOS, firstFor, luaFor, setupFor } from './duel/scenarios.ts';
 
 const t0 = performance.now();
 const cards = loadCards();
@@ -80,10 +80,11 @@ wss.on('connection', (ws: WebSocket) => {
       if (!mine || !bot) return viewer.send({ type: 'error', message: 'Unknown deck.' });
       if (full()) return;
       const name = String(msg.name ?? '').replace(/[^\p{L}\p{N} _.'-]/gu, '').trim().slice(0, 16) || 'Duelist';
-      const side: Side = msg.first === 'me' ? 0 : msg.first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
+      const first = (DEV && firstFor(msg.scenario)) || msg.first;
+      const side: Side = first === 'me' || first === 'you' ? 0 : first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
       const r = new DuelRoom(side === 0 ? [mine, bot] : [bot, mine], side === 0 ? [name, 'Bot'] : ['Bot', name], [side],
         false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r),
-        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, setup: DEV ? setupFor(msg.scenario, side) : undefined });
+        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined });
       rooms.add(r);
       room = r;
       viewer.side = side;

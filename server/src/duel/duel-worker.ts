@@ -11,7 +11,7 @@ import createCore, {
 import { NEGATED, type Frame, type Phase, type Prompt, type PromptAnswer, type Side, type SideView, type ZoneRef } from '@arena/shared';
 import { loadCards } from '../cards.ts';
 import { ENGINE_DATA } from '../config.ts';
-import { victoryString } from '../strings.ts';
+import { sysString, victoryString } from '../strings.ts';
 import { PROMPTS, decide, rng, shuffle, type BotLevel, type BotState, type BotView } from './bot.ts';
 import { NOT_YET, describe, toPrompt, toResponse } from './prompts.ts';
 import { COLUMN_NEGATORS } from './specials.ts';
@@ -25,6 +25,7 @@ export interface WorkerInput {
   bots?: [BotLevel, BotLevel];
   /** Cards placed before the duel starts (test scenarios on the dev server). */
   setup?: { team: Side; code: number; location: number; sequence: number; position: number }[];
+  setupLua?: string;
   seed: number;
 }
 export type WorkerOutput =
@@ -67,7 +68,7 @@ const PHASES: Record<number, Phase> = {
   [OcgPhase.DRAW]: 'DP', [OcgPhase.STANDBY]: 'SP', [OcgPhase.MAIN1]: 'M1', [OcgPhase.BATTLE_START]: 'BP', [OcgPhase.BATTLE_STEP]: 'BP',
   [OcgPhase.DAMAGE]: 'BP', [OcgPhase.DAMAGE_CAL]: 'BP', [OcgPhase.BATTLE]: 'BP', [OcgPhase.MAIN2]: 'M2', [OcgPhase.END]: 'EP',
 };
-const QF = OcgQueryFlags.CODE | OcgQueryFlags.POSITION | OcgQueryFlags.ATTACK | OcgQueryFlags.DEFENSE | OcgQueryFlags.OVERLAY_CARD | OcgQueryFlags.TYPE | OcgQueryFlags.STATUS;
+const QF = OcgQueryFlags.CODE | OcgQueryFlags.POSITION | OcgQueryFlags.ATTACK | OcgQueryFlags.DEFENSE | OcgQueryFlags.OVERLAY_CARD | OcgQueryFlags.TYPE | OcgQueryFlags.STATUS | OcgQueryFlags.COUNTERS;
 const STATUS_DISABLED = 0x1;   // the card's effects are negated
 const LOC_NAMES: Record<number, string> = { [OcgLocation.HAND]: 'hand', [OcgLocation.DECK]: 'Deck', [OcgLocation.EXTRA]: 'Extra Deck', [OcgLocation.GRAVE]: 'GY', [OcgLocation.REMOVED]: 'banished cards', [OcgLocation.MZONE]: 'field', [OcgLocation.SZONE]: 'field' };
 
@@ -92,6 +93,7 @@ async function run() {
     deck.extra.forEach(c => add(c, OcgLocation.EXTRA));
   });
   for (const c of input.setup ?? []) lib.duelNewCard(handle, { team: c.team, duelist: 0, code: c.code, controller: c.team, location: c.location, sequence: c.sequence, position: c.position });
+  if (input.setupLua) lib.loadScript(handle, 'scenario.lua', input.setupLua);
 
   const players = input.players, lp = [8000, 8000], humans = new Set(input.humans), levels = input.bots ?? ['smart', 'smart'];
   const r = rng(input.seed), bots: BotState[] = [{ acts: 0, attacks: 0 }, { acts: 0, attacks: 0 }];
@@ -117,7 +119,8 @@ async function run() {
   function snapshot(): [SideView, SideView] {
     const side = (p: Side): SideView => {
       const q = (location: number) => lib.duelQueryLocation(handle, { flags: QF, controller: p, location }) as any[];
-      const card = (c: any) => c && c.code ? [c.code, c.position, c.attack ?? null, c.defense ?? null, c.overlayCards?.length || 0, c.type ?? 0, (c.status ?? 0) & STATUS_DISABLED ? NEGATED : 0] as any : null;
+      const card = (c: any) => c && c.code ? [c.code, c.position, c.attack ?? null, c.defense ?? null, c.overlayCards?.length || 0, c.type ?? 0, (c.status ?? 0) & STATUS_DISABLED ? NEGATED : 0,
+        Object.values(c.counters ?? {}).reduce((sum: number, n) => sum + Number(n), 0)] as any : null;   // counters of every kind, added up
       return {
         lp: Math.max(lp[p], 0), hand: q(OcgLocation.HAND).map(c => c?.code ?? 0), m: q(OcgLocation.MZONE).map(card), s: q(OcgLocation.SZONE).map(card),
         gy: q(OcgLocation.GRAVE).map(c => c?.code ?? 0), ban: q(OcgLocation.REMOVED).map(c => [c?.code ?? 0, c?.position ?? 1]),
@@ -140,6 +143,7 @@ async function run() {
     lines = []; attack = null; damage = []; highlight = [];
   }
   const say = (s: string) => lines.push(s);
+  const once = (s: string) => { if (lines.at(-1) !== s) lines.push(s); };   // the same hint can reach both players
 
   const view = (m: any): BotView => ({ board: board ?? snapshot(), chain: links.map(l => ({ code: l.code, p: l.p })), hint: m.selectHint ?? 0n });
   const bot = (m: any, p: Side) => decide(m, r, bots[p], tries, cards, view(m), levels[p]);
@@ -198,6 +202,14 @@ async function run() {
           if (m.hint_type === OcgHintType.SELECTMSG) hints[m.player as Side] = BigInt(m.hint);
           // the engine isn't consistent about whose choice this was, so the line doesn't name anyone
           else if (m.hint_type === OcgHintType.OPSELECTED) { const t = describe(cards, m.hint); if (t) say(`Chosen: ${t}`); }
+          // declarations (the engine sends these after a card name, Type, Attribute or number is declared)
+          else if (m.hint_type === OcgHintType.CODE) once(`Declared: ${nameOf(Number(m.hint))}`);
+          else if (m.hint_type === OcgHintType.RACE || m.hint_type === OcgHintType.ATTRIB) {
+            const first = m.hint_type === OcgHintType.RACE ? 1020 : 1010, names: string[] = [];
+            for (let bit = 0; bit < 64; bit++) if (BigInt(m.hint) & (1n << BigInt(bit))) names.push(sysString(first + bit));
+            once(`Declared: ${names.join(', ')}`);
+          }
+          else if (m.hint_type === OcgHintType.NUMBER) once(`Number chosen: ${m.hint}`);
           break;
         case M.NEW_PHASE: phase = PHASES[m.phase] ?? phase; break;
         case M.NEW_TURN: turn++; turnPlayer = m.player; phase = 'DP'; columns = []; bots.forEach(b => { b.acts = 0; b.attacks = 0; }); say(`Turn ${turn} · ${players[m.player]}`); break;
@@ -223,8 +235,9 @@ async function run() {
         case M.SHUFFLE_DECK: case M.SHUFFLE_HAND: case M.SHUFFLE_EXTRA: known[0].clear(); known[1].clear(); break;   // places changed
         case M.ATTACK: {
           attack = { from: zoneOf(m.card), to: m.target ? zoneOf(m.target) : null };
-          const a = codeAt(m.card), d = m.target && codeAt(m.target);
-          say(`${nameOf(a)} attacks ${d ? nameOf(d) : 'directly'}`);
+          // a face-down target isn't named: it's only flipped (and revealed) in the Damage Step
+          const a = codeAt(m.card), d = m.target && codeAt(m.target), hidden = m.target && (m.target.position & OcgPosition.FACEDOWN);
+          say(`${nameOf(a)} attacks ${!m.target ? 'directly' : hidden ? 'a face-down monster' : nameOf(d)}`);
           break;
         }
         case M.DAMAGE: damage.push({ p: m.player, amount: m.amount }); lp[m.player] -= m.amount; say(`${players[m.player]} takes ${m.amount} damage`); break;
@@ -240,8 +253,9 @@ async function run() {
           if (to === L.GRAVE && from !== L.GRAVE) say(`${nameOf(m.card)} is sent to the GY${fromWhere}`);
           else if (to === L.REMOVED && from !== L.REMOVED) say(m.to.position & OcgPosition.FACEDOWN ? 'A card is banished face-down' : `${nameOf(m.card)} is banished${fromWhere}`);
           else if (to === L.HAND && from === L.DECK) say(`${players[m.to.controller]} adds a card from the Deck to their hand`);
-          else if (to === L.HAND && (from === L.GRAVE || from === L.REMOVED || (from & L.ONFIELD))) say(`${nameOf(m.card)} returns to ${players[m.to.controller]}'s hand`);
-          else if ((to === L.DECK || to === L.EXTRA) && (from === L.GRAVE || from === L.REMOVED || (from & L.ONFIELD))) say(`${nameOf(m.card)} returns to the ${to === L.DECK ? 'Deck' : 'Extra Deck'}`);
+          // a face-down card going back to a hand or Deck stays unnamed (it was never revealed)
+          else if (to === L.HAND && (from === L.GRAVE || from === L.REMOVED || (from & L.ONFIELD))) say(`${m.from.position & OcgPosition.FACEDOWN ? 'A face-down card' : nameOf(m.card)} returns to ${players[m.to.controller]}'s hand`);
+          else if ((to === L.DECK || to === L.EXTRA) && (from === L.GRAVE || from === L.REMOVED || (from & L.ONFIELD))) say(`${m.from.position & OcgPosition.FACEDOWN ? 'A face-down card' : nameOf(m.card)} returns to the ${to === L.DECK ? 'Deck' : 'Extra Deck'}`);
           break;
         }
         case M.CONFIRM_DECKTOP:
@@ -266,6 +280,11 @@ async function run() {
           // a player privately looking at something (their Deck, a face-down card) isn't logged
           if (m.cards.length && m.cards.every((c: any) => c.controller !== m.player && (c.location === OcgLocation.HAND || c.location === OcgLocation.DECK))) say(`${players[m.cards[0].controller]} reveals ${m.cards.map((c: any) => nameOf(c.code)).join(', ')}`);
           break;
+        case M.HAND_RES: {
+          const hand = ['', 'Scissors', 'Rock', 'Paper'];
+          say(`Rock, paper, scissors: ${players[0]} ${hand[m.results[0]] ?? '?'}, ${players[1]} ${hand[m.results[1]] ?? '?'}`);
+          break;
+        }
         case M.WIN: if (winner === null) { winner = m.player; winReason = victoryString(m.reason); say(m.player === 2 ? 'The duel is a draw' : `${players[m.player]} wins`); } break;
       }
     }

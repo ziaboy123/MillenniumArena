@@ -82,7 +82,7 @@ index 1d627d1..500cbd9 100644
          break;
        case OcgOpCode.GETCODE:
 diff --git a/src/queries.ts b/src/queries.ts
-index 9fc7c68..04e8eb5 100644
+index 9fc7c68..fe8b25a 100644
 --- a/src/queries.ts
 +++ b/src/queries.ts
 @@ -30,6 +30,8 @@ export function readQuery(reader: BufferReader) {
@@ -94,7 +94,18 @@ index 9fc7c68..04e8eb5 100644
      } else if (flag === OcgQueryFlags.POSITION && size === 4) {
        result.position = reader.u32() as OcgPosition;
      } else if (flag === OcgQueryFlags.ALIAS && size === 4) {
-@@ -106,6 +108,9 @@ export function readQuery(reader: BufferReader) {
+@@ -83,8 +85,9 @@ export function readQuery(reader: BufferReader) {
+       result.counters = {};
+       const length = reader.u32();
+       for (let i = 0; i < length; i++) {
+-        const count = reader.u16();
++        // the engine writes each entry as kind + (count << 16): kind is the low half
+         const kind = reader.u16();
++        const count = reader.u16();
+         result.counters[kind] = count;
+       }
+     } else if (flag === OcgQueryFlags.OWNER && size === 1) {
+@@ -106,6 +109,9 @@ export function readQuery(reader: BufferReader) {
          rating,
          marker,
        };

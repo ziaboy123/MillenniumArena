@@ -143,8 +143,32 @@ export function PromptPanel({ prompt, phase, loose, zonesLeft, onAnswer, onAutoZ
           <div className="btns"><button className="btn ghost" onClick={onAutoZone}>Choose for me</button></div>
         </div>
       );
+    case 'number':
+      return (
+        <div className="panel prompt">
+          {retry}
+          <div className="eyebrow">Declare a number</div>
+          <h3>{prompt.title}</h3>
+          <div className="numbers">
+            {prompt.options.map((n, i) => <button key={i} className="btn ghost" onClick={() => onAnswer({ kind: 'number', index: i })}>{n}</button>)}
+          </div>
+        </div>
+      );
+    case 'rps':
+      return (
+        <div className="panel prompt">
+          {retry}
+          <div className="eyebrow">Rock, paper, scissors</div>
+          <h3>Choose your hand</h3>
+          <div className="rps">
+            {([[2, 'Rock', '✊'], [3, 'Paper', '✋'], [1, 'Scissors', '✌️']] as const).map(([hand, label, icon]) => (
+              <button key={hand} onClick={() => onAnswer({ kind: 'rps', hand })}><span>{icon}</span>{label}</button>
+            ))}
+          </div>
+        </div>
+      );
     default:
-      return null;   // card and position choices open their own window over the field
+      return null;   // card, position and the other choices open their own window over the field
   }
 }
 

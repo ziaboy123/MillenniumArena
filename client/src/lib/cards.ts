@@ -16,6 +16,8 @@ export function loadCards(): Promise<void> {
 }
 
 export const card = (code: number) => cards.get(code);
+/** Every card, for searching by name. */
+export const allCards = () => cards.values();
 export const cardName = (code: number) => cards.get(code)?.name ?? `#${code}`;
 
 // Artwork comes from YGOPRODeck for now (self-hosting images is a later step). Alternate artworks fall back to the original card.
