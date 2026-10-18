@@ -299,7 +299,7 @@ export function Privacy() {
       <h3>Chat</h3>
       <p>Chat in a private room goes only to the people in that room, and isn't saved: it's gone when the room closes.</p>
       <h3>Your rights</h3>
-      <p>You can delete your account at any time in Settings. That removes it everywhere, including your DeckForge decks and your match history, and your name is taken off other players' histories. For anything else, email <a href="mailto:daniyal@daniyalzia.co.uk">daniyal@daniyalzia.co.uk</a>.</p>
+      <p>You can delete your account at any time in Settings. That removes it everywhere, including your DeckForge decks and your match history, and your name is taken off other players' histories. For anything else, email <a href="mailto:mail@daniyalzia.co.uk">mail@daniyalzia.co.uk</a>.</p>
     </Doc>
   );
 }
@@ -325,7 +325,7 @@ export function Terms() {
       <h3>No guarantees</h3>
       <p>The site is provided as-is. It may change, go offline for maintenance, or reset data during testing. We'll give notice where we can.</p>
       <h3>Contact</h3>
-      <p>Questions or reports: <a href="mailto:daniyal@daniyalzia.co.uk">daniyal@daniyalzia.co.uk</a>.</p>
+      <p>Questions or reports: <a href="mailto:mail@daniyalzia.co.uk">mail@daniyalzia.co.uk</a>.</p>
     </Doc>
   );
 }
