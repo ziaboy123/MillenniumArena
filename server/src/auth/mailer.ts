@@ -1,5 +1,6 @@
 // Sending email (codes and account notices). Production uses Resend (RESEND_API_KEY + ARENA_MAIL_FROM, e.g.
-// "Millennium Arena <noreply@daniyalzia.co.uk>"). The development server prints mail to its console instead.
+// "Millennium Arena <noreply@mail.daniyalzia.co.uk>", on a domain verified in Resend). The development server
+// prints mail to its console instead.
 import { DEV } from '../config.ts';
 
 const KEY = process.env.RESEND_API_KEY ?? '', FROM = process.env.ARENA_MAIL_FROM ?? '';

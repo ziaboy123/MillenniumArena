@@ -17,7 +17,7 @@ import { accountDeck, accountDecks, activeDeck } from './decks-api.ts';
 import { recordMatch } from './history.ts';
 import { cleanRules, PrivateMatch, RoomError, type Account, type MatchDeps } from './match.ts';
 import { limited } from './auth/ratelimit.ts';
-import { BASE, CLIENT_DIST, DEV, ENGINE_DATA, ENGINE_NAME, MAX_DUELS, PORT } from './config.ts';
+import { BASE, CLIENT_DIST, DEV, ENGINE_DATA, ENGINE_NAME, HOST, MAX_DUELS, PORT } from './config.ts';
 import { loadDecks, summarise, type Deck } from './decks.ts';
 import { DB_ENABLED, migrate } from './db/index.ts';
 import { DuelRoom, type Viewer } from './duel/room.ts';
@@ -52,7 +52,7 @@ function serveClient(req: IncomingMessage, res: ServerResponse, rel: string) {
   if (!file.startsWith(CLIENT_DIST) || !existsSync(file) || statSync(file).isDirectory()) file = path.join(CLIENT_DIST, 'index.html');   // app routes
   const hashed = /[-.][A-Za-z0-9_]{8,}\.(js|css)$/.test(file);
   res.writeHead(200, { 'content-type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'cache-control': hashed ? 'public, max-age=31536000, immutable' : 'no-cache' });
-  createReadStream(file).pipe(res);
+  createReadStream(file).on('error', () => res.destroy()).pipe(res);
 }
 
 /** Headers on every response: no sniffing, no framing, a strict content policy for the app's pages. */
@@ -69,11 +69,12 @@ function securityHeaders(req: IncomingMessage, res: ServerResponse) {
   ].join('; '));
 }
 
-const server = createServer(async (req, res) => {
+async function handle(req: IncomingMessage, res: ServerResponse) {
   securityHeaders(req, res);
   const url = new URL(req.url ?? '/', 'http://localhost');
-  if (!url.pathname.startsWith(BASE)) { res.writeHead(302, { location: BASE + '/' }); res.end(); return; }
-  const rel = url.pathname.slice(BASE.length) || '/';
+  if (url.pathname === BASE) { res.writeHead(301, { location: BASE + '/' + url.search }); res.end(); return; }
+  if (!url.pathname.startsWith(BASE + '/')) { res.writeHead(302, { location: BASE + '/' }); res.end(); return; }
+  const rel = url.pathname.slice(BASE.length);
   if (rel === '/api/health') return json(res, { ok: true, duels: rooms.size, maxDuels: MAX_DUELS, engine: ENGINE_NAME });
   if (rel === '/api/cards') {
     res.writeHead(200, { 'content-type': 'application/json', 'content-encoding': 'gzip', 'cache-control': 'public, max-age=3600', etag: cardListTag });
@@ -87,6 +88,14 @@ const server = createServer(async (req, res) => {
   if (DB_ENABLED && await accountRoutes(req, res, rel)) return;
   if (rel.startsWith('/api/')) return json(res, { error: 'not found' }, 404);
   serveClient(req, res, rel);
+}
+// a request that breaks something (a malformed address, say) gets an error; it never takes the server, and every duel on it, down
+const server = createServer((req, res) => {
+  handle(req, res).catch(e => {
+    console.error(`http ${req.method} ${String(req.url).slice(0, 200)}: ${e?.stack ?? e}`);
+    if (!res.headersSent) res.writeHead(400, { 'content-type': 'text/plain' });
+    res.end();
+  });
 });
 
 // ---------- private rooms ----------
@@ -112,7 +121,21 @@ async function ownDeck(userId: string | undefined, id: string): Promise<Deck | s
 // ---------- WebSocket: one connection per browser tab ----------
 // only pages from this site may connect (stops other sites opening a connection with a visitor's login cookie)
 const wss = new WebSocketServer({ server, path: `${BASE}/ws`, maxPayload: 64 * 1024, verifyClient: ({ req }: { req: IncomingMessage }) => sameOrigin(req) });
+// Cloudflare closes a WebSocket that's been quiet for 100 s, so every connection is pinged (the browser answers by
+// itself) every 30 s. One that didn't answer the last ping has gone, and is closed (its seat waits a minute for it).
+const answered = new WeakSet<WebSocket>();
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (!answered.has(ws)) { ws.terminate(); continue; }
+    answered.delete(ws);
+    ws.ping();
+  }
+}, 30_000).unref();
 wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+  answered.add(ws);
+  ws.on('pong', () => answered.add(ws));
+  // a frame that's too big or isn't valid text closes this connection (ws does that); without a listener it would crash the server
+  ws.on('error', e => console.warn(`ws: ${e.message}`));
   // who's connected (if logged in); messages wait for this
   const who = DB_ENABLED ? sessionUser(cookies(req).ma_session).catch(() => null) : Promise.resolve(null);
   let room: DuelRoom | null = null;
@@ -182,9 +205,10 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     }
   }
 
-  ws.on('message', async raw => {
+  async function onMessage(raw: unknown) {
     let msg: ClientMessage;
     try { msg = JSON.parse(String(raw)); } catch { return; }
+    if (!msg || typeof msg !== 'object') return;
     const me = await who;
     if (typeof msg?.type === 'string' && (msg.type.startsWith('room.') || msg.type === 'chat')) {
       if (!me?.username) return viewer.send({ type: 'error', message: 'Log in to play with friends.' });
@@ -251,16 +275,21 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       if (r && r.rejoin(viewer, String(msg.seat))) room = r;
       else viewer.send({ type: 'gone' });
     } else if (msg.type === 'leave') leave();
-  });
+  }
+  // like requests, a message that breaks something is logged and dropped
+  ws.on('message', raw => { onMessage(raw).catch(e => console.error(`ws: ${e?.stack ?? e}`)); });
   ws.on('close', () => { leave(true); match?.detach(viewer); });
 });
+
+// a promise something forgot to catch is a bug to log, not a reason to end every duel on the server
+process.on('unhandledRejection', e => console.error(`unhandled: ${(e as any)?.stack ?? e}`));
 
 if (DB_ENABLED) {
   // duels against the bot don't need the database, so the server starts anyway and keeps trying to reach it
   const connect = () => migrate().then(() => console.log('database ready'))
     .catch(e => { console.error(`database unreachable (${e.message}): accounts won't work until it's back; trying again in 30 s`); setTimeout(connect, 30_000).unref(); });
   connect();
-  if (!AUTH_READY) console.error('ARENA_SECRET is missing (64 hex characters): accounts will not work');
-  if (!MAIL_READY) console.error('RESEND_API_KEY / ARENA_MAIL_FROM are missing: no email can be sent');
+  if (!AUTH_READY) console.error('ARENA_SECRET is missing (64 hex characters): signing up and logging in are off');
+  if (!MAIL_READY) console.error('RESEND_API_KEY / ARENA_MAIL_FROM are missing: no email can be sent, so signing up and logging in are off');
 } else console.warn('No database configured (PGDATABASE): accounts are off');
-server.listen(PORT, () => console.log(`Millennium Arena on http://localhost:${PORT}${BASE}/  (WebSocket ${BASE}/ws)`));
+server.listen(PORT, HOST, () => console.log(`Millennium Arena on http://${HOST ?? 'localhost'}:${PORT}${BASE}/  (WebSocket ${BASE}/ws)`));

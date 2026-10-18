@@ -8,9 +8,9 @@ import { BASE, DEV } from '../config.ts';
 import * as A from './accounts.ts';
 import { deckApi } from '../decks-api.ts';
 import { historyOf, profileOf, summaryOf, userByName } from '../history.ts';
-import { devOutbox } from './mailer.ts';
+import { devOutbox, MAIL_READY } from './mailer.ts';
 import { limited } from './ratelimit.ts';
-import { sha256 } from './security.ts';
+import { AUTH_READY, sha256 } from './security.ts';
 
 const SESSION = 'ma_session', DEVICE = 'ma_device', MONTH = 30 * 86400;
 const SECURE = !DEV;   // production is always served over https (Cloudflare)
@@ -19,7 +19,9 @@ export function cookies(req: IncomingMessage): Record<string, string> {
   const out: Record<string, string> = {};
   for (const part of (req.headers.cookie ?? '').split(';')) {
     const i = part.indexOf('=');
-    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    if (i <= 0) continue;
+    const value = part.slice(i + 1).trim();
+    try { out[part.slice(0, i).trim()] = decodeURIComponent(value); } catch { out[part.slice(0, i).trim()] = value; }   // a malformed cookie is just a wrong one
   }
   return out;
 }
@@ -98,6 +100,8 @@ export async function accountRoutes(req: IncomingMessage, res: ServerResponse, r
 
     if (req.method !== 'POST') throw new A.Problem('Not found.', 404);
     if (!sameOrigin(req)) throw new A.Problem('Requests must come from this site.', 403);
+    // without the code key or email, signing up and logging in stay off rather than half working
+    if (rel.startsWith('/api/auth/') && rel !== '/api/auth/logout' && !(AUTH_READY && MAIL_READY)) throw new A.Problem('Signing up and logging in are switched off for a moment. Try again later.', 503);
     const body = await readJson(req);
     const email = A.normEmail(body.email);
     /** Start a login session in this browser (and trust it for 30 days if asked). */

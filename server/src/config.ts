@@ -5,6 +5,8 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 
 export const PORT = Number(process.env.ARENA_PORT ?? 3017);   // not PORT: dev tools set that for the browser app
+/** The address to listen on: 127.0.0.1 in production, so the only way in is through nginx. Unset = every interface. */
+export const HOST = process.env.ARENA_HOST || undefined;
 /** The site lives under this path (nginx passes it through unchanged), e.g. https://daniyalzia.co.uk/millennium */
 export const BASE = (process.env.BASE_PATH ?? '/millennium').replace(/\/$/, '');
 /** Card database + card scripts, downloaded by `npm run data`. */
@@ -17,6 +19,9 @@ export const CLIENT_DIST = path.join(root, 'client/dist');
 export const MAX_DUELS = Number(process.env.MAX_DUELS ?? 8);
 /** Development server: test scenarios are available. Never set in production. */
 export const DEV = process.env.ARENA_DEV === '1';
+// the development server reads anyone's codes (/api/dev/mail) and drops Secure cookies, so it must never touch real accounts
+if (DEV && process.env.PGDATABASE && (process.env.PGDATABASE !== 'arena_dev' || process.env.PGUSER !== 'arena_dev'))
+  throw new Error('ARENA_DEV=1 may only use the arena_dev database (PGDATABASE and PGUSER arena_dev)');
 /** Speed of duel playback: 1 = normal, 0 = no pauses (automated tests). */
 export const PACE = Number(process.env.ARENA_PACE ?? 1);
 

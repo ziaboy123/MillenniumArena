@@ -123,7 +123,8 @@ const MIGRATIONS: string[] = [
 ];
 
 export async function migrate() {
-  await q('create schema if not exists arena');
+  // production's schema is made once by postgres (AUTHORIZATION arena), so the arena login needs no CREATE on the database
+  if (!(await q("select 1 from pg_namespace where nspname = 'arena'")).length) await q('create schema arena');
   await q('create table if not exists arena.migrations (version int primary key, applied_at timestamptz not null default now())');
   const done = new Set((await q<{ version: number }>('select version from arena.migrations')).map(r => r.version));
   for (const [i, sql] of MIGRATIONS.entries()) {

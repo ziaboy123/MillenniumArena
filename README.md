@@ -35,7 +35,7 @@ Needs Node 22.13 or newer.
 
 ```bash
 npm install
-npm run data        # card database, card scripts and banlists (first time, and after new sets or banlists)
+npm run data        # card database, card scripts and banlists, at the commits in engine/DATA_COMMITS
 npm run dev         # duel server on :3017 and the app on http://localhost:5185/millennium/
 ```
 
@@ -46,20 +46,23 @@ One Node process serves everything under one path (default `/millennium`): the b
 ```bash
 npm ci
 npm run data
+node engine-test/fetch-meta-decks.js   # the bot's tournament decks (or copy engine/data/decks from a machine that has them)
 npm run build       # builds the app into client/dist
-ARENA_PORT=3017 npm start
+ARENA_PORT=3017 ARENA_HOST=127.0.0.1 npm start
 ```
 
-Settings (environment variables): `ARENA_DEV=1` (development only: offers test scenarios in the lobby, see `server/src/duel/scenarios.ts`), `ARENA_PORT` (default 3017), `BASE_PATH` (default `/millennium`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives), `ARENA_PACE` (duel playback speed, 1 = normal, 0 = no pauses for automated tests).
+On the homelab server it runs under PM2 with `ecosystem.config.cjs`, which loads its settings from `/var/www/millennium/.env`.
+
+Settings (environment variables): `ARENA_DEV=1` (development only: offers test scenarios in the lobby, see `server/src/duel/scenarios.ts`; refuses any database but `arena_dev`), `ARENA_PORT` (default 3017), `ARENA_HOST` (the address to listen on; `127.0.0.1` behind a proxy on the same machine, default every interface), `BASE_PATH` (default `/millennium`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives), `ARENA_PACE` (duel playback speed, 1 = normal, 0 = no pauses for automated tests).
 
 Behind a reverse proxy, pass `<BASE_PATH>/` through unchanged (including the `Host` header, which the server compares with `Origin`) and allow WebSocket upgrades on `<BASE_PATH>/ws`.
 
 ### Accounts
 
-Accounts live in DeckForge's PostgreSQL database: its `users`, `decks` and `deck_cards` tables, plus an `arena` schema the server creates on start (usernames, settings, login sessions, trusted devices, email codes). Without a database the site runs as the duel lab only.
+Accounts live in DeckForge's PostgreSQL database: its `users`, `decks` and `deck_cards` tables, plus an `arena` schema (usernames, settings, login sessions, trusted devices, email codes, match history). The server creates the schema if it's missing and its tables on start; in production the database owner makes the schema once, owned by Arena's login, so that login needs no right to create anything else. Without a database the site runs as the duel lab only.
 
 - Database: the standard `PGHOST`, `PGUSER`, `PGDATABASE` variables. Use peer authentication over a Unix socket, so no password is stored anywhere.
-- `ARENA_SECRET`: at least 32 random characters; protects the emailed codes.
+- `ARENA_SECRET`: at least 32 random characters; protects the emailed codes. Without it or the email settings, signing up and logging in answer 503 instead of half working.
 - Email: `RESEND_API_KEY` and `ARENA_MAIL_FROM`. In development (`ARENA_DEV=1`) emails are printed instead, and `GET <BASE_PATH>/api/dev/mail?to=<email>` shows the last one.
 
 Decks are DeckForge's own `decks` and `deck_cards` rows (one row per card and zone, with a copy count), so a deck changed on either site shows up on the other; DeckForge's unused `thumbnail` column holds the cover card. The deck rules live in `shared/decks.ts`, used by both the editor and the server, which refuses to start a duel with a deck that's the wrong size or has unknown cards.
@@ -73,9 +76,11 @@ New sets arrive in Project Ignis's card scripts quickly, sometimes needing a new
 ```bash
 brew install emscripten   # once
 npm run engine            # rebuild engine/ocgcore from the latest ygopro-core
-npm run data              # latest card database + scripts
+npm run data -- latest    # latest card database + scripts
 cd engine-test && node duel.js --meta --games 870   # check everything still plays
 ```
+
+Then copy the commits `npm run data -- latest` printed into `engine/DATA_COMMITS`, so servers get exactly what was tested.
 
 ## Licences and credits
 

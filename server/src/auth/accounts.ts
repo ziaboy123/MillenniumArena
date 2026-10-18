@@ -255,7 +255,7 @@ export async function changeEmailVerify(userId: string, newEmailIn: unknown, cod
     throw e;
   }
   background(sendMail(oldEmail, 'Your email address was changed',
-    `The email address on your Millennium Arena account was changed to ${email}.\n\nIf this wasn't you, reset your password straight away using "Forgot password" with your new address, or reply to this email.${NOTICE_FOOTER}`));
+    `The email address on your Millennium Arena account was changed to ${email}.\n\nIf this wasn't you, email daniyal@daniyalzia.co.uk straight away to get your account back.${NOTICE_FOOTER}`));
 }
 
 /** Deletes the account everywhere: DeckForge decks and logins too (the database removes everything linked to it). */

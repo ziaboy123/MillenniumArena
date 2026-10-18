@@ -1,0 +1,6 @@
+# The card data tested with this engine build (ygopro-core 93eff32a): `npm run data` fetches exactly these commits.
+# To move to newer data, see engine/fetch-data.sh.
+BabelCDB      01a3234936df6d541b13238af6474ede41e1e10d
+CardScripts   a30bd15c0fc5fad951762420c55f5e0b96f596ea
+LFLists       73b027287c6123832fca165f5d76204362fa1078
+Distribution  54a6e2395c532648ff762540e9615319fac4f51b
