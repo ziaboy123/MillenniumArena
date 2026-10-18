@@ -2,11 +2,12 @@
 // requests, then the coin toss, side decking between games (best of 3) and the match result. The duel itself is
 // the duel screen; this shows whenever there isn't a game on.
 import { useEffect, useState, type ReactNode } from 'react';
-import type { ClientMessage, RoomPlayer, RoomRules, RoomView } from '@arena/shared';
+import type { ClientMessage, RoomPlayer, RoomRole, RoomRules, RoomView } from '@arena/shared';
 import { ZONE_MAX, type SavedDeck } from '@arena/shared/decks';
 import { card, imageFallback, smallImage } from '../lib/cards.ts';
+import { Coin, initial, type CoinFace } from '../lib/coin.tsx';
 import { isExtraCard } from '../lib/decks.ts';
-import { Eye, EyeSvg } from '../lib/ui.tsx';
+import { Eye } from '../lib/ui.tsx';
 import { Page } from './common.tsx';
 import { DeckPicker } from './DeckPicker.tsx';
 
@@ -120,28 +121,32 @@ function PlayerCard({ p, game }: { p: RoomPlayer | null; game: number }) {
   );
 }
 
-/** A window over the room between games. Leaving stays possible from every one of them. */
-function Window({ children, wide, room, send }: { children: ReactNode; wide?: boolean; room: RoomView; send: Send }) {
+/** A window over the room between games. Leaving stays possible from every one of them. `coin` sits on its top edge. */
+function Window({ children, wide, room, send, coin }: { children: ReactNode; wide?: boolean; room: RoomView; send: Send; coin?: ReactNode }) {
   const label = room.you === 'host' ? 'Close room' : room.you === 'asking' ? 'Cancel' : 'Leave room';
-  return (
-    <div className="overlay on"><div className={`panel modal toss ${wide ? 'wide' : ''}`}>
+  const panel = (
+    <div className={`panel modal toss ${wide ? 'wide' : ''}`}>
       {children}
       {room.phase !== 'over' && <button className="leavelink" onClick={() => send({ type: 'room.leave' })}>{label}</button>}
-    </div></div>
+    </div>
   );
+  // the coin goes outside the panel: the panel's cut corners (clip-path) would clip it mid-toss
+  return <div className="overlay on">{coin ? <div className="coinstack">{coin}{panel}</div> : panel}</div>;
 }
 const nameOf = (room: RoomView, role: 'host' | 'guest' | null) => (role === 'host' ? room.players[0].name : role === 'guest' ? room.players[1]?.name ?? 'Your opponent' : '');
 const score = (room: RoomView) => `${room.players[0].wins}-${room.players[1]?.wins ?? 0}`;
 
 /** The coin toss (game 1), or the loser of the last game picking: who goes first. */
 function ChooseWindow({ room, send }: { room: RoomView; send: Send }) {
-  const [flipping, setFlipping] = useState(room.phase === 'toss');
-  useEffect(() => { if (room.phase !== 'toss') return; setFlipping(true); const t = setTimeout(() => setFlipping(false), 1500); return () => clearTimeout(t); }, [room.phase]);
-  const mine = room.chooser === room.you, chooser = nameOf(room, room.chooser);
   const toss = room.phase === 'toss';
+  const [flipping, setFlipping] = useState(toss);
+  useEffect(() => { if (toss) setFlipping(true); }, [toss]);
+  const mine = room.chooser === room.you, chooser = nameOf(room, room.chooser);
+  // the coin from where you sit: your face first (spectators see the host's first)
+  const order: RoomRole[] = room.you === 'guest' ? ['guest', 'host'] : ['host', 'guest'];
+  const faces = order.map(r => ({ mark: initial(nameOf(room, r)), label: r === room.you ? 'You' : nameOf(room, r) })) as [CoinFace, CoinFace];
   return (
-    <Window room={room} send={send}>
-      {toss && <div className={`coin ${flipping ? 'flip' : ''}`}><EyeSvg /></div>}
+    <Window room={room} send={send} coin={toss && <Coin faces={faces} winner={room.toss === order[1] ? 1 : 0} flipping={flipping} onLanded={() => setFlipping(false)} />}>
       <div className="eyebrow">{toss ? 'Coin toss' : `Game ${room.game + 1}${room.rules.bo === 3 ? ' of 3' : ''} · ${score(room)}`}</div>
       {toss && flipping ? <h3>Tossing…</h3> : <>
         <h3>{toss ? (mine ? 'You won the toss' : `${chooser} won the toss`) : mine ? 'You choose' : `${chooser} chooses`}</h3>

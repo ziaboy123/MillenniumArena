@@ -70,7 +70,13 @@ export interface DuelInfo {
   timer: number;
   /** Rejoin key for this seat (players only): sent back with `resume` after a dropped connection or a page reload. */
   seat?: string;
+  /** A coin toss decided who goes first (solo against the bot): the side that goes first, from this viewer's point of view
+   *  (0 = you). Only sent when the duel starts, so a page reload doesn't toss again. */
+  coin?: { first: Side };
 }
+
+/** How long a coin toss holds back the start of a duel: the coin lands and the result shows before the first move. */
+export const COIN_TOSS_MS = 3000;
 
 /** When to ask you to respond: 'smart' skips moments after your own actions (your triggers are still offered). */
 export type Responses = 'smart' | 'always';

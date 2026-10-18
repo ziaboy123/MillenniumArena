@@ -2,7 +2,7 @@
 // their clocks.
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
-import type { DuelInfo, Frame, Prompt, PromptAnswer, Responses, ServerMessage, Side, Speed } from '@arena/shared';
+import { COIN_TOSS_MS, type DuelInfo, type Frame, type Prompt, type PromptAnswer, type Responses, type ServerMessage, type Side, type Speed } from '@arena/shared';
 import { ENGINE_NAME, PACE } from '../config.ts';
 import type { Deck } from '../decks.ts';
 import type { BotLevel } from './bot.ts';
@@ -28,6 +28,8 @@ export interface RoomOptions {
   lp?: number;
   /** Duels between people: neither the log nor a spectator learns which deck someone is using. */
   hideDecks?: boolean;
+  /** A coin toss decided who goes first: viewers see it land before the first move is shown. */
+  coin?: boolean;
   /** Called once when the duel ends (with the winning engine side, 2 for a draw). */
   onEnd?: (end: Extract<ServerMessage, { type: 'end' }>) => void;
   /** Part of a match: the match decides when to close it, not the last person leaving. */
@@ -77,6 +79,8 @@ export class DuelRoom {
     const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup, setupLua: options.setupLua,
       smart: options.smart ?? (options.responses === 'always' ? [] : humans), lp: options.lp, hideDecks: options.hideDecks };
     this.options = options;
+    // hold the queue while the coin toss plays out in the browser (the duel itself starts working straight away)
+    if (options.coin && PACE) this.timer = setTimeout(() => { this.timer = null; this.pump(); }, COIN_TOSS_MS * PACE);
     for (const side of humans) this.seats.set(side, randomBytes(18).toString('base64url'));
     this.worker = new Worker(new URL('./duel-worker.ts', import.meta.url), { workerData: input, execArgv: ['--disable-warning=ExperimentalWarning', '--import', 'tsx'] });   // node:sqlite still warns it's experimental on Node 22
     this.worker.on('message', (msg: WorkerOutput) => {
@@ -90,17 +94,19 @@ export class DuelRoom {
     this.worker.on('error', err => this.broadcast({ type: 'error', message: `The duel engine crashed: ${err.message}` }));
   }
 
-  info(side: Side | null): DuelInfo {
+  info(side: Side | null, rejoining = false): DuelInfo {
     const key = side === null ? undefined : this.seats.get(side);
     // between people you only know your own deck's name
     const decks: [string, string] = this.options.hideDecks ? [side === 0 ? this.decks[0].name : '', side === 1 ? this.decks[1].name : ''] : [this.decks[0].name, this.decks[1].name];
-    return { id: this.id, players: seat(this.players, side), decks: seat(decks, side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME, timer: this.seconds, ...(key ? { seat: key } : {}) };
+    return { id: this.id, players: seat(this.players, side), decks: seat(decks, side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME, timer: this.seconds, ...(key ? { seat: key } : {}),
+      // side 0 goes first; the toss is only shown once, when the duel starts
+      ...(this.options.coin && !rejoining ? { coin: { first: seatSide(0, side) as Side } } : {}) };
   }
 
   /** `rejoining`: also send the log so far (the page may have been reloaded). */
   join(viewer: Viewer, rejoining = false) {
     this.viewers.add(viewer);
-    viewer.send({ type: 'duel', duel: this.info(viewer.side) });
+    viewer.send({ type: 'duel', duel: this.info(viewer.side, rejoining) });
     if (rejoining) viewer.send({ type: 'backlog', lines: this.log });
     if (this.latest) viewer.send({ type: 'frame', frame: frameFor(this.latest, viewer.side, this.fullView) });
     if (this.pending && this.pending.side === viewer.side) viewer.send({ type: 'prompt', prompt: this.timed(this.pending.prompt) });

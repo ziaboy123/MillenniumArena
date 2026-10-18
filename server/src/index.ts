@@ -251,10 +251,11 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const name = me?.username ?? (String(msg.name ?? '').replace(/[^\p{L}\p{N} _.'-]/gu, '').trim().slice(0, 16) || 'Duelist');
       playerName = name;
       const first = (DEV && firstFor(msg.scenario)) || msg.first;
+      const tossed = first !== 'me' && first !== 'you' && first !== 'bot';   // a coin toss, which the player gets to watch
       const side: Side = first === 'me' || first === 'you' ? 0 : first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
       const r = new DuelRoom(side === 0 ? [mine, bot] : [bot, mine], side === 0 ? [name, 'Bot'] : ['Bot', name], [side],
         false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r.id),
-        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, responses: msg.responses === 'always' ? 'always' : 'smart', setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined,
+        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, responses: msg.responses === 'always' ? 'always' : 'smart', coin: tossed, setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined,
           // logged in, a finished duel goes into your match history (test setups don't)
           onEnd: me?.username && !(DEV && msg.scenario) ? end => {
             const won = end.winner === side, lost = end.winner === 1 - side;

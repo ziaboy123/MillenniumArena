@@ -174,7 +174,10 @@
 }
 
 /* ---------- Settings ---------- */
-.settings { width: 1120px; max-width: 100%; flex: 1 1 auto; max-height: 700px; min-height: 480px; display: grid; grid-template-columns: 250px 1fr; overflow: hidden;
+/* A definite height and a row capped at it, so .sbody scrolls: without them Safari (WebKit) sizes the row to the content
+   and the panel just cuts it off (Chrome happened to cap it anyway). */
+.settings { width: 1120px; max-width: 100%; flex: 1 1 auto; height: min(700px, 100%); max-height: 700px; min-height: 480px; display: grid;
+  grid-template-columns: 250px 1fr; grid-template-rows: minmax(0, 1fr); overflow: hidden;
   animation: rise-in .3s cubic-bezier(.2,.8,.2,1); }
 .snav { padding: 26px 14px; border-right: 1px solid var(--panel-border); display: flex; flex-direction: column; gap: 4px; }
 .snav .title { font: 700 22px/1 var(--font-display); color: var(--accent); letter-spacing: .06em; margin: 0 10px 22px; }
@@ -183,7 +186,7 @@
 .snav button.on { color: var(--text); background: rgba(255,255,255,.06); box-shadow: inset 3px 0 0 var(--accent); }
 .snav button:disabled { opacity: .35; cursor: default; }
 .snav button small { font-size: 9.5px; margin-left: 6px; letter-spacing: .1em; text-transform: uppercase; }
-.sbody { padding: 34px 40px; overflow: auto; position: relative; }
+.sbody { padding: 34px 40px; overflow: auto; position: relative; min-height: 0; }
 .sbody h3 { font: 700 19px/1.2 var(--font-display); margin-bottom: 4px; }
 [data-dir=c] .sbody h3 { text-transform: uppercase; letter-spacing: .06em; }
 .sbody .hint { font-size: 12.5px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
@@ -561,11 +564,49 @@
 .toss .eyebrow.bad { color: #ff8a76; }
 .toss .line { justify-content: center; margin-top: 10px; }
 .toss.wide .line { justify-content: flex-start; }
-.coin { width: 120px; height: 120px; border-radius: 50%; display: grid; place-items: center; color: #140e05; background: radial-gradient(circle at 35% 30%, var(--accent-hi), var(--accent) 60%);
-  box-shadow: 0 0 40px var(--glow); margin-bottom: 10px; }
-.coin svg { width: 76px; stroke-width: 5; }
-.coin.flip { animation: flip 1.4s cubic-bezier(.3,.6,.3,1); }
-@keyframes flip { 0% { transform: rotateY(0) translateY(0); } 50% { transform: rotateY(900deg) translateY(-40px); } 100% { transform: rotateY(1800deg) translateY(0); } }
+/* ---- the coin toss (lib/coin.tsx): tossed up, flips end over end, lands on the winner's face. 1.9 s = FLIP_MS ---- */
+.coin3d { position: relative; width: 132px; height: 132px; perspective: 900px; flex: none; }
+/* the coin sits on the window's top edge, outside it (panels have cut corners via clip-path, which would clip its flight) */
+.coinstack { display: flex; flex-direction: column; align-items: center; }
+.coinstack > .coin3d { z-index: 1; margin-bottom: -56px; }
+.coinstack > .modal.toss { padding-top: 76px; }
+.coin3d .ctoss, .coin3d .cspin { position: absolute; inset: 0; transform-style: preserve-3d; }
+.coin3d .cspin { transform: rotateX(var(--end)); }
+.coin3d :is(.cface, .crim) { position: absolute; inset: 0; border-radius: 50%; }
+.coin3d .crim { background: color-mix(in srgb, var(--accent) 50%, #000); }
+.coin3d .cface { display: grid; place-content: center; justify-items: center; gap: 4px; overflow: hidden; color: #140e05;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  background: radial-gradient(circle at 35% 28%, var(--accent-hi), var(--accent) 62%, color-mix(in srgb, var(--accent) 72%, #000));
+  box-shadow: inset 0 0 0 4px rgba(0,0,0,.2), inset 0 0 0 10px rgba(255,255,255,.14), inset 0 -8px 16px rgba(0,0,0,.25); }
+.coin3d .front { transform: translateZ(4px); }
+.coin3d .back { transform: rotateX(180deg) translateZ(4px); }
+.coin3d .cface b { font: 700 52px/1 var(--font-display); text-shadow: 0 1px 0 rgba(255,255,255,.4); }
+.coin3d .cface span { font: 700 10px/1 var(--font-ui); letter-spacing: .22em; text-transform: uppercase; opacity: .7; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coin3d .cshadow { position: absolute; left: 50%; bottom: -16px; width: 112px; height: 18px; margin-left: -56px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.6), transparent); }
+.coin3d.flip .ctoss { animation: coin-toss 1.9s both; }
+.coin3d.flip .cspin { animation: coin-spin 1.9s cubic-bezier(.2,.55,.35,1) both; }
+.coin3d.flip .cshadow { animation: coin-shadow 1.9s both; }
+/* landed: a glint across the winning face and a glow around the coin */
+.coin3d.landed .ctoss { filter: drop-shadow(0 0 22px var(--glow)); transition: filter .5s; }
+.coin3d.landed .cface::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.6) 50%, transparent 65%);
+  transform: translateX(-120%); animation: coin-glint .9s .05s ease-out both; }
+@keyframes coin-toss {
+  0% { transform: translateY(0) scale(1); animation-timing-function: cubic-bezier(.2,.6,.4,1); }
+  40% { transform: translateY(-96px) scale(1.14); animation-timing-function: cubic-bezier(.6,0,.85,.4); }
+  80% { transform: translateY(0) scale(1); animation-timing-function: ease-out; }
+  89% { transform: translateY(-12px) scale(1.01); animation-timing-function: ease-in; }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes coin-spin { 0% { transform: rotateX(0); } 80%, 100% { transform: rotateX(var(--end)); } }
+@keyframes coin-shadow { 0%, 80%, 100% { transform: scale(1); opacity: 1; } 40% { transform: scale(.5); opacity: .3; } 89% { transform: scale(.9); opacity: .85; } }
+@keyframes coin-glint { to { transform: translateX(120%); } }
+@media (prefers-reduced-motion: reduce) { .coin3d :is(.ctoss, .cspin, .cshadow), .coin3d .cface::after { animation: none !important; } }
+/* duels against the bot: the toss shows over the board before the first move, then fades away */
+.overlay.cointoss { z-index: 90; animation: coin-fade .3s ease-out both; }
+.overlay.cointoss.out { animation: coin-fade .35s ease-in reverse both; }
+.overlay.cointoss .modal { width: 440px; }
+.overlay.cointoss .d { min-height: 1.5em; }
+@keyframes coin-fade { from { opacity: 0; } to { opacity: 1; } }
 .sidewin { display: flex; flex-direction: column; gap: 6px; }
 .sidewin .zgrid.main, .sidewin .zgrid.extra, .sidewin .zgrid.side { grid-template-columns: repeat(16, minmax(0, 1fr)); min-height: 0; }
 .sidewin .zgrid.extra, .sidewin .zgrid.side { min-height: 60px; }

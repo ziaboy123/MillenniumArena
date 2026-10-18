@@ -1,8 +1,9 @@
 // The duel screen: field + interface panels. You play from the bottom (side 0); when you're only watching,
 // both sides are bots. Prompts from the engine light up the cards you can use.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatLine, DuelInfo, Frame, Prompt, PromptAnswer, ServerMessage, Side, SummonKind, ZoneRef } from '@arena/shared';
+import { COIN_TOSS_MS, type ChatLine, type DuelInfo, type Frame, type Prompt, type PromptAnswer, type ServerMessage, type Side, type SummonKind, type ZoneRef } from '@arena/shared';
 import { bigImage, card, cardName, imageFallback, smallImage } from '../lib/cards.ts';
+import { Coin, initial } from '../lib/coin.tsx';
 import { Background, Eye, EyeSvg, Stage } from '../lib/ui.tsx';
 import { Field, cellIndex, pileCell, type CellFx, type Mark, type PileKind } from './Field.tsx';
 import { ActionMenu, CardPicker, PositionPicker, PromptPanel, actionsByCard, type CardActions, type MenuItem } from './prompt-ui.tsx';
@@ -214,6 +215,7 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
             {reconnecting && <div className="panel reconnecting"><span className="dots"><i /><i /><i /></span>Connection lost. Reconnecting to the duel…</div>}
           </>}
           {chat ? <TalkPanel log={log} step={frame?.step ?? -1} chat={chat} matchLine={matchLine} /> : <LogPanel log={log} step={frame?.step ?? -1} duel={duel} />}
+          {duel.coin && <CoinToss key={duel.id} duel={duel} />}
           {menu && <ActionMenu {...menu} onClose={closeMenu} />}
           {confirm && (
             <div className="confirm on" onMouseDown={e => { if (e.target === e.currentTarget) setConfirm(null); }}><div className="panel">
@@ -242,6 +244,30 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
 }
 
 /** The duel screen at its full 1600×900, for a page to scale down and show (it can't be clicked). */
+/** "Coin toss" against the bot: the coin lands on whoever goes first, says so, then fades just before the first move
+ *  (the server holds the duel back for COIN_TOSS_MS). */
+function CoinToss({ duel }: { duel: DuelInfo }) {
+  const [stage, setStage] = useState<'flip' | 'landed' | 'out' | 'gone'>('flip');
+  const shown = useRef(Date.now());
+  useEffect(() => {
+    // fade out in time for the first move, however quickly the coin landed (it doesn't flip at all with reduced motion)
+    if (stage === 'landed') { const t = setTimeout(() => setStage('out'), Math.max(0, shown.current + COIN_TOSS_MS - 400 - Date.now())); return () => clearTimeout(t); }
+    if (stage === 'out') { const t = setTimeout(() => setStage('gone'), 350); return () => clearTimeout(t); }
+  }, [stage]);
+  if (!duel.coin || stage === 'gone') return null;
+  const first = duel.coin.first, them = duel.players[1];
+  return (
+    <div className={`overlay cointoss ${stage === 'out' ? 'out' : ''}`}><div className="coinstack">
+      <Coin faces={[{ mark: initial(duel.players[0]), label: 'You' }, { mark: '⚙', label: them }]} winner={first} flipping={stage === 'flip'} onLanded={() => setStage('landed')} />
+      <div className="panel modal toss">
+        <div className="eyebrow">Coin toss</div>
+        <h3>{stage === 'flip' ? 'Tossing…' : first === 0 ? 'You go first' : `${them} goes first`}</h3>
+        <p className="d">{stage === 'flip' ? '' : first === 0 ? 'You won the toss.' : `${them} won the toss. You'll draw on your first turn.`}</p>
+      </div>
+    </div></div>
+  );
+}
+
 const EmbeddedStage = ({ children }: { children: React.ReactNode }) => <div className="stage embedded-stage" inert><Background />{children}</div>;
 
 function CardDetail({ code }: { code: number | null }) {
