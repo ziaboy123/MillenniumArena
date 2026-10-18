@@ -78,7 +78,7 @@ export class DuelRoom {
       smart: options.smart ?? (options.responses === 'always' ? [] : humans), lp: options.lp, hideDecks: options.hideDecks };
     this.options = options;
     for (const side of humans) this.seats.set(side, randomBytes(18).toString('base64url'));
-    this.worker = new Worker(new URL('./duel-worker.ts', import.meta.url), { workerData: input, execArgv: ['--import', 'tsx'] });
+    this.worker = new Worker(new URL('./duel-worker.ts', import.meta.url), { workerData: input, execArgv: ['--disable-warning=ExperimentalWarning', '--import', 'tsx'] });   // node:sqlite still warns it's experimental on Node 22
     this.worker.on('message', (msg: WorkerOutput) => {
       if (msg.type === 'frame') { this.queue.push({ frame: msg.frame }); this.pump(); }
       else if (msg.type === 'prompt') { this.queue.push({ prompt: msg.prompt, side: msg.side }); this.pump(); }
