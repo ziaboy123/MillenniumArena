@@ -1,7 +1,7 @@
-// A tiny router: real paths under the app's base (e.g. /millennium/login), with the browser's back and forward.
+// A tiny router: real paths under the app's base (e.g. /millenniumarena/login), with the browser's back and forward.
 import { useEffect, useState, type AnchorHTMLAttributes } from 'react';
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');   // "/millennium"
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');   // "/millenniumarena"
 const listeners = new Set<() => void>();
 const current = () => location.pathname.slice(BASE.length).replace(/\/+$/, '') || '/';
 

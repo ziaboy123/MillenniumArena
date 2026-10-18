@@ -7,8 +7,8 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../.
 export const PORT = Number(process.env.ARENA_PORT ?? 3017);   // not PORT: dev tools set that for the browser app
 /** The address to listen on: 127.0.0.1 in production, so the only way in is through nginx. Unset = every interface. */
 export const HOST = process.env.ARENA_HOST || undefined;
-/** The site lives under this path (nginx passes it through unchanged), e.g. https://daniyalzia.co.uk/millennium */
-export const BASE = (process.env.BASE_PATH ?? '/millennium').replace(/\/$/, '');
+/** The site lives under this path (nginx passes it through unchanged), e.g. https://daniyalzia.co.uk/millenniumarena */
+export const BASE = (process.env.BASE_PATH ?? '/millenniumarena').replace(/\/$/, '');
 /** Card database + card scripts, downloaded by `npm run data`. */
 export const ENGINE_DATA = process.env.ENGINE_DATA ?? path.join(root, 'engine/data');
 /** Decks shipped with the server (ours) and downloaded tournament decks. */

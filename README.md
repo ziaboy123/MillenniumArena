@@ -36,12 +36,12 @@ Needs Node 22.13 or newer.
 ```bash
 npm install
 npm run data        # card database, card scripts and banlists, at the commits in engine/DATA_COMMITS
-npm run dev         # duel server on :3017 and the app on http://localhost:5185/millennium/
+npm run dev         # duel server on :3017 and the app on http://localhost:5185/millenniumarena/
 ```
 
 ## Production
 
-One Node process serves everything under one path (default `/millennium`): the built app, the card data API and the duel WebSocket.
+One Node process serves everything under one path (default `/millenniumarena`): the built app, the card data API and the duel WebSocket.
 
 ```bash
 npm ci
@@ -53,7 +53,7 @@ ARENA_PORT=3017 ARENA_HOST=127.0.0.1 npm start
 
 On the homelab server it runs under PM2 with `ecosystem.config.cjs`, which loads its settings from `/var/www/millennium/.env`.
 
-Settings (environment variables): `ARENA_DEV=1` (development only: offers test scenarios in the lobby, see `server/src/duel/scenarios.ts`; refuses any database but `arena_dev`), `ARENA_PORT` (default 3017), `ARENA_HOST` (the address to listen on; `127.0.0.1` behind a proxy on the same machine, default every interface), `BASE_PATH` (default `/millennium`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives), `ARENA_PACE` (duel playback speed, 1 = normal, 0 = no pauses for automated tests).
+Settings (environment variables): `ARENA_DEV=1` (development only: offers test scenarios in the lobby, see `server/src/duel/scenarios.ts`; refuses any database but `arena_dev`), `ARENA_PORT` (default 3017), `ARENA_HOST` (the address to listen on; `127.0.0.1` behind a proxy on the same machine, default every interface), `BASE_PATH` (default `/millenniumarena`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives), `ARENA_PACE` (duel playback speed, 1 = normal, 0 = no pauses for automated tests).
 
 Behind a reverse proxy, pass `<BASE_PATH>/` through unchanged (including the `Host` header, which the server compares with `Origin`) and allow WebSocket upgrades on `<BASE_PATH>/ws`.
 

@@ -477,7 +477,7 @@ function watchRequest(name){
 function leaveLobby(){ timers.forEach(clearTimeout); timers = []; $('overlay').classList.remove('on'); show('menu'); }
 $('leaveCrumb').onclick = leaveLobby;
 $('copyCode').onclick = () => { try { navigator.clipboard.writeText($('bigCode').textContent); } catch (e) {} toast('Room code copied'); };
-$('copyLink').onclick = () => { try { navigator.clipboard.writeText(`https://daniyalzia.co.uk/millennium/join/${$('bigCode').textContent}`); } catch (e) {} toast('Invite link copied'); };
+$('copyLink').onclick = () => { try { navigator.clipboard.writeText(`https://daniyalzia.co.uk/millenniumarena/join/${$('bigCode').textContent}`); } catch (e) {} toast('Invite link copied'); };
 
 // ---------- coin toss: the winner picks who goes first ----------
 function coinToss(r){

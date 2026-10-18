@@ -1,5 +1,5 @@
 // Millennium Arena server: card data API, duel WebSocket, and (in production) the built browser app,
-// all under one path prefix so it sits behind nginx like the other sites (e.g. /millennium).
+// all under one path prefix so it sits behind nginx like the other sites (e.g. /millenniumarena).
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
