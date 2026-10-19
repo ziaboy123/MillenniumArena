@@ -13,7 +13,7 @@ export const DEFAULT_ARTWORK = 89631139;   // Blue-Eyes White Dragon
 const FAVOURITES_AFTER = 10;
 
 export function Home() {
-  const { me } = useSession();
+  const { me, theme: showing } = useSession();
   const [fanOpen, setFanOpen] = useState(false);
   const [decks, setDecks] = useState<{ count: number; active: string | null } | null>(null);
   const [record, setRecord] = useState<{ duels: number; wins: number; losses: number; mostPlayed: number[] } | null>(null);
@@ -24,7 +24,7 @@ export function Home() {
   }, []);
   if (!me?.username) return null;
   const art = me.settings.artwork ?? DEFAULT_ARTWORK;
-  const theme = THEMES.find(t => t.k === (me.settings.theme ?? 'c'))?.name ?? 'Arena';
+  const theme = THEMES.find(t => t.k === showing)?.name ?? 'Arena';
   const duels = record?.duels ?? 0;
   const left = FAVOURITES_AFTER - duels;
   // the fan shows your three most-played cards once you've played enough duels, card backs until then
@@ -59,7 +59,7 @@ export function Home() {
             <div className="eyebrow">Build</div>
             <h2>Decks</h2>
             <p>{decks ? (decks.count ? `${decks.count} ${decks.count === 1 ? 'deck' : 'decks'}${decks.active ? ` · Dueling with ${decks.active}` : ''}` : 'No decks yet · shared with DeckForge') : 'Your decks, shared with DeckForge.'}</p>
-            <p className="fanhint">{favourites ? 'Your most-played cards' : `Your most-played cards show here after ${left} more ${left === 1 ? 'duel' : 'duels'}`}</p>
+            <p className="fanhint">{favourites ? 'Your most-played cards' : left > 0 ? `Your most-played cards show here after ${left} more ${left === 1 ? 'duel' : 'duels'}` : 'Your most-played cards show here soon'}</p>
           </div>
           <div className="fan">{[0, 1, 2].map(i => favourites
             ? <div key={i} className="card" style={{ transform: fan(i) }}><img src={smallImage(favourites[i])} alt="" onError={e => imageFallback(e, favourites[i])} /></div>

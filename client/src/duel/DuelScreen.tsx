@@ -1,6 +1,6 @@
 // The duel screen: field + interface panels. You play from the bottom (side 0); when you're only watching,
 // both sides are bots. Prompts from the engine light up the cards you can use.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { COIN_TOSS_MS, type ChatLine, type DuelInfo, type Frame, type Prompt, type PromptAnswer, type ServerMessage, type Side, type SummonKind, type ZoneRef } from '@arena/shared';
 import { bigImage, card, cardName, imageFallback, smallImage } from '../lib/cards.ts';
 import { Coin, initial } from '../lib/coin.tsx';
@@ -271,17 +271,20 @@ function CoinToss({ duel }: { duel: DuelInfo }) {
 const EmbeddedStage = ({ children }: { children: React.ReactNode }) => <div className="stage embedded-stage" inert><Background />{children}</div>;
 
 function CardDetail({ code }: { code: number | null }) {
+  // the picture is reused from card to card: let each card use its fallback image (alternate artworks without their own)
+  const panel = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { panel.current?.querySelector('img')?.removeAttribute('data-fallback'); }, [code]);
   const c = code ? card(code) : undefined;
   if (!code || !c) return <div className="panel detail"><div style={{ margin: 'auto', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>Hover any card to see it here.</div></div>;
   const meta = c.frame === 'spell' || c.frame === 'trap' ? c.typeLine
     : [c.attribute, c.frame === 'link' ? `Link ${c.level}` : c.frame.startsWith('xyz') ? `Rank ${c.level}` : `Level ${c.level}`, c.typeLine].filter(Boolean).join(' · ');
   return (
-    <div className="panel detail">
+    <div ref={panel} className="panel detail">
       <div className="img"><img src={bigImage(code)} alt="" onError={e => imageFallback(e, code)} /></div>
       <h2>{c.name}</h2>
       <div className="meta">{meta}</div>
       {c.atk !== null && <div className="stats"><div><span>ATK</span>{c.atk}</div>{c.def !== null && <div><span>DEF</span>{c.def}</div>}</div>}
-      <p style={{ whiteSpace: 'pre-line' }}>{c.text}</p>
+      <p key={code} style={{ whiteSpace: 'pre-line' }}>{c.text}</p>{/* keyed: each card's text starts scrolled to its top */}
     </div>
   );
 }

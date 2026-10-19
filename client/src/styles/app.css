@@ -15,6 +15,12 @@ html, body, #root { height: 100%; }
 .lobby-row { display: grid; grid-template-columns: 104px 1fr; align-items: center; gap: 14px; font: 600 13px/1 var(--font-ui); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
 .lobby-row select, .lobby-row input { min-width: 0; width: 100%; font: 500 15px/1 var(--font-ui); color: var(--text); background: rgba(0,0,0,.4); border: 1px solid var(--panel-border); border-radius: calc(var(--r) * .8); padding: 12px; outline: none; text-transform: none; letter-spacing: 0; }
 .lobby-row select:focus, .lobby-row input:focus { border-color: var(--accent); }
+/* dropdowns: our own field and chevron, because Safari draws a small native popup button that ignores the padding */
+:is(.lobby-row select, select.sinput) { -webkit-appearance: none; appearance: none; padding-right: 34px; cursor: pointer;
+  height: 41px; padding-top: 0; padding-bottom: 0; line-height: normal;   /* the inputs' line-height 1 would clip g, p, y; 41px matches the controls beside them */
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 19px) 50%, calc(100% - 14px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+:is(.lobby-row select, select.sinput) option { color: #111; background: #fff; }
 .lobby-card .bigbtn { margin-top: 6px; }
 .lobby-status { font-size: 13px; color: var(--muted); min-height: 18px; }
 .lobby-status .bad { color: #ff8a76; }

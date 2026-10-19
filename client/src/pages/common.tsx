@@ -12,6 +12,36 @@ export function Page({ children, foot = false, back, over, mid, className = '' }
   mid?: ReactNode;
 }) {
   const { me } = useSession();
+  const body = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // The window never scrolls (the page body and panels inside it do), so with nothing to aim at, the scroll keys would do
+    // nothing. They scroll the page's main scroller instead, until you click inside something that scrolls: from then on
+    // the browser scrolls that, as usual.
+    let clickedIn: HTMLElement | null = null, clickedOn: Node | null = null;
+    const click = (e: MouseEvent) => { clickedOn = e.target as Node | null; clickedIn = scrollerOf(clickedOn as Element | null); };
+    const key = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || (e.shiftKey && e.key !== ' ')) return;
+      const k = e.key, dir = k === 'ArrowDown' || k === 'PageDown' || k === 'End' || (k === ' ' && !e.shiftKey) ? 1
+        : k === 'ArrowUp' || k === 'PageUp' || k === 'Home' || k === ' ' ? -1 : 0;
+      if (!dir) return;
+      const a = document.activeElement;
+      if (a?.closest('input, textarea, select, [contenteditable]')) return;   // typing
+      if (k === ' ' && a && a !== document.body) return;   // Space presses a focused button
+      const overlay = body.current?.parentElement?.querySelector<HTMLElement>('.overlay') ?? null;
+      // after a click inside something that scrolls, the browser scrolls that, unless a window has opened over it since or
+      // the thing clicked has gone (a button replaced by what it opened), which leaves the browser nothing to aim at
+      if (clickedIn?.isConnected && clickedOn?.isConnected && (!overlay || overlay.contains(clickedIn))) return;
+      const el = mainScroller(overlay ?? body.current, dir);
+      if (!el) { if (overlay) e.preventDefault(); return; }   // with a window open, the page behind it stays put
+      const page = el.clientHeight * 0.9;
+      if (k === 'Home') el.scrollTo({ top: 0 });
+      else if (k === 'End') el.scrollTo({ top: el.scrollHeight });
+      else el.scrollBy({ top: dir * (k.startsWith('Arrow') ? 40 : page) });
+      e.preventDefault();
+    };
+    addEventListener('mousedown', click, true); addEventListener('keydown', key);
+    return () => { removeEventListener('mousedown', click, true); removeEventListener('keydown', key); };
+  }, []);
   return (
     <Stage fluid>
       <div className="ring" />
@@ -26,13 +56,36 @@ export function Page({ children, foot = false, back, over, mid, className = '' }
           ? <Link to="/profile" className="chip"><div className="av">{me.username[0].toUpperCase()}</div><div><b>{me.username}</b><span>Unranked</span></div></Link>
           : !me && <div className="topR"><button className="bigbtn ghost sm" onClick={() => navigate('/login')}>Log in</button><button className="bigbtn sm" onClick={() => navigate('/signup')}>Sign up</button></div>}
       </div>
-      <section className={`screen on pagebody ${className}`}>
+      <section ref={body} className={`screen on pagebody ${className}`}>
         {children}
         {foot && <Foot />}
       </section>
       {over}
     </Stage>
   );
+}
+
+const scrolls = (el: Element) => { const y = getComputedStyle(el).overflowY; return (y === 'auto' || y === 'scroll') && el.scrollHeight > el.clientHeight + 1; };
+/** The nearest thing around `node` that can scroll: what the browser's scroll keys move after a click there. */
+function scrollerOf(node: Element | null): HTMLElement | null {
+  for (let el = node; el && !el.classList.contains('stage'); el = el.parentElement) if (scrolls(el)) return el as HTMLElement;
+  return null;
+}
+/** What the scroll keys move otherwise: of the page body (or the open window) and the panels in it, the one on screen with
+ *  the most left to scroll that way (Settings' panel, Profile's match history). Panels must be at least half in view, and
+ *  once one reaches its end the page carries on. Inert things (the Welcome page's demo duel) don't count. */
+function mainScroller(root: HTMLElement | null, dir: 1 | -1): HTMLElement | null {
+  if (!root) return null;
+  let best: HTMLElement | null = null, most = 1;
+  for (const el of [root, ...root.querySelectorAll<HTMLElement>('*')]) {
+    if (el.scrollHeight - el.clientHeight < 2) continue;
+    const left = dir > 0 ? el.scrollHeight - el.clientHeight - el.scrollTop : el.scrollTop;
+    if (left <= most || (el !== root && el.clientHeight <= 100) || !scrolls(el) || el.closest('[inert]')) continue;
+    const r = el.getBoundingClientRect(), seen = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0);
+    if (seen < 80 || (el !== root && seen < r.height / 2)) continue;   // off screen, or mostly
+    best = el; most = left;
+  }
+  return best;
 }
 
 export function Foot() {

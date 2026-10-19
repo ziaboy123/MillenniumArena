@@ -1,6 +1,6 @@
 // The deck editor: Main, Extra and Side Decks, card search, stats, test hands, .ydk import/export. Every change
 // saves itself a moment later (to DeckForge's tables, so DeckForge sees it too); leaving the page saves at once.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   baseCode, deckProblems, FORMAT_NAMES, LIMIT_NAMES, toYdk, ZONE_MAX, ZONES, type Banlist, type SavedDeck, type Zone,
 } from '@arena/shared/decks';
@@ -244,6 +244,10 @@ function DeckCard({ code, limit, pop, onClick, onContext, onDragStart }: {
 }
 
 function CardDetail({ code, banlist, deck, onCover }: { code: number | null; banlist: Banlist | null; deck: SavedDeck; onCover: (code: number) => void }) {
+  // a new card starts at its top, not where the last one was scrolled to (the panel or its text scrolls, depending on the layout)
+  const panel = useRef<HTMLDivElement>(null);
+  // ...and the reused picture may use its fallback image again (alternate artworks without their own image)
+  useLayoutEffect(() => { const p = panel.current; if (p) { p.scrollTop = 0; p.querySelector('.dtext')?.scrollTo(0, 0); p.querySelector('img')?.removeAttribute('data-fallback'); } }, [code]);
   const c = code ? card(code) : undefined;
   if (!code || !c) return <div className="panel cdetail"><div className="empty">Hover any card to see it here.</div></div>;
   const limit = limitOf(code, banlist, deck.format);
@@ -252,7 +256,7 @@ function CardDetail({ code, banlist, deck, onCover }: { code: number | null; ban
     : c.typeLine;
   const inDeck = ZONES.some(z => deck[z].includes(code)), isCover = coverOf(deck) === code;
   return (
-    <div className="panel cdetail">
+    <div ref={panel} className="panel cdetail">
       <div className="img"><img src={bigImage(code)} alt="" onError={e => imageFallback(e, code)} /></div>
       <div className="dtext">
         <h2>{c.name}</h2>

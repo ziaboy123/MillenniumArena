@@ -63,7 +63,8 @@ function Appearance({ me, save }: { me: Me; save: Save }) {
   const [picking, setPicking] = useState(false);
   const [cardsReady, setCardsReady] = useState(false);
   useEffect(() => { loadCards().then(() => setCardsReady(true)).catch(() => {}); }, []);
-  const theme = me.settings.theme ?? 'c', art = me.settings.artwork ?? DEFAULT_ARTWORK, effects = me.settings.effects ?? true;
+  const { theme, effects } = useSession();   // what's showing, which may be this browser's choice if the account has none saved
+  const art = me.settings.artwork ?? DEFAULT_ARTWORK;
   return <>
     <h3>Theme</h3>
     <div className="hint">Changes the whole site and every duel: field, cards, panels and effects. Saved to your account, so it follows you to any device.</div>

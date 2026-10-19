@@ -146,6 +146,11 @@
 .fan .card { position: absolute; inset: auto; width: 100px; height: 146px; left: -50px; top: -73px; border-radius: 5px; box-shadow: 0 12px 26px rgba(0,0,0,.7);
   transition: transform .45s cubic-bezier(.2,.8,.2,1); }
 .tile p.fanhint { font-size: 11.5px; color: var(--accent); opacity: .85; margin-top: 6px; max-width: 250px; }
+/* the small tiles' lines stop short of the fan, avatar or gear on the right (100cqw = the tile's width) */
+.tile.sm .txt p { max-width: min(460px, calc(100cqw - 400px)); overflow-wrap: anywhere; }
+/* at most two lines (long deck names), so the text always fits the tile height */
+.tile.sm .txt p:not(.fanhint) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.tile.sm .txt p.fanhint { max-width: min(250px, calc(100cqw - 400px)); }
 .tile .stats { display: flex; gap: 24px; margin-top: 4px; }
 .tile .stats b { display: block; font: 700 24px/1 var(--font-display); margin-bottom: 6px; }
 .tile .stats span { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .14em; }
@@ -158,14 +163,24 @@
 .tile:hover .big-gear { transform: rotate(90deg); opacity: .5; }
 /* the small tiles get narrow in smaller windows: tuck the fan, avatar and gear to the right and shrink them */
 .tile.sm { container: tile / inline-size; }
-@container tile (max-width: 580px) {
+@container tile (max-width: 640px) {
   .tile h2 { font-size: 46px; }
   .fan { right: 100px; scale: .8; }
+  .tile.sm .txt p, .tile.sm .txt p.fanhint { max-width: calc(100cqw - 270px); }
   .big-av { right: 40px; width: 84px; height: 84px; margin-top: -42px; font-size: 34px; }
   .big-gear { right: 40px; width: 110px; height: 110px; margin-top: -55px; }
-  .tile .stats { gap: 18px; }
-  .tile .stats b { font-size: 21px; }
+  .tile .stats { gap: 10px; }   /* clear of the avatar, even in Pharaoh's wide numerals */
+  .tile .stats b { font-size: 19px; }
+  .tile .stats :is(b, span) { white-space: nowrap; }
   .tile .go { display: none; }   /* the whole tile is the button; there's no room for the arrow */
+}
+@container tile (max-width: 480px) {   /* the narrowest two-column tiles (windows about 950-1000 wide) */
+  .tile h2 { font-size: 40px; }
+  .big-av { right: 28px; width: 70px; height: 70px; margin-top: -35px; font-size: 28px; }
+  .big-gear { right: 28px; width: 92px; height: 92px; margin-top: -46px; }
+  .tile .stats { gap: 8px; }
+  .tile .stats b { font-size: 17px; }
+  .tile .stats span { font-size: 9.5px; letter-spacing: .1em; }
 }
 @container page (max-width: 1100px) {
   .tiles { flex: none; grid-template-columns: 1fr; grid-template-rows: 420px; grid-auto-rows: 200px; }
@@ -291,7 +306,7 @@
 .pubsoon li { font: 600 12.5px/1 var(--font-ui); padding: 10px 14px; border: 1px solid var(--panel-border); border-radius: 999px; background: rgba(0,0,0,.3); }
 
 /* pop-up windows (import, test hand) */
-.overlay { position: absolute; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(0,0,0,.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 20px; }
+.overlay { position: absolute; inset: 0; z-index: 50; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; background: rgba(0,0,0,.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 20px; }
 .overlay .modal { position: relative; padding: 30px 34px; display: flex; flex-direction: column; gap: 14px; max-width: 100%; animation: rise-in .25s cubic-bezier(.2,.8,.2,1); }
 .modal h3 { font: 700 24px/1.1 var(--font-display); }
 .modal .line { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -394,7 +409,7 @@
 .fchip.on { color: #140e05; background: var(--accent); border-color: var(--accent); }
 [data-dir=b] .fchip, [data-dir=c] .fchip { border-radius: 3px; }
 .rhint { font-size: 11.5px; color: var(--muted); }
-.results { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; align-content: start; padding: 2px 4px 2px 2px; }
+.results { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: max-content; gap: 8px; align-content: start; padding: 2px 4px 2px 2px; }   /* max-content rows: the cards' overflow:hidden would otherwise let rows squash to fit instead of scrolling */
 .rc { position: relative; aspect-ratio: 59 / 86; border-radius: 4px; overflow: hidden; cursor: pointer; background: #111; transition: transform .15s; }
 .rc img { position: relative; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .rc:hover { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--accent), 0 0 16px var(--glow); }
@@ -474,12 +489,11 @@
 .deckchip.empty { padding: 14px 16px; }
 .deckchip.empty a { color: var(--accent); }
 .deckchip img, .deckchip .noimg { width: 38px; height: 56px; border-radius: 3px; object-fit: cover; flex: none; background: #111; }
-.deckchip .dmeta { min-width: 0; }
-.deckchip .nm { font-size: 15px; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 2px; }
-.deckchip .ct { font-size: 12px; color: var(--muted); line-height: 1.4; }
+:is(.deckchip, .decklist) .dmeta { min-width: 0; }
+:is(.deckchip, .decklist) .nm { font-size: 15px; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 2px; }
+:is(.deckchip, .decklist) .ct { font-size: 12px; color: var(--muted); line-height: 1.4; }
 .deckchip .chev { margin-left: auto; color: var(--muted); flex: none; width: 18px; height: 18px; }
-.deckchip .decklist { position: absolute; left: 0; top: calc(100% + 8px); z-index: 40; width: 100%; min-width: 380px; max-height: 360px; overflow: auto; padding: 8px; cursor: default; }
-.deckchip .decklist.up { top: auto; bottom: calc(100% + 8px); }
+.decklist { position: absolute; z-index: 60; min-width: 380px; overflow: auto; padding: 8px; cursor: default; }
 .drow { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: calc(var(--r) * .7); cursor: pointer; }
 .drow:hover { background: rgba(255,255,255,.06); }
 .drow.sel { box-shadow: inset 3px 0 0 var(--accent); background: rgba(255,255,255,.04); }
@@ -653,7 +667,7 @@
 .pf .idbody .line { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 
 .pf .dplayed { flex: 1 1 auto; min-height: 190px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
-.pf .pdrow { display: grid; grid-template-columns: 36px 1fr 54px; gap: 12px; align-items: center; }
+.pf .pdrow { display: grid; grid-template-columns: 36px minmax(0, 1fr) 54px; gap: 12px; align-items: center; }
 .pf .pdrow img, .pf .pdrow .noimg { width: 36px; height: 53px; border-radius: 3px; object-fit: cover; background: #111; }
 .pf .pdrow b { display: block; font-size: 14px; font-weight: 600; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pf .pdrow span { font-size: 12px; color: var(--muted); }

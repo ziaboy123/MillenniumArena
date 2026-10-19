@@ -11,8 +11,10 @@ interface Session {
   /** False on a server without a database: there are no accounts, only the duel lab. */
   accounts: boolean;
   setMe: (me: Me | null) => void; refresh: () => Promise<void>;
+  /** The theme and field effects showing: the account's, or (none saved yet) what this browser used last. */
+  theme: string; effects: boolean;
 }
-const Ctx = createContext<Session>({ me: null, loading: true, trouble: false, accounts: false, setMe: () => {}, refresh: async () => {} });
+const Ctx = createContext<Session>({ me: null, loading: true, trouble: false, accounts: false, setMe: () => {}, refresh: async () => {}, theme: 'c', effects: true });
 
 const stored = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
 const store = (key: string, v: string) => { try { localStorage.setItem(key, v); } catch {} };
@@ -34,7 +36,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => { document.body.dataset.dir = theme; store('ma-theme', theme); }, [theme]);
   useEffect(() => { document.body.classList.toggle('nofx', !effects); store('ma-fx', effects ? 'on' : 'off'); }, [effects]);
 
-  return <Ctx.Provider value={{ me, loading, trouble, accounts, setMe, refresh }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ me, loading, trouble, accounts, setMe, refresh, theme, effects }}>{children}</Ctx.Provider>;
 }
 
 export const useSession = () => useContext(Ctx);
