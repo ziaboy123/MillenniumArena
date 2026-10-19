@@ -2,7 +2,9 @@
 
 Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no payments. Built on EDOPro's rules engine (`ygopro-core`) and Project Ignis's card scripts.
 
-**Status:** in development.
+**Live at [daniyalzia.co.uk/millenniumarena](https://daniyalzia.co.uk/millenniumarena/)**, and still growing (ranked and unranked matchmaking, public decks, replays and sound are next).
+
+**History:**
 - Milestone 1 (done): the duel server runs real duels on the engine and streams them live to the duel screen.
 - Milestone 2 (done): you duel a simple bot in the browser. Cards you can use glow and open a menu. Battle Phase and End Turn are buttons. You choose zones, positions, cards and options, and respond to chains. You're only asked to respond when you have something to activate.
 - Since then:
@@ -51,7 +53,7 @@ npm run build       # builds the app into client/dist
 ARENA_PORT=3017 ARENA_HOST=127.0.0.1 npm start
 ```
 
-On the homelab server it runs under PM2 with `ecosystem.config.cjs`, which loads its settings from `/var/www/millennium/.env`.
+On the homelab server it runs under PM2 with `ecosystem.config.cjs`, which loads its settings and keys from a `.env` file next to it (never committed).
 
 Settings (environment variables): `ARENA_DEV=1` (development only: offers test scenarios in the lobby, see `server/src/duel/scenarios.ts`; refuses any database but `arena_dev`), `ARENA_PORT` (default 3017), `ARENA_HOST` (the address to listen on; `127.0.0.1` behind a proxy on the same machine, default every interface), `BASE_PATH` (default `/millenniumarena`), `MAX_DUELS` (duels running at once, default 8; each uses roughly 90 MB), `ENGINE_DATA` (where the card data lives), `ARENA_PACE` (duel playback speed, 1 = normal, 0 = no pauses for automated tests).
 
@@ -84,7 +86,7 @@ Then copy the commits `npm run data -- latest` printed into `engine/DATA_COMMITS
 
 ## Licences and credits
 
-- The rules engine (`ygopro-core`) and Project Ignis's card scripts are licensed under the **AGPL-3.0**, so this project's source code will be public when the site goes live.
+- Millennium Arena is licensed under the **AGPL-3.0** (see [LICENSE](LICENSE)), like the rules engine (`ygopro-core`) and Project Ignis's card scripts it's built on.
 - The WebAssembly wrapper is [`ocgcore-wasm`](https://github.com/n1xx1/ocgcore-wasm) (MIT), with our fixes in `engine/patches/`.
 - Card data, card scripts and EDOPro's system strings from [Project Ignis](https://github.com/ProjectIgnis); card images from [YGOPRODeck](https://ygoprodeck.com).
 - Millennium Arena is a free fan project. It is not affiliated with or endorsed by Konami. Yu-Gi-Oh! card names, artwork and game mechanics belong to their owners.
