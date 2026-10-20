@@ -10,7 +10,7 @@ import { Page, useToast } from './common.tsx';
 import { DEFAULT_ARTWORK } from './Home.tsx';
 
 type Kind = 'all' | MatchKind;
-const KINDS: [Kind, string][] = [['all', 'All duels'], ['private', 'Private'], ['bot', 'Solo vs bot']];
+const KINDS: [Kind, string][] = [['all', 'All duels'], ['private', 'Private'], ['unranked', 'Unranked'], ['bot', 'Solo vs bot']];
 const LETTER: Record<MatchResult, string> = { win: 'W', loss: 'L', draw: 'D' };
 
 function when(iso: string) {
@@ -127,7 +127,7 @@ export function ProfilePage({ name }: { name?: string }) {
                     <div key={r.id} className="trow" title={r.reason}>
                       <span className={`res ${LETTER[r.result]}`}>{r.result === 'win' ? 'Win' : r.result === 'loss' ? 'Loss' : 'Draw'}</span>
                       <span className="popp"><span className="av">{r.kind === 'bot' ? '⚙' : r.opponent[0]?.toUpperCase()}</span>{r.opponent}</span>
-                      <span className="muted c-format">{r.kind === 'bot' ? 'Solo vs bot' : `Private · Bo${r.bo}`}</span>
+                      <span className="muted c-format">{r.kind === 'bot' ? 'Solo vs bot' : `${r.kind === 'unranked' ? 'Unranked' : 'Private'} · Bo${r.bo}`}</span>
                       <span className="score">{r.scoreFor}–{r.scoreAgainst}</span>
                       <span className="dk">{r.cover ? <img src={smallImage(r.cover)} alt="" onError={e => imageFallback(e, r.cover!)} /> : null}<span>{r.deck}</span></span>
                       <span className="muted">{when(r.endedAt)}</span>

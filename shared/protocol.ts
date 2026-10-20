@@ -213,6 +213,8 @@ export type ServerMessage =
   | { type: 'room.preview'; preview: RoomPreview | null; code: string }
   /** You're no longer in the room: it closed, you were removed, or a watch request was declined. */
   | { type: 'room.closed'; reason: string }
+  /** Unranked search: whether you're searching, since when (ms since epoch), and how many players are online now. */
+  | { type: 'queue'; searching: boolean; since: number | null; online: number }
   /** New chat lines (all of them after joining or rejoining). */
   | { type: 'chat'; lines: ChatLine[]; reset?: boolean };
 
@@ -252,6 +254,9 @@ export type ClientMessage =
   /** Host, after a match: back to the room for another. */
   | { type: 'room.again' }
   | { type: 'room.leave' }
+  /** Unranked: look for an opponent with this deck (one of yours, or a borrowed tournament deck), or stop looking. */
+  | { type: 'queue.join'; deck: string }
+  | { type: 'queue.leave' }
   | { type: 'chat'; text: string };
 
 // ---------- private rooms ----------
@@ -267,6 +272,8 @@ export interface RoomRules {
   spectators: 'ask' | 'off';
 }
 export const DEFAULT_RULES: RoomRules = { bo: 1, timer: 90, banlist: 'TCG', lp: 8000, check: true, spectators: 'ask' };
+/** Unranked matches: quick and standard (his call, 2026-10-20). */
+export const UNRANKED_RULES: RoomRules = { bo: 1, timer: 90, banlist: 'TCG', lp: 8000, check: true, spectators: 'off' };
 
 export type RoomRole = 'host' | 'guest';
 export interface RoomPlayer {
@@ -276,6 +283,8 @@ export interface RoomPlayer {
 }
 export type RoomPhase = 'lobby' | 'toss' | 'choose' | 'dueling' | 'siding' | 'over';
 export interface RoomView {
+  /** A private room (friends, a code) or an unranked match the server paired up (fixed rules, no lobby). */
+  kind: 'private' | 'unranked';
   code: string; you: RoomRole | 'spectator' | 'asking';
   rules: RoomRules; password: boolean;
   /** Host first; the guest's place is null until someone joins. */
@@ -319,7 +328,7 @@ export interface TrustedDevice { id: string; label: string; created_at: string; 
 
 // ---------- profiles and match history ----------
 export type MatchResult = 'win' | 'loss' | 'draw';
-export type MatchKind = 'private' | 'bot';
+export type MatchKind = 'private' | 'unranked' | 'bot';
 export interface RecordStats {
   duels: number; wins: number; losses: number; draws: number;
   /** The run you're on now (most recent results first). */

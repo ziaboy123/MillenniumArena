@@ -120,6 +120,9 @@ const MIGRATIONS: string[] = [
    );`,
   // 4: a match is saved once per player, however many times saving is retried
   `create unique index history_user_match on arena.history (user_id, match_id);`,
+  // 5: unranked matches (the server pairs two players up)
+  `alter table arena.history drop constraint history_kind_check;
+   alter table arena.history add constraint history_kind_check check (kind in ('private', 'unranked', 'bot'));`,
 ];
 
 export async function migrate() {

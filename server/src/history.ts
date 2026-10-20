@@ -55,7 +55,7 @@ function statsOf(results: MatchResult[]): RecordStats {
 async function recordFor(userId: string): Promise<Profile['stats']> {
   const rows = await q<{ kind: MatchKind; result: MatchResult }>('select kind, result from arena.history where user_id = $1 order by ended_at desc, id desc', [userId]);
   const of = (k?: MatchKind) => statsOf(rows.filter(r => !k || r.kind === k).map(r => r.result));
-  return { all: of(), private: of('private'), bot: of('bot') };
+  return { all: of(), private: of('private'), unranked: of('unranked'), bot: of('bot') };
 }
 
 const row = (r: any): HistoryRow => ({
@@ -85,7 +85,7 @@ export async function profileOf(userId: string, full: boolean): Promise<Profile 
     }
     return [...by.values()].sort((a, b) => b.duels - a.duels || b.wins - a.wins).slice(0, 12);
   };
-  profile.decks = { all: merge(), private: merge('private'), bot: merge('bot') };
+  profile.decks = { all: merge(), private: merge('private'), unranked: merge('unranked'), bot: merge('bot') };
   profile.history = await historyOf(userId);
   profile.mostPlayed = (await q('select code from arena.card_use where user_id = $1 order by uses desc, code limit 10', [userId])).map(r => r.code);
   return profile;

@@ -73,6 +73,8 @@ export class PrivateMatch {
   private winner: RoomRole | null = null;
   private hostSide: Side = 0;
   private readonly chat: ChatLine[] = [];
+  /** Unranked: duelists who've left the finished match (it closes once both have). */
+  private readonly gone = new Set<string>();
   private readonly chatTimes = new Map<string, number[]>();
   // for the match history: when game 1 started, turns over all games, and whether it's been saved
   private startedAt = 0;
@@ -80,7 +82,8 @@ export class PrivateMatch {
   private recorded = false;
   closed = false;
 
-  constructor(readonly code: string, readonly rules: RoomRules, password: string, host: Account, private deps: MatchDeps) {
+  /** `kind` unranked: the server paired two players up (fixed rules, no lobby, no spectators, no rematch). */
+  constructor(readonly code: string, readonly rules: RoomRules, password: string, host: Account, private deps: MatchDeps, readonly kind: 'private' | 'unranked' = 'private') {
     this.password = password ? hashPassword(password) : null;
     this.host = { userId: host.id, name: host.name, viewers: new Set(), role: 'host', ready: true, smart: host.smart, wins: 0, deck: null, sided: false, uses: new Map() };
   }
@@ -222,6 +225,18 @@ export class PrivateMatch {
       if (this.phase === 'dueling' && this.room) this.room.concede(this.sideOf(m), reason ?? `${m.name} left`);
       if (this.game > 0 && this.phase !== 'over') this.finish(m.role === 'host' ? 'guest' : 'host', reason ?? `${m.name} left`);
     }
+    // unranked has no lobby to go back to: before it's decided the duel is called off; after, the other player keeps the result
+    if (m && this.kind === 'unranked') {
+      if (this.phase !== 'over') return this.close(`${reason ?? `${m.name} left`}, so the duel was called off.`, reason ? undefined : userId);
+      for (const v of m.viewers) this.room?.leave(v);
+      this.tell(m, { type: 'room', room: null });
+      m.viewers.clear();
+      clearTimeout(m.away);
+      this.gone.add(m.userId);
+      if (this.gone.size === 2) return this.close('');
+      this.system(reason ?? `${m.name} left`);
+      return this.sync();
+    }
     if (m?.role === 'host') return this.close(reason ? `${reason}, so the room closed.` : 'The host closed the room.', reason ? undefined : userId);
     if (m) {
       for (const v of m.viewers) this.room?.leave(v);
@@ -334,9 +349,10 @@ export class PrivateMatch {
     if (this.recorded || !guest || !host.deck || !guest.deck || this.game === 0) return;
     this.recorded = true;
     const result = (m: Member) => (!winner ? 'draw' : winner === m.role ? 'win' : 'loss') as 'win' | 'loss' | 'draw';
-    const player = (m: Member, them: Member) => ({ userId: m.userId, opponent: them.name, opponentId: them.userId, deckName: m.deck!.name, deckId: m.deck!.id,
+    const player = (m: Member, them: Member) => ({ userId: m.userId, opponent: them.name, opponentId: them.userId, deckName: m.deck!.name,
+      deckId: m.deck!.id.includes('/') ? null : m.deck!.id,   // a borrowed deck (the bot's, 'tournament/…') isn't in the decks table
       cover: m.deck!.cover, result: result(m), scoreFor: m.wins, scoreAgainst: them.wins, uses: m.uses });
-    this.deps.record({ kind: 'private', bo: this.rules.bo, games: this.game, turns: this.turns, reason, startedAt: this.startedAt, players: [player(host, guest), player(guest, host)] });
+    this.deps.record({ kind: this.kind, bo: this.rules.bo, games: this.game, turns: this.turns, reason, startedAt: this.startedAt, players: [player(host, guest), player(guest, host)] });
   }
 
   /** Best of 3: a duelist's deck after side decking. Cards may only move between the Main/Extra Deck and the Side Deck. */
@@ -371,6 +387,7 @@ export class PrivateMatch {
   /** Host, after a match: back to the room with the same rules (everyone's decks as they registered them). */
   again(userId: string) {
     this.mustBe(userId, 'host');
+    if (this.kind === 'unranked') throw new RoomError('Find another duel for a new opponent.');
     if (this.phase !== 'over') return;
     this.room?.close();
     this.room = null;
@@ -415,7 +432,7 @@ export class PrivateMatch {
       deck: m.userId === userId && m.deck ? { name: m.deck.name, cover: m.deck.cover } : null,
     };
     return {
-      code: this.code, you: me ? me.role : asking ? 'asking' : 'spectator', rules: this.rules, password: !!this.password,
+      kind: this.kind, code: this.code, you: me ? me.role : asking ? 'asking' : 'spectator', rules: this.rules, password: !!this.password,
       players: [player(this.host)!, player(this.guest)], phase: this.phase, game: this.game, chooser: this.chooser, toss: this.toss,
       last: this.last, winner: this.winner,
       spectators: asking ? [] : [...this.spectators.values()].map(s => ({ id: s.userId, name: s.name })),

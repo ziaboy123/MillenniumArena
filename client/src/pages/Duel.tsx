@@ -1,8 +1,8 @@
 // The Duel page (from design/duel.html): Private duels (host a room, or join one with its code or invite link),
-// Solo vs the bot, and Ranked/Unranked as "coming soon". In a room it shows the room (Room.tsx); in a game, the duel
-// screen. The connection to the duel server lives here, so a reload finds your room or bot duel again.
+// Solo vs the bot, Unranked matchmaking, and Ranked as "coming soon". In a room it shows the room (Room.tsx); in a
+// game, the duel screen. The connection to the duel server lives here, so a reload finds your room or bot duel again.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DEFAULT_RULES, type ChatLine, type DeckSummary, type PromptAnswer, type RoomPreview, type RoomRules, type RoomView } from '@arena/shared';
+import { DEFAULT_RULES, UNRANKED_RULES, type ChatLine, type DeckSummary, type PromptAnswer, type RoomPreview, type RoomRules, type RoomView } from '@arena/shared';
 import { deckBlocker, type Banlist, type SavedDeck } from '@arena/shared/decks';
 import { DuelScreen } from '../duel/DuelScreen.tsx';
 import { saveSeat, savedSeat, useDuel } from '../duel/useDuel.ts';
@@ -17,7 +17,8 @@ import { DeckPicker } from './DeckPicker.tsx';
 import { message, type DeckData } from './Decks.tsx';
 import { RoomScreen, RuleChips } from './Room.tsx';
 
-type View = 'menu' | 'solo' | 'host';
+type View = 'menu' | 'solo' | 'host' | 'unranked';
+type Queue = { searching: boolean; online: number };
 type Banlists = { TCG: Banlist | null; OCG: Banlist | null };
 const stored = <T,>(key: string, fallback: T): T => { try { return { ...fallback, ...JSON.parse(localStorage.getItem(key) ?? '{}') }; } catch { return fallback; } };
 const store = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)); } catch {} };
@@ -40,6 +41,12 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
   const [banlists, setBanlists] = useState<Banlists | null>(null);
   const [botDecks, setBotDecks] = useState<DeckSummary[]>([]);
   const [deckId, setDeckId] = useState<string | null>(null);
+  // unranked: the search (as the server last said), and the deck it's with, to search again after a dropped connection
+  const [queue, setQueue] = useState<Queue | null>(null);
+  const searchDeck = useRef<string | null>(null);
+  const searchAgain = useRef<string | null>(null);   // the deck you last searched with, for "Find another duel"
+  const findDuel = (deck: string) => { searchDeck.current = deck; send({ type: 'queue.join', deck }); };
+  const stopSearching = () => { searchDeck.current = null; setQueue(null); send({ type: 'queue.leave' }); };
 
   useEffect(() => {
     Promise.all([loadCards(), loadBanlists()]).then(([, b]) => setBanlists(b)).catch(() => setNotice("Couldn't load the card data. Refresh to try again."));
@@ -60,7 +67,7 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
       case 'decks': setBotDecks(msg.decks.filter(x => x.source !== 'account')); break;
       case 'room':
         if (!msg.room && roomRef.current) {
-          d.clear(); setChat([]); setView('menu');
+          d.clear(); setChat([]); setView(roomRef.current.kind === 'unranked' ? 'unranked' : 'menu');
           if (!leaving.current) setNotice("That room isn't open any more.");
         }
         if (msg.room) leaving.current = false;
@@ -68,7 +75,11 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
         if (msg.room) setPreview(null);
         break;
       case 'room.preview': setPreview({ code: msg.code, preview: msg.preview }); break;
-      case 'room.closed': setRoom(null); d.clear(); setChat([]); setNotice(msg.reason); setView('menu'); break;
+      case 'room.closed': setView(roomRef.current?.kind === 'unranked' ? 'unranked' : 'menu'); setRoom(null); d.clear(); setChat([]); setNotice(msg.reason); break;
+      case 'queue':
+        setQueue({ searching: msg.searching, online: msg.online });
+        if (!msg.searching) searchDeck.current = null;   // found a duel, cancelled, or another tab took over
+        break;
       case 'chat': setChat(c => (msg.reset ? msg.lines : [...c, ...msg.lines])); break;
       case 'error': showToast(msg.message); break;
     }
@@ -78,6 +89,7 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
     if (!connected) { d.dropped(); return; }
     send({ type: 'listDecks' });
     send({ type: 'room.resume' });
+    if (searchDeck.current) send({ type: 'queue.join', deck: searchDeck.current });   // the server forgot the search when the connection dropped
     const s = savedSeat();
     if (s) send({ type: 'resume', duel: s.duel, seat: s.seat });
     if (joinCode) send({ type: 'room.peek', code: joinCode });
@@ -89,7 +101,7 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
   if (d.duel && banlists && showDuel && (!room || room.phase === 'dueling' || d.ending)) {
     if (room) {
       const [host, guest] = room.players;
-      const line = room.rules.bo === 3 ? `Game ${room.game} of 3 · ${host.name} ${host.wins}-${guest?.wins ?? 0} ${guest?.name ?? ''}` : 'Private duel';
+      const line = room.rules.bo === 3 ? `Game ${room.game} of 3 · ${host.name} ${host.wins}-${guest?.wins ?? 0} ${guest?.name ?? ''}` : room.kind === 'unranked' ? 'Unranked duel' : 'Private duel';
       return <DuelScreen duel={d.duel} frame={d.frame} log={d.log} ending={d.ending} prompt={d.prompt} promptAt={d.promptAt} onAnswer={answer}
         reveal={d.reveal} onCloseReveal={d.closeReveal} reconnecting={d.reconnecting} matchLine={line}
         chat={{ lines: chat, name: me?.username ?? '', onSend: text => send({ type: 'chat', text }) }}
@@ -110,7 +122,9 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
     const mine = room.players.find(p => p?.you)?.deck?.name;
     const roomDeck = decks.find(x => x.name === mine)?.id ?? deckId;
     const sendRoom: typeof send = m => { if (m.type === 'room.leave') leaving.current = true; send(m); };
-    return <RoomScreen room={room} decks={decks} deckId={roomDeck} blocker={blockerFor(room.rules)} send={sendRoom} toast={toast} showToast={showToast} />;
+    // unranked, once it's over: straight back into the search with the same deck (or pick one first if it's not known)
+    const findAnother = () => { leaving.current = true; if (searchAgain.current) findDuel(searchAgain.current); else send({ type: 'room.leave' }); };
+    return <RoomScreen room={room} decks={decks} deckId={roomDeck} blocker={blockerFor(room.rules)} send={sendRoom} toast={toast} showToast={showToast} onFindAnother={findAnother} />;
   }
 
   const picker = (rules: Pick<RoomRules, 'banlist' | 'check'> | null) => <DeckPicker decks={decks} value={deckId} onChange={setDeckId} blocker={blockerFor(rules)} />;
@@ -118,21 +132,27 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
   if (view === 'solo') return <SoloView picker={picker(null)} deck={decks.find(x => x.id === deckId) ?? null} blocked={!!(deckId && decks.find(x => x.id === deckId) && blockerFor(null)(decks.find(x => x.id === deckId)!))}
     botDecks={botDecks} ready={ready} onBack={() => setView('menu')} toast={toast}
     onStart={(borrowed, botDeck, first, timer) => send({ type: 'play', deck: borrowed ?? `acct:${deckId}`, botDeck, first, timer, speed: me?.settings.speed ?? 'normal', responses: me?.settings.responses ?? 'smart' })} />;
+  if (view === 'unranked') return <UnrankedView picker={picker(UNRANKED_RULES)} deck={decks.find(x => x.id === deckId) ?? null}
+    blocked={!!(deckId && decks.find(x => x.id === deckId) && blockerFor(UNRANKED_RULES)(decks.find(x => x.id === deckId)!))}
+    botDecks={botDecks} ready={ready} queue={queue} notice={notice} toast={toast}
+    onBack={() => { if (queue?.searching) stopSearching(); setNotice(''); setView('menu'); }}
+    onFind={deck => { setNotice(''); searchAgain.current = deck; findDuel(deck); }} onCancel={stopSearching}
+    onBot={() => { stopSearching(); setView('solo'); }} />;
   if (view === 'host') return <HostView decks={decks} deckId={deckId} setDeckId={setDeckId} blockerFor={blockerFor} ready={ready} onBack={() => setView('menu')} toast={toast}
     onCreate={(rules, password) => deckId && send({ type: 'room.create', rules, password, deck: deckId })} />;
   return <MenuView picker={picker(null)} ready={ready} notice={notice} preview={preview} joinCode={joinCode} toast={toast}
     blockerFor={blockerFor} deck={decks.find(x => x.id === deckId) ?? null}
-    onHost={() => { setNotice(''); setView('host'); }} onSolo={() => { setNotice(''); setView('solo'); }}
+    onHost={() => { setNotice(''); setView('host'); }} onSolo={() => { setNotice(''); setView('solo'); }} onUnranked={() => { setNotice(''); setView('unranked'); }}
     onPeek={code => { setNotice(''); send({ type: 'room.peek', code }); }} onClearPreview={() => setPreview(null)}
     onJoin={(code, password) => deckId && send({ type: 'room.join', code, password, deck: deckId })}
     onWatch={(code, password) => send({ type: 'room.watch', code, password })} />;
 }
 
-// ---------- the menu: Private duels (host / join), Solo vs bot, coming soon ----------
-function MenuView({ picker, ready, notice, preview, joinCode, toast, blockerFor, deck, onHost, onSolo, onPeek, onClearPreview, onJoin, onWatch }: {
+// ---------- the menu: Private duels (host / join), Solo vs bot, Unranked, coming soon ----------
+function MenuView({ picker, ready, notice, preview, joinCode, toast, blockerFor, deck, onHost, onSolo, onUnranked, onPeek, onClearPreview, onJoin, onWatch }: {
   picker: React.ReactNode; ready: boolean; notice: string; preview: { code: string; preview: RoomPreview | null } | null; joinCode?: string; toast: React.ReactNode;
   blockerFor: (rules: Pick<RoomRules, 'banlist' | 'check'> | null) => (d: SavedDeck) => string | null; deck: SavedDeck | null;
-  onHost: () => void; onSolo: () => void; onPeek: (code: string) => void; onClearPreview: () => void;
+  onHost: () => void; onSolo: () => void; onUnranked: () => void; onPeek: (code: string) => void; onClearPreview: () => void;
   onJoin: (code: string, password: string) => void; onWatch: (code: string, password: string) => void;
 }) {
   const [code, setCode] = useState(joinCode?.toUpperCase().slice(0, 6) ?? '');
@@ -196,8 +216,12 @@ function MenuView({ picker, ready, notice, preview, joinCode, toast, blockerFor,
             <div><h3 className="t">Solo vs bot</h3><p className="d">Practise a deck against the AI, any time. It plays sensibly but doesn't know any deck's combos.</p></div>
             <span className="badge live">Play</span>
           </button>
+          <button className="panel modetile live-tile" disabled={!ready} onClick={onUnranked}>
+            <div className="ico"><Icon name="swords" /></div>
+            <div><h3 className="t">Unranked</h3><p className="d">Get matched with whoever's looking for a duel. Best of 1, no rating on the line.</p></div>
+            <span className="badge live">Play</span>
+          </button>
           <div className="panel modetile"><div className="ico"><Icon name="trophy" /></div><div><h3 className="t">Ranked</h3><p className="d">Rated matchmaking. Climb the ladder and earn your rank.</p></div><span className="badge">Coming soon</span></div>
-          <div className="panel modetile"><div className="ico"><Icon name="swords" /></div><div><h3 className="t">Unranked</h3><p className="d">Quick matchmaking against anyone, no rating on the line.</p></div><span className="badge">Coming soon</span></div>
         </div>
       </div>
     </Page>
@@ -247,6 +271,67 @@ function SoloView({ picker, deck, blocked, botDecks, ready, onBack, onStart, toa
           <div className="eyebrow">Ready?</div>
           <p className="d">{borrowed ? `${borrowed.name} (borrowed) against the bot.` : deck ? `${deck.name} against the bot.` : 'Pick a deck first.'}</p>
           <button className="bigbtn" disabled={!ready || !botDeck || (borrowed ? false : !deck || blocked)} onClick={() => onStart(borrowed?.id ?? null, botDeck, opts.first, opts.timer)}>Start duel</button>
+        </div>
+      </div>
+    </Page>
+  );
+}
+
+// ---------- unranked: find an opponent ----------
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function UnrankedView({ picker, deck, blocked, botDecks, ready, queue, notice, toast, onBack, onFind, onCancel, onBot }: {
+  picker: React.ReactNode; deck: SavedDeck | null; blocked: boolean; botDecks: DeckSummary[]; ready: boolean; queue: Queue | null; notice: string; toast: React.ReactNode;
+  onBack: () => void; onFind: (deck: string) => void; onCancel: () => void; onBot: () => void;
+}) {
+  const [opts, setOpts] = useState(() => stored('ma-unranked', { borrow: '' }));
+  useEffect(() => store('ma-unranked', opts), [opts]);
+  const lendable = botDecks.filter(x => x.source === 'tournament');
+  const borrowed = lendable.find(x => x.id === opts.borrow) ?? (!deck ? lendable[0] : undefined);
+  const searching = !!queue?.searching;
+  // how long you've been waiting, counted here (the server's clock may not match this one)
+  const [started, setStarted] = useState(0), [now, setNow] = useState(0);
+  useEffect(() => {
+    if (!searching) return;
+    const t0 = Date.now();
+    setStarted(t0); setNow(t0);
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [searching]);
+  const waited = searching ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
+  const using = borrowed ? `${borrowed.name} (borrowed)` : deck?.name ?? '';
+  const others = Math.max(0, (queue?.online ?? 1) - 1);
+  return (
+    <Page back="/home" className="duelpage" over={toast}>
+      <div className="dhead"><div className="head"><button className="crumb" onClick={onBack}>← Duel</button><h1>Unranked</h1></div></div>
+      {notice && <div className="panel notice">{notice}</div>}
+      <div className="dgrid2">
+        <div className="panel rules">
+          <div className="eyebrow">The duel</div>
+          <p className="d">You're matched with whoever else is looking. Everyone plays by the same rules, and the result goes in your record.</p>
+          <RuleChips rules={UNRANKED_RULES} password={false} />
+          <div className="srow"><div className="l"><b>Your deck</b><span>It has to be legal under the TCG banlist.</span></div><div className="r">{searching ? <b>{deck?.name ?? '—'}</b> : picker}</div></div>
+          <div className="srow"><div className="l"><b>Or borrow a deck</b><span>Play a recent tournament deck instead.</span></div>
+            <div className="r"><select className="sinput" disabled={searching} value={borrowed?.id ?? ''} onChange={e => setOpts({ borrow: e.target.value })}>
+              {deck && <option value="">No, use mine</option>}
+              {lendable.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select></div></div>
+        </div>
+        <div className="panel summary queue">
+          {searching ? <>
+            <div className="eyebrow">Searching for an opponent</div>
+            <div className="qtime" role="timer" aria-label={`Searching for ${waited} seconds`}>{clock(waited)}</div>
+            <div className="dots"><i /><i /><i /></div>
+            <p className="d">{others === 0 ? "You're the only one online right now." : `${others} other ${others === 1 ? 'player' : 'players'} online.`} You'll duel the next person who looks.</p>
+            {waited >= 60 && <>
+              <p className="d">Nobody's turned up yet. You can keep waiting, or practise against the bot in the meantime.</p>
+              <button className="bigbtn" onClick={onBot}>Play the bot instead</button>
+            </>}
+            <button className="bigbtn ghost" onClick={onCancel}>Cancel</button>
+          </> : <>
+            <div className="eyebrow">Ready?</div>
+            <p className="d">{using ? `You'll duel with ${using}.` : 'Pick a deck first.'}</p>
+            <button className="bigbtn" disabled={!ready || (borrowed ? false : !deck || blocked)} onClick={() => onFind(borrowed?.id ?? deck!.id)}>Find a duel</button>
+          </>}
         </div>
       </div>
     </Page>

@@ -5,12 +5,12 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { ClientMessage, ServerMessage, Side, Speed } from '@arena/shared';
+import { UNRANKED_RULES, type ClientMessage, type ServerMessage, type Side, type Speed } from '@arena/shared';
 import { sessionUser } from './auth/accounts.ts';
 import { MAIL_READY } from './auth/mailer.ts';
 import { accountRoutes, cookies, sameOrigin } from './auth/routes.ts';
 import { AUTH_READY } from './auth/security.ts';
-import { blocksPlay, deckProblems } from '@arena/shared/decks';
+import { blocksPlay, deckBlocker, deckProblems, type SavedDeck } from '@arena/shared/decks';
 import { loadBanlist } from './banlist.ts';
 import { clientCardList, loadCards, ruleCards } from './cards.ts';
 import { accountDeck, accountDecks, activeDeck } from './decks-api.ts';
@@ -101,12 +101,54 @@ const server = createServer((req, res) => {
 // ---------- private rooms ----------
 const matches = new Map<string, PrivateMatch>();   // by room code
 const matchOf = new Map<string, PrivateMatch>();   // by account: one room at a time
+/** A deck to duel with in a room: one of the account's, or one of the bot's tournament decks to borrow (unranked). */
+async function roomDeck(userId: string, id: string): Promise<SavedDeck | null> {
+  const lent = decks.get(id);
+  if (lent && lent.source !== 'account') return { id: lent.id, name: lent.name, format: 'ADVANCED', cover: lent.cover ?? lent.main[0] ?? null, updatedAt: '', main: lent.main, extra: lent.extra, side: [] };
+  return accountDeck(userId, id);
+}
 const matchDeps: MatchDeps = {
-  banlists: { TCG: banlist, OCG: ocgBanlist }, ruleCard, loadDeck: accountDeck, full: () => rooms.size >= MAX_DUELS,
+  banlists: { TCG: banlist, OCG: ocgBanlist }, ruleCard, loadDeck: roomDeck, full: () => rooms.size >= MAX_DUELS,
   track: r => rooms.set(r.id, r), untrack: r => rooms.delete(r.id), record: recordMatch,
   closed: m => { matches.delete(m.code); for (const [user, x] of matchOf) if (x === m) matchOf.delete(user); },
 };
 const roomCode = (v: unknown) => String(v ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+
+// ---------- unranked: whoever is searching gets paired, longest wait first ----------
+interface Searcher { me: Account; deck: string; since: number; viewer: Viewer; matched: (m: PrivateMatch) => void }
+const queue = new Map<string, Searcher>();   // by account: one search at a time
+const online = new Map<string, number>();    // accounts with the site open (tabs), for "N players online"
+const queueStatus = (s: Searcher | null): ServerMessage => ({ type: 'queue', searching: !!s, since: s?.since ?? null, online: online.size });
+/** Stop searching (starting something else, a dropped connection); tells the tab that was searching. */
+function dequeue(userId: string | undefined, viewer?: Viewer) {
+  const s = userId ? queue.get(userId) : undefined;
+  if (!s || (viewer && s.viewer !== viewer)) return;
+  queue.delete(s.me.id);
+  s.viewer.send(queueStatus(null));
+}
+async function pairUp() {
+  while (queue.size >= 2) {
+    const [a, b] = [...queue.values()].sort((x, y) => x.since - y.since);
+    queue.delete(a.me.id); queue.delete(b.me.id);
+    const m = new PrivateMatch(PrivateMatch.newCode(c => matches.has(c)), UNRANKED_RULES, '', a.me, matchDeps, 'unranked');
+    matches.set(m.code, m);
+    // a deck that stopped being usable since the search began drops that player; the other keeps their place
+    const drop = (who: Searcher, other: Searcher, e: unknown) => {
+      m.close('The match could not be set up.');
+      who.viewer.send({ type: 'error', message: e instanceof RoomError ? e.message : 'Your deck could not be used. Search again.' });
+      who.viewer.send(queueStatus(null));
+      queue.set(other.me.id, other);
+    };
+    try { await m.setDeck(a.me.id, a.deck); } catch (e) { drop(a, b, e); continue; }
+    try { await m.join(b.me, b.viewer, '', b.deck); } catch (e) { drop(b, a, e); continue; }
+    m.setReady(b.me.id, true);
+    for (const s of [a, b]) { matchOf.set(s.me.id, m); s.matched(m); s.viewer.send(queueStatus(null)); }
+    m.attach(a.me.id, a.viewer);
+    m.start(a.me.id);   // straight to the coin toss
+  }
+}
+// the online count moves while you wait
+setInterval(() => { for (const s of queue.values()) s.viewer.send(queueStatus(s)); }, 10_000).unref();
 
 /** One of your own decks, ready to duel with, or the reason it can't be used. */
 async function ownDeck(userId: string | undefined, id: string): Promise<Deck | string | undefined> {
@@ -138,6 +180,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   ws.on('error', e => console.warn(`ws: ${e.message}`));
   // who's connected (if logged in); messages wait for this
   const who = DB_ENABLED ? sessionUser(cookies(req).ma_session).catch(() => null) : Promise.resolve(null);
+  who.then(me => { if (me?.username) online.set(me.id, (online.get(me.id) ?? 0) + 1); });
   let room: DuelRoom | null = null;
   let match: PrivateMatch | null = null;   // the private room this tab is in
   const viewer: Viewer = { side: null, send: (msg: ServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg)); } };
@@ -159,9 +202,24 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         if (m && !m.closed && m.attach(me.id, viewer)) match = m; else viewer.send({ type: 'room', room: null });
         return;
       }
+      case 'queue.join': {
+        busy('queue', 30, 60_000);
+        const deck = String(msg.deck).slice(0, 80), d = await roomDeck(me.id, deck);
+        if (!d) throw new RoomError("That deck doesn't exist any more.");
+        const why = deckBlocker(d, ruleCard, { TCG: banlist, OCG: ocgBanlist }, UNRANKED_RULES);
+        if (why) throw new RoomError(why);
+        leave(); leaveRooms(me.id);
+        const before = queue.get(me.id);
+        if (before && before.viewer !== viewer) before.viewer.send(queueStatus(null));   // searching in another tab: this one takes over
+        const s: Searcher = { me, deck, since: before?.since ?? Date.now(), viewer, matched: m => { match = m; } };
+        queue.set(me.id, s);
+        viewer.send(queueStatus(s));
+        return pairUp();
+      }
+      case 'queue.leave': dequeue(me.id); return viewer.send(queueStatus(null));
       case 'room.create': {
         busy('room-create', 20, 600_000);
-        leave(); leaveRooms(me.id);
+        leave(); leaveRooms(me.id); dequeue(me.id);
         const m = new PrivateMatch(PrivateMatch.newCode(c => matches.has(c)), cleanRules(msg.rules), String(msg.password ?? '').slice(0, 64), me, matchDeps);
         matches.set(m.code, m);
         try { await m.setDeck(me.id, String(msg.deck)); } catch (e) { m.close('The room could not be set up.'); throw e; }
@@ -179,7 +237,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         busy('room-join', 20, 60_000);
         const m = matches.get(roomCode(msg.code));
         if (!m || m.closed) throw new RoomError('No room has that code. Check it with your friend.');
-        if (matchOf.get(me.id) !== m) { leave(); leaveRooms(me.id); }
+        if (matchOf.get(me.id) !== m) { leave(); leaveRooms(me.id); dequeue(me.id); }
         if (msg.type === 'room.join') await m.join(me, viewer, msg.password, String(msg.deck));
         else m.askToWatch(me, viewer, msg.password);
         matchOf.set(me.id, m);
@@ -210,7 +268,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     try { msg = JSON.parse(String(raw)); } catch { return; }
     if (!msg || typeof msg !== 'object') return;
     const me = await who;
-    if (typeof msg?.type === 'string' && (msg.type.startsWith('room.') || msg.type === 'chat')) {
+    if (typeof msg?.type === 'string' && (msg.type.startsWith('room.') || msg.type.startsWith('queue.') || msg.type === 'chat')) {
       if (!me?.username) return viewer.send({ type: 'error', message: 'Log in to play with friends.' });
       try { await roomMessage(msg, { id: me.id, name: me.username, smart: (me.settings.responses ?? 'smart') !== 'always' }); }
       catch (e: any) {
@@ -242,7 +300,7 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       room = r;
       r.join(viewer);
     } else if (msg.type === 'play') {
-      leave();
+      leave(); dequeue(me?.id);
       const mine = String(msg.deck).startsWith('acct:') ? await ownDeck(me?.id, String(msg.deck).slice(5)) : decks.get(msg.deck), bot = decks.get(msg.botDeck);
       if (typeof mine === 'string') return viewer.send({ type: 'error', message: mine });
       if (!mine || !bot) return viewer.send({ type: 'error', message: 'Unknown deck.' });
@@ -279,7 +337,15 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   }
   // like requests, a message that breaks something is logged and dropped
   ws.on('message', raw => { onMessage(raw).catch(e => console.error(`ws: ${e?.stack ?? e}`)); });
-  ws.on('close', () => { leave(true); match?.detach(viewer); });
+  ws.on('close', () => {
+    leave(true); match?.detach(viewer);
+    who.then(me => {
+      if (!me?.username) return;
+      dequeue(me.id, viewer);
+      const n = (online.get(me.id) ?? 1) - 1;
+      if (n > 0) online.set(me.id, n); else online.delete(me.id);
+    });
+  });
 });
 
 // a promise something forgot to catch is a bug to log, not a reason to end every duel on the server

@@ -43,12 +43,12 @@ export function Home() {
           <div className="txt">
             <div className="eyebrow">Play</div>
             <h2>Duel</h2>
-            <p>Host a private duel and send the code to a friend, join theirs with a code, or practise against the bot.</p>
+            <p>Duel a friend with a room code, get matched with another player, or practise against the bot.</p>
             <div className="modes">
               <span className="mode live"><i />Private</span>
               <span className="mode live"><i />Solo vs bot</span>
+              <span className="mode live"><i />Unranked</span>
               <span className="mode"><i />Ranked <small>Soon</small></span>
-              <span className="mode"><i />Unranked <small>Soon</small></span>
             </div>
           </div>
           {go}
