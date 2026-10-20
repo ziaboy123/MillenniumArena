@@ -117,7 +117,7 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
   const ready = !!data && !!banlists && connected;
   if (view === 'solo') return <SoloView picker={picker(null)} deck={decks.find(x => x.id === deckId) ?? null} blocked={!!(deckId && decks.find(x => x.id === deckId) && blockerFor(null)(decks.find(x => x.id === deckId)!))}
     botDecks={botDecks} ready={ready} onBack={() => setView('menu')} toast={toast}
-    onStart={(botDeck, first, timer) => send({ type: 'play', deck: `acct:${deckId}`, botDeck, first, timer, speed: me?.settings.speed ?? 'normal', responses: me?.settings.responses ?? 'smart' })} />;
+    onStart={(borrowed, botDeck, first, timer) => send({ type: 'play', deck: borrowed ?? `acct:${deckId}`, botDeck, first, timer, speed: me?.settings.speed ?? 'normal', responses: me?.settings.responses ?? 'smart' })} />;
   if (view === 'host') return <HostView decks={decks} deckId={deckId} setDeckId={setDeckId} blockerFor={blockerFor} ready={ready} onBack={() => setView('menu')} toast={toast}
     onCreate={(rules, password) => deckId && send({ type: 'room.create', rules, password, deck: deckId })} />;
   return <MenuView picker={picker(null)} ready={ready} notice={notice} preview={preview} joinCode={joinCode} toast={toast}
@@ -208,11 +208,15 @@ function MenuView({ picker, ready, notice, preview, joinCode, toast, blockerFor,
 type First = 'me' | 'bot' | 'random';
 function SoloView({ picker, deck, blocked, botDecks, ready, onBack, onStart, toast }: {
   picker: React.ReactNode; deck: SavedDeck | null; blocked: boolean; botDecks: DeckSummary[]; ready: boolean; toast: React.ReactNode;
-  onBack: () => void; onStart: (botDeck: string, first: First, timer: number) => void;
+  /** `borrowed`: one of the bot's decks to play with instead of your own (null = your deck). */
+  onBack: () => void; onStart: (borrowed: string | null, botDeck: string, first: First, timer: number) => void;
 }) {
-  const [opts, setOpts] = useState(() => stored('ma-solo', { botDeck: '', first: 'random' as First, timer: 90 }));
+  const [opts, setOpts] = useState(() => stored('ma-solo', { botDeck: '', first: 'random' as First, timer: 90, borrow: '' }));
   useEffect(() => store('ma-solo', opts), [opts]);
   const botDeck = botDecks.some(x => x.id === opts.botDeck) ? opts.botDeck : botDecks.find(x => x.source === 'mine')?.id ?? botDecks[0]?.id ?? '';
+  // you can borrow one of the bot's decks: new players have none of their own yet, so they get one picked for them
+  const lendable = botDecks.filter(x => x.source !== 'account');
+  const borrowed = lendable.find(x => x.id === opts.borrow) ?? (!deck ? lendable.find(x => x.source === 'tournament') ?? lendable[0] : undefined);
   const seg = <T extends string | number>(value: T, options: [T, string][], set: (v: T) => void) => (
     <div className="seg">{options.map(([k, label]) => <button key={String(k)} className={value === k ? 'on' : ''} onClick={() => set(k)}>{label}</button>)}</div>
   );
@@ -223,6 +227,11 @@ function SoloView({ picker, deck, blocked, botDecks, ready, onBack, onStart, toa
         <div className="panel rules">
           <div className="eyebrow">The duel</div>
           <div className="srow"><div className="l"><b>Your deck</b><span>Any of your decks that's the right size.</span></div><div className="r">{picker}</div></div>
+          <div className="srow"><div className="l"><b>Or borrow a deck</b><span>Play one of the bot's tournament decks instead.</span></div>
+            <div className="r"><select className="sinput" value={borrowed?.id ?? ''} onChange={e => setOpts(o => ({ ...o, borrow: e.target.value }))}>
+              {deck && <option value="">No, use mine</option>}
+              {lendable.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select></div></div>
           <div className="srow"><div className="l"><b>The bot's deck</b><span>Our decks and recent tournament decks.</span></div>
             <div className="r"><select className="sinput" value={botDeck} onChange={e => setOpts(o => ({ ...o, botDeck: e.target.value }))}>
               {(['mine', 'tournament'] as const).map(src => {
@@ -236,8 +245,8 @@ function SoloView({ picker, deck, blocked, botDecks, ready, onBack, onStart, toa
         </div>
         <div className="panel summary">
           <div className="eyebrow">Ready?</div>
-          <p className="d">{deck ? `${deck.name} against the bot.` : 'Pick a deck first.'}</p>
-          <button className="bigbtn" disabled={!ready || !deck || blocked || !botDeck} onClick={() => onStart(botDeck, opts.first, opts.timer)}>Start duel</button>
+          <p className="d">{borrowed ? `${borrowed.name} (borrowed) against the bot.` : deck ? `${deck.name} against the bot.` : 'Pick a deck first.'}</p>
+          <button className="bigbtn" disabled={!ready || !botDeck || (borrowed ? false : !deck || blocked)} onClick={() => onStart(borrowed?.id ?? null, botDeck, opts.first, opts.timer)}>Start duel</button>
         </div>
       </div>
     </Page>
