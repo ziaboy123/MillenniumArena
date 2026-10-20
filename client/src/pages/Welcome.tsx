@@ -271,7 +271,6 @@ function Doc({ title, children }: { title: string; children: ReactNode }) {
         <button className="crumb" onClick={() => (history.length > 1 ? history.back() : navigate('/'))}>← Back</button>
         <h1>{title}</h1>
         <div className="upd">Last updated October 2026</div>
-        <div className="draft">Draft · to be reviewed before launch</div>
         {children}
       </div>
     </Page>
@@ -281,7 +280,7 @@ function Doc({ title, children }: { title: string; children: ReactNode }) {
 export function Privacy() {
   return (
     <Doc title="Privacy Policy">
-      <p>Millennium Arena is a free fan project. It has no ads, no trackers, and never sells or shares your data. This page explains what it keeps and why, in plain English.</p>
+      <p>Millennium Arena is a free fan project. It has no ads and no trackers, and never sells your data. This page explains what it keeps and why, in plain English.</p>
       <h3>One account, two sites</h3>
       <p>Your account is shared with DeckForge, the deck builder on the same site: the same email and password work on both, and your decks appear in both.</p>
       <h3>What we store</h3>
@@ -294,6 +293,8 @@ export function Privacy() {
       <p>Only for verification codes, password resets and important account notices (like your email or password being changed). No newsletters and no marketing. Emails are sent through Resend, an email delivery service (from its servers in Ireland), from noreply@mail.daniyalzia.co.uk, which can't receive replies.</p>
       <h3>Cookies</h3>
       <p>One cookie (<code>ma_session</code>) keeps you logged in. If you tick "Trust this device", a second one (<code>ma_device</code>) remembers that for 30 days. Both are sent only to Millennium Arena, only over a secure connection, and can't be read by scripts on the page. Your theme and duel choices are also kept in your browser. There are no analytics or advertising cookies.</p>
+      <h3>Outside services</h3>
+      <p>A few services help run the site. None of them get your account or decks, but like any website they see your IP address when your browser talks to them: Cloudflare carries the site's traffic, Resend delivers the emails, card pictures load from YGOPRODeck's image server, and fonts load from Google Fonts.</p>
       <h3>Who can see what</h3>
       <p>Opponents and spectators see your username. Other players can open your profile and see your record (wins, losses, streaks); your match history, decks and most-played cards are shown only to you. Your email and decks stay private: in a private duel your opponent doesn't even see your deck's name.</p>
       <h3>Chat</h3>
