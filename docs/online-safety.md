@@ -6,7 +6,7 @@
 | Provider and accountable person | Daniyal Zia, an individual in the UK |
 | Date | 20 October 2026 (version 1, draft for sign-off) |
 | What it covers | Illegal content risk assessment (Online Safety Act 2023, s.9), children's access assessment (s.35), children's risk assessment (s.11), and the record of Code measures (s.23) |
-| Build assessed | Commit `e5360b6` ("Keeping players safe, and the legal basics", 20 October 2026). **It is not pushed or deployed yet.** The live site doesn't have the Report button, suspensions, the Terms check or the Unranked contact filter. |
+| Build assessed | Commits `e5360b6` and `114a6ff` (the safety basics, 20 October 2026) and `9221b1b` (the follow-ups T1 to T4, R1 to R6, R10 and the NCA hold, 21 October 2026). All are pushed. **Check they're live before signing**: the site's footer links the exact commit it's running. |
 | Next review | By 20 October 2027 at the latest, and before any significant change (section 4.7) |
 
 This is careful research, not legal advice. It follows Ofcom's four-step method and the documents listed under Sources, checked on 20 October 2026. Site-wide rules are not repeated here. They are in the [Terms](https://daniyalzia.co.uk/terms) (including how to report) and the [Privacy Policy](https://daniyalzia.co.uk/privacy).
@@ -19,8 +19,8 @@ DeckForge shares Arena's accounts but is a separate service. It needs its own ch
 - Decided on 20 October 2026: **Unranked chat keeps free text**, with links and contact details blocked.
 - With free text between strangers, the honest levels are **Medium** for grooming, harassment and hate (illegal content), and for abuse and hate, bullying, and suicide and self-harm content (children). Everything else is Low or Negligible.
 - That makes Arena **"multi-risk" under both Ofcom Codes**. For a one-person service most of the extra measures are written policies, and section 4 now contains them. A few small changes to the site are still needed (section 2.4, items T1 to T4 and R1 to R6).
-- **Deploy `e5360b6` soon.** Until then, Unranked pairs strangers in free-text chat with no Report button, no contact filter and no 13+ step.
-- **Before signing:** finish T1 to T4 and R1 to R6, and register on the NCA portal (4.5).
+- **Deploy the pushed commits** (`deploy millennium`). Until they're live, Unranked pairs strangers in free-text chat without the Report button, the contact filter or the 13+ step.
+- **Before signing:** T1 to T4 and R1 to R6 are built (`9221b1b`). Deploy them, register on the NCA portal (4.5), then sign (4.8).
 
 ## 1. Why the Act applies
 
@@ -120,6 +120,8 @@ These are the answers to the questions in the U2U Risk Profile (Risk Assessment 
 | R4 | After a report is sent: a line pointing to support, for example Childline (0800 1111, childline.org.uk) and Samaritans (116 123). | PCU F3 (bullying and suicide content are Medium). |
 | R5 | A short public **"Staying safe"** page: how to report, mute, leave a duel and remove a spectator, with a section for children (with pictures of the flag and speaker buttons) and one for parents. Link it from sign-up, the Terms and the site footer. | PCU F1 (multi-risk for children). |
 | R6 | Refuse live room codes in Unranked chat, so strangers can't move to an unfiltered private room. | Closes the main way around M7 (grooming). |
+
+**Done (21 October 2026, `9221b1b`):** T1 to T4 and R1 to R6, plus R10 (the switch: `ARENA_UNRANKED_QUICK_ONLY=1` in the server's environment makes Unranked chat quick replies only) and the NCA hold in 4.5 (`arena.reports.keep_until`). Unranked chat now also refuses the codes of open rooms (R6). R7 to R9 below are still open.
 
 **Recommended, not required by the Codes:**
 
@@ -250,7 +252,7 @@ The policy is updated when tracking (4.4) shows something new.
   - A reported player who may be a child is contacted only through the report process.
   - If a report involves someone Daniyal knows, he notes that in the log.
 - **Tracking (A5):** a decision log records, for each report, the date, the kind, the action and any appeal. It holds no usernames or chat text, and it is kept privately, outside this public repo. Once a month, count reports by kind. The baseline is zero. The first report of a new kind (for example the first grooming report), or a clear rise, triggers a review (4.7).
-- **Resourcing (C6):** one person. If Daniyal will be away for more than 2 days, or reports pile up past the targets, he pauses free text in Unranked (R10) or pauses Unranked, until he can keep up. There are no volunteers (C8).
+- **Resourcing (C6):** one person. If Daniyal will be away for more than 2 days, or reports pile up past the targets, he pauses free text in Unranked (R10: set `ARENA_UNRANKED_QUICK_ONLY=1` and restart with `pm2 restart millennium --update-env`) or pauses Unranked, until he can keep up. There are no volunteers (C8).
 
 ### 4.5 CSEA and the NCA
 
@@ -258,7 +260,7 @@ Section 66 requires UK providers to report detected CSEA content to the NCA, wha
 
 - **Register on the NCA's CSEA Industry Reporting Portal now.** [Ofcom](https://www.ofcom.org.uk/online-safety/illegal-and-harmful-content/duty-to-report-child-sexual-exploitation-and-abuse-csea-content-know-the-rules-and-how-to-comply) says to register in advance, and reg 4 requires registration before the first report.
 - **Timing (reg 6).** Report immediately if a child's life is at risk or they face immediate serious harm (priority level 1). Report as soon as reasonably practicable if there is a risk of serious harm in the near future (level 2). Otherwise report without undue delay (level 3).
-- **Retention (reg 8).** This overrides the 90-day deletion. Keep the content, the report, the information used to judge it and the related user data Arena holds for **1 year** from the report, and the NCA reference number for **5 years**.
+- **Retention (reg 8).** This overrides the 90-day deletion. Keep the content, the report, the information used to judge it and the related user data Arena holds for **1 year** from the report, and the NCA reference number for **5 years**. In the database, `update arena.reports set keep_until = now() + interval '1 year' where id = ...;` keeps a report past the 90-day deletion.
 - Detection is not required. Arena does no CSEA scanning, so reports are how it finds CSEA.
 
 ### 4.6 Records (s.23)
