@@ -84,6 +84,8 @@ cd engine-test && node duel.js --meta --games 870   # check everything still pla
 
 Then copy the commits `npm run data -- latest` printed into `engine/DATA_COMMITS`, so servers get exactly what was tested.
 
+Brand-new cards: Project Ignis lists them under temporary numbers (e.g. 101402090) until it switches to the official ones, while YGOPRODeck, DeckForge and .ydk files use the official numbers (50284408). `npm run data` also writes `engine/data/official-ids.json`, matching the two by name on YGOPRODeck, so decks, imports and legality work with the official numbers and duels translate them for the engine.
+
 ## Licences and credits
 
 - Millennium Arena is licensed under the **AGPL-3.0** (see [LICENSE](LICENSE)), like the rules engine (`ygopro-core`) and Project Ignis's card scripts it's built on.

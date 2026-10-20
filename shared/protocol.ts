@@ -310,6 +310,8 @@ export type CardRow = [
   level: number, atk: number, def: number, text: string,
   /** Where it's released: 0x1 OCG, 0x2 TCG, 0x100 not out yet. */
   ot: number,
+  /** A brand-new card listed under its official number: the temporary number duels use for it. */
+  engine?: number,
 ];
 
 /** A device that skips the login code (from POST /api/account/devices). */

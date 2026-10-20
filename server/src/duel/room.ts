@@ -3,6 +3,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { COIN_TOSS_MS, type DuelInfo, type Frame, type Prompt, type PromptAnswer, type Responses, type ServerMessage, type Side, type Speed } from '@arena/shared';
+import { engineCode, officialCode } from '../cards.ts';
 import { ENGINE_NAME, PACE } from '../config.ts';
 import type { Deck } from '../decks.ts';
 import type { BotLevel } from './bot.ts';
@@ -76,7 +77,8 @@ export class DuelRoom {
   constructor(private decks: [Deck, Deck], private players: [string, string], private humans: Side[], readonly fullView: boolean, seed: number, private onClose: () => void, options: RoomOptions = {}) {
     this.seconds = Math.max(0, Math.min(600, Math.round(options.timer ?? 0)));
     this.speed = SPEED[options.speed ?? 'normal'] ?? 1;
-    const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main, extra: d.extra })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup, setupLua: options.setupLua,
+    // the engine only knows brand-new cards by Project Ignis's temporary numbers
+    const input: WorkerInput = { decks: decks.map(d => ({ name: d.name, main: d.main.map(engineCode), extra: d.extra.map(engineCode) })) as WorkerInput['decks'], players, humans, seed, bots: options.bots, setup: options.setup, setupLua: options.setupLua,
       smart: options.smart ?? (options.responses === 'always' ? [] : humans), lp: options.lp, hideDecks: options.hideDecks };
     this.options = options;
     // hold the queue while the coin toss plays out in the browser (the duel itself starts working straight away)
@@ -88,7 +90,7 @@ export class DuelRoom {
       else if (msg.type === 'prompt') { this.queue.push({ prompt: msg.prompt, side: msg.side }); this.pump(); }
       else if (msg.type === 'reveal') { this.queue.push({ reveal: { type: 'reveal', title: msg.title, cards: msg.cards, brief: msg.brief }, side: msg.side }); this.pump(); }
       else if (msg.type === 'end') { this.ending = { type: 'end', winner: msg.winner, reason: msg.reason, turns: msg.turns }; this.pump(); }
-      else if (msg.type === 'use') this.uses[msg.side].set(msg.code, (this.uses[msg.side].get(msg.code) ?? 0) + 1);
+      else if (msg.type === 'use') { const code = officialCode(msg.code); this.uses[msg.side].set(code, (this.uses[msg.side].get(code) ?? 0) + 1); }   // counted under the number that lasts
       else this.broadcast({ type: 'error', message: `The duel engine hit a problem: ${msg.message}` });
     });
     this.worker.on('error', err => this.broadcast({ type: 'error', message: `The duel engine crashed: ${err.message}` }));

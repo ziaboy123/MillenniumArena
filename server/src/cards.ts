@@ -1,6 +1,6 @@
 // Card data from Project Ignis's card database (BabelCDB): what the engine needs to run each card,
 // plus a compact, gzipped list of names/text/stats for the browser.
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -31,6 +31,15 @@ function cardDatabases(): string[] {
     .map(f => path.join(dir, f));
 }
 
+/** Brand-new cards that Project Ignis still has under temporary numbers (101402090...) while YGOPRODeck, DeckForge and .ydk
+ *  files use the official ones (50284408...), from engine/data/official-ids.json (npm run data). official -> engine. */
+const officialToEngine = new Map<number, number>(), engineToOfficial = new Map<number, number>();
+/** The number the engine knows a card by (decks may use official numbers it doesn't have yet). */
+export const engineCode = (code: number) => officialToEngine.get(code) ?? code;
+/** The number everyone else knows a card by. */
+export const officialCode = (code: number) => engineToOfficial.get(code) ?? code;
+export const officialPairs = () => officialToEngine.entries();
+
 export function loadCards(): Map<number, EngineCard> {
   const cards = new Map<number, EngineCard>();
   for (const file of cardDatabases()) {
@@ -49,6 +58,14 @@ export function loadCards(): Map<number, EngineCard> {
       });
     }
     db.close();
+  }
+  // brand-new cards are also known by their official numbers (decks and legality use those; duels translate them back)
+  const ids = path.join(ENGINE_DATA, 'official-ids.json');
+  if (existsSync(ids)) for (const [official, engine] of Object.entries(JSON.parse(readFileSync(ids, 'utf8')) as Record<string, number>)) {
+    const c = cards.get(engine), code = Number(official);
+    if (!c || cards.has(code)) continue;
+    officialToEngine.set(code, engine); engineToOfficial.set(engine, code);
+    cards.set(code, { ...c, code });
   }
   return cards;
 }
@@ -88,10 +105,14 @@ export const ruleCards = (cards: Map<number, EngineCard>) => (code: number): Rul
 export function clientCardList(cards: Map<number, EngineCard>): Buffer {
   const rows: CardRow[] = [];
   for (const c of cards.values()) {
+    if (engineToOfficial.has(c.code)) continue;   // sent once, under its official number (with the engine's number attached)
     const monster = !(c.type & (T.SPELL | T.TRAP));
     const attribute = monster ? (ocgAttributeString.get(c.attribute as any) ?? '').toUpperCase() : '';
-    rows.push([c.code, c.name, c.alias, frameOf(c.type), typeLine(c), attribute, monster ? c.level : 0,
-      monster ? c.attack : -1, monster && !(c.type & T.LINK) ? c.defense : -1, c.text, c.ot]);
+    const row: CardRow = [c.code, c.name, c.alias, frameOf(c.type), typeLine(c), attribute, monster ? c.level : 0,
+      monster ? c.attack : -1, monster && !(c.type & T.LINK) ? c.defense : -1, c.text, c.ot];
+    const engine = officialToEngine.get(c.code);
+    if (engine) row[11] = engine;
+    rows.push(row);
   }
   return gzipSync(JSON.stringify(rows));
 }

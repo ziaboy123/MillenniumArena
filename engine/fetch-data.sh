@@ -21,3 +21,5 @@ done
 dist=$(pin Distribution); [ -n "$latest" ] && dist=$(git ls-remote https://github.com/ProjectIgnis/Distribution.git refs/heads/master | cut -f1)
 curl -fsSL "https://raw.githubusercontent.com/ProjectIgnis/Distribution/$dist/config/strings.conf" -o data/strings.conf
 echo "Distribution  $dist  (strings.conf: $(grep -c '^!system' data/strings.conf) system strings)"
+# brand-new cards: Project Ignis's temporary numbers -> the official ones YGOPRODeck and DeckForge use (optional: needs the internet)
+node --disable-warning=ExperimentalWarning official-ids.mjs || echo "official-ids.json not updated (YGOPRODeck unreachable?)"
