@@ -2,7 +2,7 @@
 
 Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no payments. Built on EDOPro's rules engine (`ygopro-core`) and Project Ignis's card scripts.
 
-**Live at [daniyalzia.co.uk/millenniumarena](https://daniyalzia.co.uk/millenniumarena/)**, and still growing (ranked and unranked matchmaking, public decks, replays and sound are next).
+**Live at [daniyalzia.co.uk/millenniumarena](https://daniyalzia.co.uk/millenniumarena/)**, and still growing (ranked matchmaking, public decks, replays and sound are next).
 
 **History:**
 - Milestone 1 (done): the duel server runs real duels on the engine and streams them live to the duel screen.
@@ -19,6 +19,7 @@ Browser Yu-Gi-Oh! duels with automated rules: every card free, no ads, no paymen
 - The real pages, step 2 (done): the Decks page and deck editor, on the same decks as DeckForge. Legality is checked live against the current TCG banlist (copy limits, Forbidden/Limited/Semi-Limited, deck sizes, cards not released in the TCG). Card search, drag and drop, right-click for the Side Deck, undo, sort, stats with opening-hand odds, test hands, .ydk import and export, a cover card, and a "Dueling with" deck that the duel lobby picks by default. Changes save themselves.
 - The real pages, step 3 (done): the Duel page. Solo vs the bot with any of your decks. Private duels: the host picks the rules (best of 1 or 3, turn timer, TCG/OCG/no banlist, starting life points, deck check, spectators, optional password) and shares a 6-character code or an invite link; the friend joins, both get ready, a coin toss decides who picks going first. Best of 3 has side decking between games and the loser of a game picks next. Chat and the duel log share a panel (quick replies, mute). People can ask to watch; everyone playing has to accept, and spectators only see public cards. Nobody learns the opponent's deck name. A reload or dropped connection finds your room again; leaving mid-match loses it; a room whose players have gone closes itself.
 - The real pages, step 4 (done): the Profile page. Win rate, wins and losses, win/loss ratio, current and best streaks, the last 10 results, decks played, most-played cards (counted from what you summon, activate and Set), and your match history (All / Wins / Losses, and All duels / Private / Solo vs bot). Other players see only your record at `/u/<name>`. Home shows your record, and your three most-played cards once you've played 10 duels. Leaving or surrendering a duel against the bot counts as a loss; a private match is saved when it's decided or someone leaves it.
+- Unranked matchmaking (done): find a duel with your deck or a borrowed tournament deck and get paired with whoever else is looking, longest wait first. Everyone plays the same rules (best of 1, TCG banlist with deck check, 90 s turns, 8000 LP, chat, no spectators), straight to the coin toss. The search shows how long you've waited and who's online, offers the bot after a minute, and picks up again after a dropped connection. Leaving before the duel calls it off; leaving during it loses. Unranked results count in your record, with their own filter on the Profile.
 
 ## Layout
 
