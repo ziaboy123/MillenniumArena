@@ -40,6 +40,22 @@ export const engineCode = (code: number) => officialToEngine.get(code) ?? code;
 export const officialCode = (code: number) => engineToOfficial.get(code) ?? code;
 export const officialPairs = () => officialToEngine.entries();
 
+/** Every card number with a picture worth serving (server/src/images.ts): the duel cards plus Skill, unofficial and
+ *  Goat-format entries, which DeckForge shows even though duels don't use them (Rush Duel cards aren't included), and
+ *  every picture number YGOPRODeck lists (engine/data/picture-ids.json from npm run data: its own Skill card numbers,
+ *  alternate artworks). */
+export function pictureIds(): Set<number> {
+  const ids = new Set<number>();
+  try { for (const id of JSON.parse(readFileSync(path.join(ENGINE_DATA, 'picture-ids.json'), 'utf8')).ids) ids.add(Number(id)); } catch {}   // not downloaded yet
+  const dir = path.join(ENGINE_DATA, 'BabelCDB');
+  for (const f of readdirSync(dir).filter(f => f.endsWith('.cdb') && !f.includes('rush'))) {
+    const db = new DatabaseSync(path.join(dir, f), { readOnly: true });
+    for (const r of db.prepare('SELECT id FROM datas').all() as { id: number }[]) ids.add(Number(r.id));
+    db.close();
+  }
+  return ids;
+}
+
 export function loadCards(): Map<number, EngineCard> {
   const cards = new Map<number, EngineCard>();
   for (const file of cardDatabases()) {

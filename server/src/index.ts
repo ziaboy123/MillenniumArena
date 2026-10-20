@@ -12,7 +12,7 @@ import { accountRoutes, cookies, sameOrigin } from './auth/routes.ts';
 import { AUTH_READY } from './auth/security.ts';
 import { blocksPlay, deckBlocker, deckProblems, type SavedDeck } from '@arena/shared/decks';
 import { loadBanlist } from './banlist.ts';
-import { clientCardList, engineCode, loadCards, ruleCards } from './cards.ts';
+import { clientCardList, engineCode, loadCards, pictureIds, ruleCards } from './cards.ts';
 import { serveImage } from './images.ts';
 import { accountDeck, accountDecks, activeDeck } from './decks-api.ts';
 import { recordMatch } from './history.ts';
@@ -27,6 +27,7 @@ import { setReportContext, standingOf, SUSPENDED } from './safety.ts';
 
 const t0 = performance.now();
 const cards = loadCards();
+const pictures = pictureIds();   // card numbers whose pictures we re-host (duel cards are checked first)
 const cardList = clientCardList(cards);
 const cardListTag = `"${createHash('sha1').update(cardList).digest('base64url').slice(0, 16)}"`;   // changes whenever the list does
 const decks = loadDecks(cards);
@@ -90,7 +91,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   if (DB_ENABLED && await accountRoutes(req, res, rel)) return;
   if (rel.startsWith('/api/')) return json(res, { error: 'not found' }, 404);
   // card pictures, re-hosted from YGOPRODeck (any card number the engine knows, by its official or engine number)
-  if (rel.startsWith('/img/') && await serveImage(res, rel, code => cards.has(code) || cards.has(engineCode(code)))) return;
+  if (rel.startsWith('/img/') && await serveImage(res, rel, code => cards.has(code) || cards.has(engineCode(code)) || pictures.has(code))) return;
   serveClient(req, res, rel);
 }
 // a request that breaks something (a malformed address, say) gets an error; it never takes the server, and every duel on it, down

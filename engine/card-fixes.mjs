@@ -4,8 +4,11 @@
 //    { "50284408": { "engine": 101402090, "tcg": "2026-10-08", "ocg": null } }
 // 2. "released": cards it hasn't marked as out yet in the TCG (still OCG-only or "not released") get their real
 //    release dates from YGOPRODeck: { "31114334": { "tcg": "2026-09-03", "ocg": "2026-02-28" } }
-// The server counts a card as released where its date has passed. Run by fetch-data.sh. Needs Node 22.13+ (node:sqlite).
-import { readdirSync, writeFileSync } from 'node:fs';
+// The server counts a card as released where its date has passed.
+// Also engine/data/picture-ids.json: every picture number YGOPRODeck has (Skill cards and other cards duels don't use
+// included), so the server knows which pictures it may fetch and re-host for DeckForge (server/src/images.ts). It's
+// downloaded again only when YGOPRODeck's database version changes. Run by fetch-data.sh. Needs Node 22.13+ (node:sqlite).
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 const dir = new URL('./data/BabelCDB/', import.meta.url);
@@ -48,3 +51,20 @@ for (let i = 0; i < notTcg.length; i += 50)
 writeFileSync(out, JSON.stringify({ official, released }, null, 1) + '\n');
 console.log(`card-fixes.json: ${Object.keys(official).length} of ${temporary.size} temporarily numbered cards matched to official numbers; ` +
   `${Object.keys(released).length} of ${notTcg.length} cards not marked as out in the TCG have a TCG release date`);
+
+// picture numbers: the whole database is one download, so only when YGOPRODeck says it has changed (a failure keeps the old list)
+const pictures = new URL('./data/picture-ids.json', import.meta.url);
+try {
+  const have = existsSync(pictures) ? JSON.parse(readFileSync(pictures, 'utf8')) : null;
+  const version = (await (await fetch('https://db.ygoprodeck.com/api/v7/checkDBVer.php', { headers: { 'User-Agent': 'MillenniumArena-data' } })).json())?.[0]?.database_version;
+  if (have && version && have.version === version) console.log(`picture-ids.json: up to date (YGOPRODeck database ${version})`);
+  else {
+    const res = await fetch('https://db.ygoprodeck.com/api/v7/cardinfo.php', { headers: { 'User-Agent': 'MillenniumArena-data' } });
+    if (!res.ok) throw new Error(`YGOPRODeck answered ${res.status}`);
+    const ids = new Set();
+    for (const c of (await res.json()).data ?? []) for (const im of c.card_images ?? [{ id: c.id }]) ids.add(Number(im.id));
+    if (ids.size < 5000) throw new Error(`only ${ids.size} pictures listed`);
+    writeFileSync(pictures, JSON.stringify({ version: version ?? null, ids: [...ids].sort((a, b) => a - b) }) + '\n');
+    console.log(`picture-ids.json: ${ids.size} picture numbers (YGOPRODeck database ${version})`);
+  }
+} catch (e) { console.log(`picture-ids.json: not updated (${e.message})`); }
