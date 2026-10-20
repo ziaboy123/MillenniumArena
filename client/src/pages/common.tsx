@@ -1,5 +1,6 @@
 // Pieces every page uses: the page frame (background, top bar, footer), toasts, code boxes, password fields.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { SOURCE_URL } from '../lib/about.ts';
 import { Link, navigate } from '../lib/router.tsx';
 import { useSession } from '../lib/session.tsx';
 import { Eye, Stage } from '../lib/ui.tsx';
@@ -91,8 +92,8 @@ function mainScroller(root: HTMLElement | null, dir: 1 | -1): HTMLElement | null
 export function Foot() {
   return (
     <div className="foot">
-      <div><Link to="/privacy">Privacy</Link> &nbsp;·&nbsp; <Link to="/terms">Terms</Link></div>
-      <div>Card data and images from YGOPRODeck &nbsp;·&nbsp; Not affiliated with Konami</div>
+      <div><Link to="/privacy">Privacy</Link> &nbsp;·&nbsp; <Link to="/terms">Terms</Link> &nbsp;·&nbsp; <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">Source code (AGPL-3.0)</a></div>
+      <div>Card data from Project Ignis, images from YGOPRODeck &nbsp;·&nbsp; Unofficial fan project, not affiliated with Konami</div>
     </div>
   );
 }

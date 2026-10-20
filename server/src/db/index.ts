@@ -123,6 +123,23 @@ const MIGRATIONS: string[] = [
   // 5: unranked matches (the server pairs two players up)
   `alter table arena.history drop constraint history_kind_check;
    alter table arena.history add constraint history_kind_check check (kind in ('private', 'unranked', 'bot'));`,
+  // 6: keeping people safe (safety.ts): suspended accounts, agreeing to the Terms (and which version), and reports
+  //    (who reported whom, why, and the recent chat), deleted after 90 days
+  `alter table arena.profiles add column suspended_at timestamptz, add column suspended_reason text,
+     add column terms_accepted_at timestamptz, add column terms_version text;
+   create table arena.reports (
+     id            bigserial primary key,
+     reporter_id   text references public.users (id) on delete set null,
+     reporter_name text not null,
+     reported_id   text references public.users (id) on delete set null,
+     reported_name text not null,
+     context       text not null check (context in ('chat', 'profile')),
+     room          text,
+     reason        text not null default '',
+     lines         jsonb not null default '[]',
+     created_at    timestamptz not null default now()
+   );
+   create index on arena.reports (created_at);`,
 ];
 
 export async function migrate() {
@@ -137,7 +154,8 @@ export async function migrate() {
   }
   // expired codes, sessions and devices are cleared out regularly
   const sweep = () => q(`delete from arena.codes where expires_at < now() - interval '1 day';
-    delete from arena.sessions where expires_at < now(); delete from arena.devices where expires_at < now();`).catch(() => {});
+    delete from arena.sessions where expires_at < now(); delete from arena.devices where expires_at < now();
+    delete from arena.reports where created_at < now() - interval '90 days';`).catch(() => {});
   sweep();
   setInterval(sweep, 6 * 3600_000).unref();
 }

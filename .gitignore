@@ -11,6 +11,9 @@ engine/data/
 # ...but the built engine is committed, so servers never need a compiler
 !engine/ocgcore/dist/
 
+# card pictures re-hosted from YGOPRODeck (server/src/images.ts fills this as pictures are needed)
+images/
+
 # design mockups: generated card data (python3 design/build-cards.py)
 design/cards-index.json
 design/cards-text.json

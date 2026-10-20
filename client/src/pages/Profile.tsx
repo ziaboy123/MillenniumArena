@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { HistoryRow, MatchKind, MatchResult, Profile } from '@arena/shared';
 import { api, ApiError } from '../lib/api.ts';
 import { card, cropImage, imageFallback, loadCards, smallImage } from '../lib/cards.ts';
+import { ReportDialog } from '../lib/report.tsx';
 import { navigate } from '../lib/router.tsx';
 import { Eye } from '../lib/ui.tsx';
 import { Page, useToast } from './common.tsx';
@@ -28,6 +29,7 @@ export function ProfilePage({ name }: { name?: string }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState('');
   const [kind, setKind] = useState<Kind>('all');
+  const [reporting, setReporting] = useState(false);
   const [filter, setFilter] = useState<'all' | 'win' | 'loss'>('all');
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [more, setMore] = useState(false);
@@ -57,7 +59,7 @@ export function ProfilePage({ name }: { name?: string }) {
   const ratio = s.losses ? (s.wins / s.losses).toFixed(2) : s.wins ? '∞' : '–';
 
   return (
-    <Page back="/home" className="pf" over={toast}>
+    <Page back="/home" className="pf" over={<>{toast}{reporting && <ReportDialog names={[profile.name]} context="profile" onClose={() => setReporting(false)} />}</>}>
       <div className="dhead">
         <div className="head"><div className="eyebrow">{profile.you ? 'You' : 'Player'}</div><h1>Profile</h1></div>
         <div className="dbar"><div className="seg">{KINDS.map(([k, label]) => <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{label}<span className="n">{profile.stats[k].duels}</span></button>)}</div></div>
@@ -71,10 +73,10 @@ export function ProfilePage({ name }: { name?: string }) {
               <h1>{profile.name}</h1>
               <div className="idline"><span className="rankpill"><Eye />Unranked</span><span>Member since {since}</span></div>
               <p className="note">Ranked duels are coming soon. {profile.you ? 'Your' : 'Their'} rank will show here once they open.</p>
-              {profile.you && <div className="line">
+              {profile.you ? <div className="line">
                 <button className="sbtn" onClick={() => navigator.clipboard?.writeText(link).then(() => showToast('Profile link copied'), () => showToast(link))}>Copy profile link</button>
                 <button className="sbtn" onClick={() => navigate('/settings')}>Edit in Settings</button>
-              </div>}
+              </div> : <div className="line"><button className="sbtn" onClick={() => setReporting(true)}>Report player</button></div>}
             </div>
           </div>
           {profile.you && <div className="panel dplayed">

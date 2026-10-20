@@ -21,6 +21,8 @@ const DUMMY_HASH = bcrypt.hashSync(newToken(), BCRYPT_COST);
 
 /** A problem to show the person (anything else is reported as a generic error). */
 export class Problem extends Error { constructor(message: string, readonly status = 400) { super(message); } }
+// (safety.ts imports Problem from here; these are only used inside functions, so the cycle is harmless)
+import { forgetStanding, SUSPENDED, TERMS_VERSION } from '../safety.ts';
 
 // ---------- checking what people type ----------
 export const normEmail = (e: unknown) => String(e ?? '').trim().toLowerCase();
@@ -155,8 +157,9 @@ async function newPassword(userId: string, password: string) {
 // ---------- sessions and devices ----------
 export async function createSession(userId: string, userAgent = ''): Promise<string> {
   const token = newToken();
-  const user = await one('select "sessionVersion" as v from public.users where id = $1', [userId]);
+  const user = await one('select u."sessionVersion" as v, p.suspended_at from public.users u left join arena.profiles p on p.user_id = u.id where u.id = $1', [userId]);
   if (!user) throw new Problem('That account no longer exists.', 401);
+  if (user.suspended_at) throw new Problem(SUSPENDED, 403);
   await q(`insert into arena.sessions (token_hash, user_id, session_version, expires_at, user_agent) values ($1, $2, $3, now() + interval '30 days', $4)`,
     [sha256(token), userId, user.v, userAgent.slice(0, 200)]);
   return token;
@@ -167,17 +170,19 @@ export async function sessionUser(token: string | undefined): Promise<Me | null>
   if (!token || token.length > 100) return null;
   const hash = sha256(token);
   const row = await one(`select s.user_id, s.session_version, s.last_seen, u."sessionVersion" as current_version, u.email, u."emailVerified" as verified,
-      p.username, p.settings, p.username_changed_at
+      p.username, p.settings, p.username_changed_at, p.suspended_at, p.terms_version
     from arena.sessions s join public.users u on u.id = s.user_id left join arena.profiles p on p.user_id = u.id
     where s.token_hash = $1 and s.expires_at > now()`, [hash]);
   if (!row) return null;
-  if (row.session_version !== row.current_version) { await q('delete from arena.sessions where token_hash = $1', [hash]); return null; }
+  // a password change, or a suspension, ends the login
+  if (row.session_version !== row.current_version || row.suspended_at) { await q('delete from arena.sessions where token_hash = $1', [hash]); return null; }
   // keep active logins alive (at most one write an hour)
   if (Date.now() - new Date(row.last_seen).getTime() > 3600_000) await q(`update arena.sessions set last_seen = now(), expires_at = now() + interval '30 days' where token_hash = $1`, [hash]);
   const next = row.username_changed_at ? new Date(new Date(row.username_changed_at).getTime() + 30 * 86400_000) : null;
   return {
     id: row.user_id, email: row.email, username: row.username ?? null, verified: !!row.verified, settings: row.settings ?? {},
     nextNameChange: next && next.getTime() > Date.now() ? next.toISOString() : null,
+    terms: row.terms_version === TERMS_VERSION,
   };
 }
 
@@ -199,21 +204,31 @@ export const forgetDevice = (userId: string, id: unknown) =>
   q('delete from arena.devices where user_id = $1 and left(token_hash, 12) = $2', [userId, String(id ?? '').slice(0, 12)]);
 
 // ---------- account settings ----------
-export async function setUsername(userId: string, nameIn: unknown) {
+/** `accept`: the first username comes with "I'm 13 or older and agree to the Terms" (required). */
+export async function setUsername(userId: string, nameIn: unknown, accept = false) {
   const name = checkUsername(nameIn);
   const current = await one('select username, username_changed_at from arena.profiles where user_id = $1', [userId]);
+  if (!current && !accept) throw new Problem("Tick the box to confirm you're 13 or older and agree to the Terms.");
   if (current?.username === name) return;
   if (current?.username_changed_at && Date.now() - new Date(current.username_changed_at).getTime() < 30 * 86400_000)
     throw new Problem('You can change your username once every 30 days.');
   try {
-    await q(`insert into arena.profiles (user_id, username, username_key) values ($1, $2, $3)
-      on conflict (user_id) do update set username = $2, username_key = $3, username_changed_at = now()`, [userId, name, name.toLowerCase()]);
+    await q(`insert into arena.profiles (user_id, username, username_key, terms_accepted_at, terms_version) values ($1, $2, $3, now(), $4)
+      on conflict (user_id) do update set username = $2, username_key = $3, username_changed_at = now()`, [userId, name, name.toLowerCase(), TERMS_VERSION]);
+    forgetStanding(userId);
   } catch (e: any) {
     if (e.code === '23505') throw new Problem('That username is taken.');   // unique violation
     throw e;
   }
   // DeckForge shows the account's name; give it the username if it has none
   await q('update public.users set name = $2, "updatedAt" = now() where id = $1 and name is null', [userId, name]);
+}
+
+/** "I'm 13 or older and agree to the Terms", for accounts that haven't agreed to the current Terms yet. */
+export async function acceptTerms(userId: string) {
+  const done = await q('update arena.profiles set terms_accepted_at = now(), terms_version = $2 where user_id = $1 returning 1', [userId, TERMS_VERSION]);
+  if (!done.length) throw new Problem('Choose a username first.');
+  forgetStanding(userId);
 }
 
 async function checkCurrentPassword(userId: string, password: unknown) {

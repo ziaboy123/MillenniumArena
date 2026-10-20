@@ -81,7 +81,11 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
         if (!msg.searching) searchDeck.current = null;   // found a duel, cancelled, or another tab took over
         break;
       case 'chat': setChat(c => (msg.reset ? msg.lines : [...c, ...msg.lines])); break;
-      case 'error': showToast(msg.message); break;
+      case 'error':
+        // in a duel the page (and its toasts) isn't on screen: say it in the chat, where it's usually about
+        if (d.duel && roomRef.current) setChat(c => [...c, { from: '', role: 'system', text: msg.message, at: Date.now() }]);
+        else showToast(msg.message);
+        break;
     }
   });
   // on (re)connecting: the bot decks, then back into your room or bot duel (if any), or look up an invite link's room

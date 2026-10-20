@@ -1,16 +1,17 @@
 // Settings, reached only from Home (never mid-duel): Appearance, Account, Gameplay. Everything saves to the account.
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { Me, Responses, Speed, TrustedDevice, UserSettings } from '@arena/shared';
+import { CONTACT, KONAMI, SOURCE_URL, VERSION } from '../lib/about.ts';
 import { api, ApiError } from '../lib/api.ts';
 import { allCards, card, cropImage, loadCards } from '../lib/cards.ts';
-import { navigate } from '../lib/router.tsx';
+import { Link, navigate } from '../lib/router.tsx';
 import { useSession } from '../lib/session.tsx';
 import { THEMES } from '../lib/ui.tsx';
 import { CodeBoxes, Page, PasswordInput, useToast } from './common.tsx';
 import { DEFAULT_ARTWORK } from './Home.tsx';
 
-type Tab = 'appearance' | 'account' | 'gameplay';
-const TABS: [Tab, string][] = [['appearance', 'Appearance'], ['account', 'Account'], ['gameplay', 'Gameplay']];
+type Tab = 'appearance' | 'account' | 'gameplay' | 'about';
+const TABS: [Tab, string][] = [['appearance', 'Appearance'], ['account', 'Account'], ['gameplay', 'Gameplay'], ['about', 'About']];
 const message = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong.');
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -46,6 +47,7 @@ export function Settings() {
           {tab === 'appearance' && <Appearance me={me} save={save} />}
           {tab === 'account' && <Account me={me} toast={showToast} />}
           {tab === 'gameplay' && <Gameplay me={me} save={save} />}
+          {tab === 'about' && <About />}
         </div>
       </div>
     </Page>
@@ -53,6 +55,21 @@ export function Settings() {
 }
 
 type Save = (patch: Partial<UserSettings>) => void;
+
+function About() {
+  return <>
+    <div className="eyebrow">About</div>
+    <Row title="Source code" text={`Open source under the GNU AGPL v3.0. This site is running version ${VERSION}.`}>
+      <a className="sbtn" href={SOURCE_URL} target="_blank" rel="noopener noreferrer">View on GitHub</a>
+    </Row>
+    <Row title="Rules and privacy" text="What's allowed, how reporting works, and what we keep about you.">
+      <Link className="sbtn" to="/terms">Terms</Link><Link className="sbtn" to="/privacy">Privacy</Link>
+    </Row>
+    <Row title="Report something" text={`Use Report in the duel chat or on a player's profile, or email ${CONTACT} with the subject "Report". A person reads every report.`} />
+    <Row title="Credits" text="Card data and rules scripts from Project Ignis (EDOPro). Card pictures and tournament deck lists from YGOPRODeck." />
+    <Row title="Not affiliated with Konami" text={KONAMI} />
+  </>;
+}
 
 function Row({ title, text, children }: { title: string; text: ReactNode; children?: ReactNode }) {
   return <div className="srow"><div className="l"><b>{title}</b><span>{text}</span></div><div className="r">{children}</div></div>;

@@ -12,7 +12,8 @@ import { accountRoutes, cookies, sameOrigin } from './auth/routes.ts';
 import { AUTH_READY } from './auth/security.ts';
 import { blocksPlay, deckBlocker, deckProblems, type SavedDeck } from '@arena/shared/decks';
 import { loadBanlist } from './banlist.ts';
-import { clientCardList, loadCards, ruleCards } from './cards.ts';
+import { clientCardList, engineCode, loadCards, ruleCards } from './cards.ts';
+import { serveImage } from './images.ts';
 import { accountDeck, accountDecks, activeDeck } from './decks-api.ts';
 import { recordMatch } from './history.ts';
 import { cleanRules, PrivateMatch, RoomError, type Account, type MatchDeps } from './match.ts';
@@ -22,6 +23,7 @@ import { loadDecks, summarise, type Deck } from './decks.ts';
 import { DB_ENABLED, migrate } from './db/index.ts';
 import { DuelRoom, type Viewer } from './duel/room.ts';
 import { SCENARIOS, firstFor, luaFor, setupFor } from './duel/scenarios.ts';
+import { setReportContext, standingOf, SUSPENDED } from './safety.ts';
 
 const t0 = performance.now();
 const cards = loadCards();
@@ -64,7 +66,7 @@ function securityHeaders(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: https://images.ygoprodeck.com", `connect-src 'self' wss://${host} ws://${host}`, "frame-ancestors 'none'", "base-uri 'self'",
+    "img-src 'self' data:", `connect-src 'self' wss://${host} ws://${host}`, "frame-ancestors 'none'", "base-uri 'self'",
     "form-action 'self'", "object-src 'none'",
   ].join('; '));
 }
@@ -87,6 +89,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   }
   if (DB_ENABLED && await accountRoutes(req, res, rel)) return;
   if (rel.startsWith('/api/')) return json(res, { error: 'not found' }, 404);
+  // card pictures, re-hosted from YGOPRODeck (any card number the engine knows, by its official or engine number)
+  if (rel.startsWith('/img/') && await serveImage(res, rel, code => cards.has(code) || cards.has(engineCode(code)))) return;
   serveClient(req, res, rel);
 }
 // a request that breaks something (a malformed address, say) gets an error; it never takes the server, and every duel on it, down
@@ -101,6 +105,8 @@ const server = createServer((req, res) => {
 // ---------- private rooms ----------
 const matches = new Map<string, PrivateMatch>();   // by room code
 const matchOf = new Map<string, PrivateMatch>();   // by account: one room at a time
+// a report from the chat panel comes with the room it was made in and its recent chat
+setReportContext(userId => { const m = matchOf.get(userId); return m && !m.closed ? { room: `${m.kind} room ${m.code}`, lines: m.recentChat(20) } : null; });
 /** A deck to duel with in a room: one of the account's, or one of the bot's tournament decks to borrow (unranked). */
 async function roomDeck(userId: string, id: string): Promise<SavedDeck | null> {
   const lent = decks.get(id);
@@ -196,6 +202,12 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   const leaveRooms = (userId: string) => { matchOf.get(userId)?.leave(userId); matchOf.delete(userId); match = null; };
   async function roomMessage(msg: ClientMessage, me: Account) {
     const busy = (key: string, max: number, ms: number) => { if (limited(`${key}:${me.id}`, max, ms)) throw new RoomError('Too many tries. Wait a minute and try again.'); };
+    // chatting and playing other people needs an account in good standing that has agreed to the Terms
+    if (msg.type === 'chat' || msg.type === 'queue.join' || msg.type === 'room.create' || msg.type === 'room.join' || msg.type === 'room.watch') {
+      const standing = await standingOf(me.id);
+      if (standing.suspended) throw new RoomError(SUSPENDED);
+      if (!standing.terms) throw new RoomError("Confirm you're 13 or older and agree to the Terms first: reload the page to see them.");
+    }
     switch (msg.type) {
       case 'room.resume': {
         const m = matchOf.get(me.id);

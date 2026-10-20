@@ -41,6 +41,16 @@ interface Request extends Person { accepted: Set<RoomRole> }
 /** A problem to tell the person who asked (not a crash). */
 export class RoomError extends Error {}
 
+/** A link, an email address, a phone number or a social handle (Unranked chat is between strangers). */
+export function sharesContact(text: string) {
+  const t = text.toLowerCase();
+  return /(https?:\/\/|www\.|\b[a-z0-9-]+(\s?\.\s?|\s?\(dot\)\s?|\s?\[dot\]\s?|\s+dot\s+)(com|net|org|gg|io|co|uk|me|app|xyz|tv|ly|link|chat|site|online|be|to)\b)/.test(t)
+    || /\S+@\S+\.\S+/.test(t)
+    || /(\d[\s().-]*){9,}/.test(t)
+    || /\b(discord|snap(chat)?|insta(gram)?|whats\s?app|telegram|tiktok|kik|skype|twitter|facebook|fb|messenger|wechat|line id|steam id|dm me)\b/.test(t)
+    || /(^|\s)@[a-z0-9_.]{3,}/.test(t);
+}
+
 const clean = (text: unknown, max: number) => String(text ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const hashPassword = (pw: string) => createHash('sha256').update(`arena-room:${pw}`).digest();
 const multiset = (l: DeckLists) => [...l.main, ...l.extra, ...l.side].sort((a, b) => a - b).join(',');
@@ -406,6 +416,8 @@ export class PrivateMatch {
     if (!p || this.requests.has(userId)) throw new RoomError('Only people in the room can chat.');
     const t = clean(text, 200);
     if (!t) return;
+    // with strangers, no links or contact details: keeps people (some of them young) from being drawn off the site
+    if (this.kind === 'unranked' && sharesContact(t)) throw new RoomError("Links and contact details can't be shared in Unranked chat.");
     const now = Date.now(), times = (this.chatTimes.get(userId) ?? []).filter(x => now - x < 10_000);
     if (times.length >= 8 || (times.length && now - times[times.length - 1] < 400)) throw new RoomError('Slow down a little.');
     this.chatTimes.set(userId, [...times, now]);
@@ -413,6 +425,8 @@ export class PrivateMatch {
     this.post({ from: p.name, role: m ? m.role : 'spectator', text: t, at: now });
   }
   private system(text: string) { this.post({ from: '', role: 'system', text, at: Date.now() }); }
+  /** The last `n` chat lines (for a report). */
+  recentChat(n: number): ChatLine[] { return this.chat.slice(-n); }
   private post(line: ChatLine) {
     this.chat.push(line);
     if (this.chat.length > MAX_CHAT) this.chat.splice(0, this.chat.length - MAX_CHAT);

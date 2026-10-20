@@ -91,5 +91,15 @@ Brand-new cards: Project Ignis lists them under temporary numbers (e.g. 10140209
 
 - Millennium Arena is licensed under the **AGPL-3.0** (see [LICENSE](LICENSE)), like the rules engine (`ygopro-core`) and Project Ignis's card scripts it's built on.
 - The WebAssembly wrapper is [`ocgcore-wasm`](https://github.com/n1xx1/ocgcore-wasm) (MIT), with our fixes in `engine/patches/`.
-- Card data, card scripts and EDOPro's system strings from [Project Ignis](https://github.com/ProjectIgnis); card images from [YGOPRODeck](https://ygoprodeck.com).
-- Millennium Arena is a free fan project. It is not affiliated with or endorsed by Konami. Yu-Gi-Oh! card names, artwork and game mechanics belong to their owners.
+- The site links to the exact source it's running (footer and Settings › About), as the AGPL's section 13 asks.
+- Card data, card scripts and EDOPro's system strings from [Project Ignis](https://github.com/ProjectIgnis); card images and the tournament deck lists from [YGOPRODeck](https://ygoprodeck.com). As YGOPRODeck's API guide asks, images aren't hotlinked: the server downloads each one the first time it's needed, keeps it in `images/` (or `ARENA_IMAGES`) and serves its own copy at `/millenniumarena/img/{cards,small,cropped}/<id>.jpg`, which DeckForge uses too.
+- Yu-Gi-Oh! is a trademark of Konami Digital Entertainment. Card names, text and artwork © Studio Dice/SHUEISHA, TV TOKYO, KONAMI. Millennium Arena is an unofficial fan project, not affiliated with or endorsed by Konami. Rights holders: email mail@daniyalzia.co.uk and we'll remove material promptly.
+
+## Safety and privacy
+
+Strangers can chat in Unranked duels, so the UK Online Safety Act applies. [docs/online-safety.md](docs/online-safety.md) is the risk assessment (illegal content, children's access, children's risks) and [docs/dpia.md](docs/dpia.md) the data protection impact assessment. In the code (`server/src/safety.ts`):
+
+- **Reports:** the flag in the duel chat or "Report player" on a profile. A report (who, whom, why, and the room's last 20 chat lines) goes into `arena.reports` and is emailed to `ARENA_REPORT_EMAIL` (default mail@daniyalzia.co.uk). Reports are deleted after 90 days.
+- **Suspending an account** (by hand for now) ends its logins and blocks logging in, chat and looking for duels: `update arena.profiles set suspended_at = now(), suspended_reason = '...' where username_key = lower('Name');` (and `suspended_at = null` to lift it).
+- **The Terms:** every account confirms it's 13 or older and agrees to the current Terms (`TERMS_VERSION`) once, on the username step or a one-time screen; chat and duels with other people wait for it. Bump `TERMS_VERSION` when the Terms change and everyone is asked again.
+- **Unranked chat** blocks links and contact details (`sharesContact` in `server/src/match.ts`). Every chat has a mute button, and chat isn't stored.

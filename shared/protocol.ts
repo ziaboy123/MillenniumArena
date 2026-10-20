@@ -100,7 +100,8 @@ export interface UserSettings {
   sound?: number;
 }
 /** The logged-in account. `username` is null until chosen (accounts made on DeckForge start without one). */
-export interface Me { id: string; email: string; username: string | null; verified: boolean; settings: UserSettings; nextNameChange: string | null }
+/** `terms`: has agreed to the current Terms (and confirmed being 13 or older). */
+export interface Me { id: string; email: string; username: string | null; verified: boolean; settings: UserSettings; nextNameChange: string | null; terms: boolean }
 
 /** How fast the bot's moves play out. */
 export type Speed = 'slow' | 'normal' | 'fast' | 'instant';

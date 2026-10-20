@@ -11,6 +11,7 @@ import { historyOf, profileOf, summaryOf, userByName } from '../history.ts';
 import { devOutbox, MAIL_READY } from './mailer.ts';
 import { limited } from './ratelimit.ts';
 import { AUTH_READY, sha256 } from './security.ts';
+import { report } from '../safety.ts';
 
 const SESSION = 'ma_session', DEVICE = 'ma_device', MONTH = 30 * 86400;
 const SECURE = !DEV;   // production is always served over https (Cloudflare)
@@ -88,7 +89,7 @@ async function profileApi(action: string, userId: string, body: Record<string, u
 
 /** Handles <base>/api/me, /api/auth/*, /api/account/* (and /api/dev/mail on the development server). Returns false if not one of these. */
 export async function accountRoutes(req: IncomingMessage, res: ServerResponse, rel: string): Promise<boolean> {
-  if (!(rel === '/api/me' || rel.startsWith('/api/auth/') || rel.startsWith('/api/account/') || rel.startsWith('/api/decks/') || rel.startsWith('/api/profile/') || (DEV && rel === '/api/dev/mail'))) return false;
+  if (!(rel === '/api/me' || rel === '/api/report' || rel.startsWith('/api/auth/') || rel.startsWith('/api/account/') || rel.startsWith('/api/decks/') || rel.startsWith('/api/profile/') || (DEV && rel === '/api/dev/mail'))) return false;
   const jar = cookies(req), ip = clientIp(req), ua = String(req.headers['user-agent'] ?? '');
   try {
     // development only: read the email a test account was sent (no real mailbox needed)
@@ -151,6 +152,12 @@ export async function accountRoutes(req: IncomingMessage, res: ServerResponse, r
       if (!me.username) throw new Problem('Choose a username first.', 403);
       return send(res, 200, await deckApi(rel.slice('/api/decks/'.length), me.id, body)), true;
     }
+    if (rel === '/api/report') {
+      if (!me.username) throw new A.Problem('Choose a username first.', 403);
+      if (limited(`report:${me.id}`, 10, 3600_000)) throw tooMany();
+      await report({ id: me.id, name: me.username }, body);
+      return send(res, 200, { ok: true }), true;
+    }
     if (rel.startsWith('/api/profile/')) {
       if (limited(`settings:${me.id}`, 300, 900_000)) throw tooMany();
       return send(res, 200, await profileApi(rel.slice('/api/profile/'.length), me.id, body)), true;
@@ -159,7 +166,10 @@ export async function accountRoutes(req: IncomingMessage, res: ServerResponse, r
     const light = rel === '/api/account/settings' || rel === '/api/account/devices';
     if (light ? limited(`settings:${me.id}`, 300, 900_000) : limited(`account:${me.id}`, 30, 900_000)) throw tooMany();
     switch (rel) {
-      case '/api/account/username': await A.setUsername(me.id, body.username); break;
+      case '/api/account/username': await A.setUsername(me.id, body.username, body.accept === true); break;
+      case '/api/account/terms':
+        if (body.accept !== true) throw new A.Problem("Tick the box to confirm you're 13 or older and agree to the Terms.");
+        await A.acceptTerms(me.id); break;
       case '/api/account/settings': await A.saveSettings(me.id, body.settings); break;
       // both end every login and forget every trusted device, so this browser gets a fresh login (and stays trusted if it was)
       case '/api/account/password': {

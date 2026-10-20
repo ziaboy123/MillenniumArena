@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { COIN_TOSS_MS, type ChatLine, type DuelInfo, type Frame, type Prompt, type PromptAnswer, type ServerMessage, type Side, type SummonKind, type ZoneRef } from '@arena/shared';
 import { bigImage, card, cardName, imageFallback, smallImage, useBigImage } from '../lib/cards.ts';
 import { Coin, initial } from '../lib/coin.tsx';
+import { ReportDialog } from '../lib/report.tsx';
 import { Background, Eye, EyeSvg, Stage } from '../lib/ui.tsx';
 import { Field, cellIndex, pileCell, type CellFx, type Mark, type PileKind } from './Field.tsx';
 import { ActionMenu, CardPicker, PositionPicker, PromptPanel, actionsByCard, type CardActions, type MenuItem } from './prompt-ui.tsx';
@@ -82,6 +83,7 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
   const [menu, setMenu] = useState<Menu | null>(null);
   const [zones, setZones] = useState<ZoneRef[]>([]);
   const [confirm, setConfirm] = useState<'home' | 'surrender' | null>(null);
+  const [reporting, setReporting] = useState(false);
   const playing = duel.you === 0 && !ending;
   const closeMenu = useCallback(() => setMenu(null), []);
   // every card seen face-up this duel (newest first), offered first when declaring a card name
@@ -248,7 +250,10 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
             ))}
             {reconnecting && <div className="panel reconnecting"><span className="dots"><i /><i /><i /></span>Connection lost. Reconnecting to the duel…</div>}
           </>}
-          {chat ? <TalkPanel log={log} step={frame?.step ?? -1} chat={chat} matchLine={matchLine} /> : <LogPanel log={log} step={frame?.step ?? -1} duel={duel} />}
+          {chat ? <TalkPanel log={log} step={frame?.step ?? -1} chat={chat} matchLine={matchLine} onReport={() => setReporting(true)} /> : <LogPanel log={log} step={frame?.step ?? -1} duel={duel} />}
+          {/* the players (and anyone else who has chatted), apart from you */}
+          {chat && reporting && <ReportDialog context="chat" onClose={() => setReporting(false)}
+            names={[...new Set([...(duel.you === 0 ? [duel.players[1]] : duel.players), ...chat.lines.filter(l => l.role !== 'system' && l.from).map(l => l.from)])].filter(n => n && n !== chat.name)} />}
           {duel.coin && <CoinToss key={duel.id} duel={duel} />}
           {menu && <ActionMenu {...menu} onClose={closeMenu} />}
           {confirm && (
@@ -442,7 +447,7 @@ function LogPanel({ log, step, duel }: { log: LogRow[]; step: number; duel: Duel
 const QUICK = ['GG', 'Good luck!', 'Nice play', 'Thinking…'];
 
 /** Chat and the duel log as two tabs. Mute hides what the opponent and spectators say. */
-function TalkPanel({ log, step, chat, matchLine }: { log: LogRow[]; step: number; chat: DuelChat; matchLine?: string }) {
+function TalkPanel({ log, step, chat, matchLine, onReport }: { log: LogRow[]; step: number; chat: DuelChat; matchLine?: string; onReport: () => void }) {
   const [tab, setTab] = useState<'chat' | 'log'>('chat');
   const [muted, setMuted] = useState(false);
   const [text, setText] = useState('');
@@ -461,6 +466,9 @@ function TalkPanel({ log, step, chat, matchLine }: { log: LogRow[]; step: number
         <button className={tab === 'log' ? 'on' : ''} onClick={() => setTab('log')}>Duel log</button>
         <button className={`mute ${muted ? 'on' : ''}`} title={muted ? 'Unmute chat' : 'Mute chat'} onClick={() => setMuted(m => !m)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" />{muted ? <path d="m22 9-6 6M16 9l6 6" /> : <><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M19 5a10 10 0 0 1 0 14" /></>}</svg>
+        </button>
+        <button className="mute flag" title="Report a player" aria-label="Report a player" onClick={onReport}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22V4" /><path d="M4 4h12l-2 4 2 4H4" /></svg>
         </button>
       </div>
       {tab === 'chat' ? <>

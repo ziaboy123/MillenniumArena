@@ -26,11 +26,12 @@ export const card = (code: number) => cards.get(code) ?? byEngine.get(code);
 export const allCards = () => cards.values();
 export const cardName = (code: number) => card(code)?.name ?? `#${code}`;
 
-// Artwork comes from YGOPRODeck for now (self-hosting images is a later step). Alternate artworks fall back to the original card.
-const IMAGES = 'https://images.ygoprodeck.com/images';
+// Card pictures are YGOPRODeck's, re-hosted by our own server (server/src/images.ts), never loaded from YGOPRODeck
+// directly. Alternate artworks without a picture of their own fall back to the original card.
+const IMAGES = `${import.meta.env.BASE_URL}img`;
 /** YGOPRODeck knows brand-new cards only by their official numbers. */
 const imageCode = (code: number) => byEngine.get(code)?.code ?? code;
-export const smallImage = (code: number) => `${IMAGES}/cards_small/${imageCode(code)}.jpg`;
+export const smallImage = (code: number) => `${IMAGES}/small/${imageCode(code)}.jpg`;
 export const bigImage = (code: number) => `${IMAGES}/cards/${imageCode(code)}.jpg`;
 export function imageFallback(e: React.SyntheticEvent<HTMLImageElement>, code: number) {
   const alias = card(code)?.alias;
@@ -58,4 +59,4 @@ export function useBigImage(code: number | null): string | null {
   return shown;
 }
 /** Just the artwork, cropped out of the card. */
-export const cropImage = (code: number) => `${IMAGES}/cards_cropped/${imageCode(code)}.jpg`;
+export const cropImage = (code: number) => `${IMAGES}/cropped/${imageCode(code)}.jpg`;
