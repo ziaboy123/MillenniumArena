@@ -68,6 +68,10 @@ export interface DuelInfo {
   engine: string;
   /** Seconds each player gets per turn (0 = no timer). */
   timer: number;
+  /** Both sides are people (the other side isn't the bot). */
+  people?: boolean;
+  /** Joining a timed duel mid-turn (a reload, a reconnect, watching): the turn player's turn time left then, in ms. */
+  clock?: { side: Side; turn: number; left: number };
   /** Rejoin key for this seat (players only): sent back with `resume` after a dropped connection or a page reload. */
   seat?: string;
   /** A coin toss decided who goes first (solo against the bot): the side that goes first, from this viewer's point of view
@@ -198,6 +202,8 @@ export type ServerMessage =
   | { type: 'frame'; frame: Frame }
   /** Your turn to choose (null: nothing to answer right now). */
   | { type: 'prompt'; prompt: Prompt | null }
+  /** Duels between people: the duel is waiting on this player to choose (null = on nobody), and their clock as it was when sent. */
+  | { type: 'waiting'; side: Side | null; time?: { left: number; turn: boolean } }
   /** After rejoining: the duel log so far. */
   | { type: 'backlog'; lines: { step: number; turn: number; text: string }[] }
   /** The duel you asked to rejoin has ended or doesn't exist any more. */

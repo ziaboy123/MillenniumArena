@@ -68,14 +68,18 @@ button.opt { font: inherit; color: inherit; text-align: left; width: 100%; }
 .actmenu button.danger { color: #ff8a76; }
 .actmenu button.danger:hover { border-color: #c0392b; box-shadow: 0 0 16px rgba(192,57,43,.45); }
 
-/* what you can use glows; zones you can choose pulse */
-.hcard.can { box-shadow: 0 0 0 2px var(--accent-hi), 0 0 22px 2px var(--glow), 0 12px 28px rgba(0,0,0,.75); animation: hpulse 1.6s ease-in-out infinite; }
-@keyframes hpulse { 50% { box-shadow: 0 0 0 2px var(--accent-hi), 0 0 34px 8px var(--glow), 0 12px 28px rgba(0,0,0,.75); } }
-.zone.can, .zone.pick, .zone.picked { cursor: pointer; }
-.zone.pick { animation: zpulse 1.4s ease-in-out infinite; }
-@keyframes zpulse { 0%,100% { box-shadow: 0 0 0 2px var(--accent-hi), 0 0 12px var(--glow) } 50% { box-shadow: 0 0 0 2px var(--accent-hi), 0 0 30px 6px var(--glow) } }
+/* a card with an effect you can activate right now glows; one that can attack (Battle Phase) is outlined in red;
+   anything else you can do (summon, Set, change position) is clickable but plain. Zones you can choose pulse */
+/* steady ring, soft glow that breathes gently: easy to spot, not distracting */
+.hcard.act { box-shadow: 0 0 0 2px var(--accent-hi), 0 0 14px 1px var(--glow), 0 12px 28px rgba(0,0,0,.75); animation: hbreathe 2.8s ease-in-out infinite; }
+@keyframes hbreathe { 50% { box-shadow: 0 0 0 2px var(--accent-hi), 0 0 22px 3px var(--glow), 0 12px 28px rgba(0,0,0,.75); } }
+@media (prefers-reduced-motion: reduce) { .hcard.act, .zone.act .card, .zone.pick { animation: none; } }
+.zone.act, .zone.atk, .zone.can, .zone.pick, .zone.picked { cursor: pointer; }
+.zone.pick { box-shadow: 0 0 0 2px var(--accent-hi), 0 0 14px 2px var(--glow); animation: zpulse 2s ease-in-out infinite; }
+@keyframes zpulse { 50% { box-shadow: 0 0 0 2px var(--accent-hi), 0 0 24px 4px var(--glow) } }
 .zone.picked { box-shadow: 0 0 0 3px var(--accent), inset 0 0 30px var(--glow) !important; }
-.pv-card.can { cursor: pointer; box-shadow: 0 0 0 2px var(--accent-hi), 0 0 18px var(--glow); }
+.pv-card.act { cursor: pointer; box-shadow: 0 0 0 2px var(--accent-hi), 0 0 18px var(--glow); }
+.pv-card.can { cursor: pointer; outline: 2px solid var(--accent-hi); outline-offset: -2px; }
 
 /* choosing cards: a window over the field */
 .picker { left: 380px; top: 120px; width: 800px; max-height: 600px; z-index: 56; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; animation: cin .2s ease-out; box-shadow: 0 30px 80px rgba(0,0,0,.7); }
@@ -118,6 +122,8 @@ button.opt { font: inherit; color: inherit; text-align: left; width: 100%; }
 .timerbar .timer i { animation: none; transition: width .25s linear; }
 .timerbar.low b, .rank.low { color: #ff8a76; }
 .timerbar.low .timer i { background: #e0503a; }
+.timerbar.paused b { color: var(--muted); }
+.timerbar.paused .timer i { opacity: .45; }
 
 /* ---------- negated cards and columns ---------- */
 .negx { position: absolute; inset: 0; z-index: 2; pointer-events: none; background:
@@ -184,6 +190,12 @@ button.opt { font: inherit; color: inherit; text-align: left; width: 100%; }
 .zone .card.enter { animation: card-enter .45s cubic-bezier(.2,.9,.3,1.15) both; }
 .zone.theirs .card.enter { animation-name: card-enter-theirs; }
 .zone.flash .card.enter { animation: card-enter .45s cubic-bezier(.2,.9,.3,1.15) both, flash 1s ease-out .2s; }
+/* a card with an effect to activate: drops in as usual, then breathes (duel.css) */
+@media (prefers-reduced-motion: no-preference) {
+  .zone.act .card.enter { animation: card-enter .45s cubic-bezier(.2,.9,.3,1.15) both, breathe 2.8s ease-in-out .45s infinite; }
+  .zone.act.theirs .card.enter { animation-name: card-enter-theirs, breathe; }
+  .zone.act.atk .card.enter { animation-name: card-enter, breathe-atk; }
+}
 @keyframes card-enter { from { opacity: 0; translate: 0 -46px; scale: 1.25; filter: brightness(1.8); } 60% { opacity: 1; } to { opacity: 1; translate: 0 0; scale: 1; filter: none; } }
 @keyframes card-enter-theirs { from { opacity: 0; translate: 0 46px; scale: 1.25; filter: brightness(1.8); } 60% { opacity: 1; } to { opacity: 1; translate: 0 0; scale: 1; filter: none; } }
 

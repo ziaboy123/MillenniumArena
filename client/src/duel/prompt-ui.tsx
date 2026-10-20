@@ -6,8 +6,9 @@ import { cardName, imageFallback, smallImage } from '../lib/cards.ts';
 import { EyeSvg } from '../lib/ui.tsx';
 
 export interface MenuItem { label: string; sub?: string; run: () => void; danger?: boolean }
-/** Something a card can do for the prompt on screen. */
-export interface CardActions { card: PromptCard; actions: { label: string; sub?: string; answer: PromptAnswer }[] }
+/** Something a card can do for the prompt on screen. `activate`: one of them is activating an effect (the card glows);
+ *  `attack`: it can attack (Battle Phase, outlined in red). Anything else (summon, Set, change position) is clickable but plain. */
+export interface CardActions { card: PromptCard; actions: { label: string; sub?: string; answer: PromptAnswer }[]; activate: boolean; attack: boolean }
 
 const LOC_LABEL: Record<PromptCard['loc'], string> = { hand: 'Hand', m: 'Field', s: 'Field', gy: 'GY', ban: 'Banished', deck: 'Deck', extra: 'Extra Deck' };
 const PHASE_NAME: Partial<Record<Phase, string>> = { M1: 'Main Phase 1', M2: 'Main Phase 2', BP: 'Battle Phase' };
@@ -20,15 +21,18 @@ export const cardKey = (c: Pick<PromptCard, 'p' | 'loc' | 'seq' | 'mat'>) => (c.
 /** Group the prompt's choices by the card they belong to, so a click on that card can offer them. */
 export function actionsByCard(prompt: Prompt | null): Map<string, CardActions> {
   const map = new Map<string, CardActions>();
-  const add = (card: PromptCard, label: string, answer: PromptAnswer, activate: boolean) => {
+  const add = (card: PromptCard, label: string, answer: PromptAnswer, activate: boolean, attack = false) => {
     const k = cardKey(card);
-    if (!map.has(k)) map.set(k, { card, actions: [] });
+    if (!map.has(k)) map.set(k, { card, actions: [], activate: false, attack: false });
+    const entry = map.get(k)!;
+    entry.activate ||= activate;
+    entry.attack ||= attack;
     // effects show as "Activate" with what the effect does underneath
     const sub = activate && label !== 'Activate' ? effectText(label) : undefined;
     map.get(k)!.actions.push({ label: activate ? 'Activate' : label, ...(sub ? { sub } : {}), answer });
   };
   if (prompt?.kind === 'idle') for (const a of prompt.actions) add(a.card, a.label, { kind: 'idle', act: a.act as IdleAct, index: a.index }, a.act === 'activate');
-  if (prompt?.kind === 'battle') for (const a of prompt.actions) add(a.card, a.label, { kind: 'battle', act: a.act === 'attack' ? 'attack' : 'activate', index: a.index }, a.act === 'activate');
+  if (prompt?.kind === 'battle') for (const a of prompt.actions) add(a.card, a.label, { kind: 'battle', act: a.act === 'attack' ? 'attack' : 'activate', index: a.index }, a.act === 'activate', a.act === 'attack');
   if (prompt?.kind === 'chain') prompt.cards.forEach((c, index) => add(c, c.desc || 'Activate', { kind: 'chain', index }, true));
   return map;
 }
@@ -68,7 +72,8 @@ export function PromptPanel({ prompt, phase, loose, zonesLeft, onAnswer, onAutoZ
           {retry}
           <div className="eyebrow">{PHASE_NAME[phase] ?? 'Main Phase'}</div>
           <h3>Your move</h3>
-          <div className="sub">{prompt.actions.length ? 'Click a glowing card to use it.' : 'Nothing you can use right now.'}</div>
+          <div className="sub">{!prompt.actions.length ? 'Nothing you can use right now.'
+            : prompt.actions.some(a => a.act === 'activate') ? 'Glowing cards have an effect you can activate now. Click a card to use it.' : 'Click a card to use it.'}</div>
           {looseRows.length > 0 && <div className="pp-list">{looseRows}</div>}
           <div className="btns">
             {prompt.toBP && <button className="btn primary" onClick={() => onAnswer({ kind: 'idle', act: 'bp' })}>Battle Phase</button>}
@@ -82,7 +87,8 @@ export function PromptPanel({ prompt, phase, loose, zonesLeft, onAnswer, onAutoZ
           {retry}
           <div className="eyebrow">Battle Phase</div>
           <h3>{prompt.actions.some(a => a.act === 'attack') ? 'Attack or move on' : 'Move on'}</h3>
-          <div className="sub">{prompt.actions.length ? 'Click a glowing monster to attack or use it.' : 'Nothing can attack right now.'}</div>
+          <div className="sub">{!prompt.actions.length ? 'Nothing can attack right now.'
+            : [prompt.actions.some(a => a.act === 'attack') && 'Monsters outlined in red can attack.', prompt.actions.some(a => a.act === 'activate') && 'Glowing cards have an effect you can activate now.'].filter(Boolean).join(' ')}</div>
           {looseRows.length > 0 && <div className="pp-list">{looseRows}</div>}
           <div className="btns">
             {prompt.toM2 && <button className="btn primary" onClick={() => onAnswer({ kind: 'battle', act: 'm2' })}>Main Phase 2</button>}

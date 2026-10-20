@@ -59,8 +59,13 @@ body.exploded .layer-label{opacity:1}
 .stat{position:absolute;left:50%;bottom:-22px;transform:translateX(-50%);z-index:3;white-space:nowrap;
   font:700 14px/1 var(--font-display);color:var(--muted);background:rgba(0,0,0,.78);padding:4px 9px;border-radius:999px;border:1px solid var(--line)}
 .stat b{color:var(--text)}
-.zone.can .card{animation:pulse 1.6s ease-in-out infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 2px var(--accent-hi),0 0 14px 2px var(--glow)}50%{box-shadow:0 0 0 2px var(--accent-hi),0 0 34px 8px var(--glow)}}
+.zone.act .card{box-shadow:0 0 0 2px var(--accent-hi),0 0 12px 1px var(--glow);animation:breathe 2.8s ease-in-out infinite}
+@keyframes breathe{50%{box-shadow:0 0 0 2px var(--accent-hi),0 0 20px 3px var(--glow)}}
+.zone.atk .card{box-shadow:0 0 0 2px var(--atk),0 0 18px rgba(255,90,60,.5)}
+.zone.act.atk .card{box-shadow:0 0 0 2px var(--atk),0 0 12px 1px var(--glow)}
+@keyframes breathe-atk{50%{box-shadow:0 0 0 2px var(--atk),0 0 20px 3px var(--glow)}}
+/* a pile with something you can do that isn't activating an effect (an Extra Deck summon): a still ring, no glow */
+.zone.can:is(.gy,.ban,.extra) .card{box-shadow:0 0 0 2px var(--accent-hi)}
 .zone.attacker .card,.zone.target .card{box-shadow:0 0 0 2px var(--atk),0 0 30px rgba(255,90,60,.55)}
 .link{position:absolute;top:-16px;right:-16px;z-index:4;width:34px;height:34px;border-radius:50%;background:var(--accent);color:#111;
   font:700 17px/34px var(--font-display);text-align:center;box-shadow:0 0 24px var(--glow);animation:pop .4s cubic-bezier(.2,1.6,.4,1)}

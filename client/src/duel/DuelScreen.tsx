@@ -8,6 +8,7 @@ import { Background, Eye, EyeSvg, Stage } from '../lib/ui.tsx';
 import { Field, cellIndex, pileCell, type CellFx, type Mark, type PileKind } from './Field.tsx';
 import { ActionMenu, CardPicker, PositionPicker, PromptPanel, actionsByCard, type CardActions, type MenuItem } from './prompt-ui.tsx';
 import { CardNamePicker, CounterPicker, DeclarePicker, SortPicker, SumPicker } from './rare-pickers.tsx';
+import type { Waiting } from './useDuel.ts';
 
 const PHASES = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP'] as const;
 const FACEDOWN = 0xa, FACEUP = 0x5;
@@ -53,8 +54,10 @@ function useFleeting<T extends { id: number }>(ms: number) {
 /** Duels between people: the chat, which shares the bottom-right panel with the duel log. */
 export interface DuelChat { lines: ChatLine[]; name: string; onSend: (text: string) => void }
 
-export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave, reconnecting, embedded, initialDetail, chat, matchLine, leaveText, endAction }: {
+export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave, reconnecting, waiting = null, embedded, initialDetail, chat, matchLine, leaveText, endAction }: {
   duel: DuelInfo; frame: Frame | null; log: LogRow[]; ending: Ending | null;
+  /** Duels between people: the other player the duel is waiting on. */
+  waiting?: Waiting | null;
   prompt: Prompt | null; promptAt: number; onAnswer: (a: PromptAnswer) => void;
   reveal: Reveal | null; onCloseReveal: () => void; onSurrender: () => void; onLeave: () => void; reconnecting?: boolean;
   /** Shown as a picture inside another page (the Welcome page's preview): no window scaling, no clicks. */
@@ -90,16 +93,35 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
   }, [frame?.step]);
   useEffect(() => { setMenu(null); setZones([]); }, [prompt?.id]);
 
-  // turn timer: the prompt's clock counts down while it's on screen; between prompts your turn's time is paused
-  const now = useNow(prompt?.time ? 250 : !prompt && !ending ? 500 : 0);
-  // nothing to answer and nothing new for a while: the engine (or the bot) is working something out
-  const thinking = !!frame && !prompt && !ending && !reconnecting && now - lastFrameAt.current > 2200;
-  const left = prompt?.time ? prompt.time.left - (now - promptAt) : null;
-  const bank = useRef(duel.timer * 1000);
-  if (prompt?.time?.turn && left !== null) bank.current = Math.max(0, left);
-  const myTurn = frame?.turnPlayer === 0 && duel.you === 0;
-  useEffect(() => { if (myTurn) bank.current = duel.timer * 1000; }, [frame?.turn]);   // a fresh turn's time
-  const clock = duel.timer && duel.you === 0 ? (myTurn ? bank.current : null) : null;
+  // the clocks: whoever is choosing counts down (you, from your prompt; the other player, from what the server says);
+  // between choices the turn player's time is paused, as it is on the server
+  const now = useNow(prompt?.time || waiting?.time ? 250 : !prompt && !ending ? 500 : 0);
+  // (never more than the server said: the clock only starts going down from the next tick)
+  const left = prompt?.time ? prompt.time.left - Math.max(0, now - promptAt) : null;
+  const theirLeft = waiting?.time ? waiting.time.left - Math.max(0, now - waiting.at) : null;
+  const banks = useRef<[number, number]>([duel.timer * 1000, duel.timer * 1000]);   // each seat's turn time left
+  // a fresh turn's time, set before the clocks below so a prompt arriving with the turn still counts. Joining mid-turn
+  // (a reload, a reconnect, watching), the server says how much of the turn player's time is left
+  const turnSeen = useRef<{ duel: DuelInfo; turn: number } | null>(null);
+  if (frame && (turnSeen.current?.duel !== duel || turnSeen.current.turn !== frame.turn)) {
+    const c = duel.clock, joined = turnSeen.current?.duel !== duel;
+    banks.current[frame.turnPlayer] = joined && c && c.turn === frame.turn && c.side === frame.turnPlayer ? c.left : duel.timer * 1000;
+    turnSeen.current = { duel, turn: frame.turn };
+  }
+  if (prompt?.time?.turn && left !== null) banks.current[0] = Math.max(0, left);
+  if (waiting?.time?.turn && theirLeft !== null) banks.current[waiting.side] = Math.max(0, theirLeft);
+  // a seat's clock shows on its turn; the bot has no clock
+  const timed = (side: Side) => !!duel.timer && (duel.people || (side === 0 && duel.you === 0));
+  const clockOf = (side: Side) => (timed(side) && frame?.turnPlayer === side ? banks.current[side] : null);
+  // nothing to answer: the duel is waiting on the other player (say so straight away), or nothing new has happened for
+  // a while and the engine (or the bot) is working something out
+  // an answer coming in counts as activity (else "Working it out…" would blip in the moment a wait ends)
+  const busy = !!(prompt || waiting), wasBusy = useRef(busy);
+  if (wasBusy.current && !busy) lastFrameAt.current = Date.now();
+  wasBusy.current = busy;
+  const thinking = !!frame && !prompt && !ending && !reconnecting && (waiting ? now - waiting.at > 600 : now - lastFrameAt.current > 2200);
+  const thinkingText = waiting ? `${duel.players[waiting.side]} is thinking…`
+    : !duel.people && !(frame?.turnPlayer === 0 && duel.you === 0) ? `${duel.players[frame?.turnPlayer ?? 1]} is thinking…` : 'Working it out…';
 
   // what you can click right now: cards with actions (glow), zones you can choose, and choices with no card on screen
   const byCard = useMemo(() => actionsByCard(prompt), [prompt]);
@@ -108,11 +130,17 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
     const pileActions = new Map<string, CardActions>(), loose: CardActions[] = [];
     for (const entry of byCard.values()) {
       const c = entry.card;
+      const mark: Mark = entry.activate && entry.attack ? 'act atk' : entry.activate ? 'act' : entry.attack ? 'atk' : 'can';
       if (c.p === 0 && c.loc === 'hand' && !c.mat) handActions.set(c.seq, entry);
       else if (c.mat || c.loc === 'm' || c.loc === 's') {
         const i = cellIndex({ p: c.p, loc: c.mat ? 'm' : c.loc as 'm' | 's', seq: c.seq });
-        if (i >= 0) { marks.set(i, 'can'); cellActions.set(i, entry); } else loose.push(entry);
-      } else if (c.loc === 'gy' || c.loc === 'ban' || c.loc === 'extra') { marks.set(pileCell(c.p, c.loc), 'can'); pileActions.set(`${c.p}:${c.loc}:${c.seq}`, entry); }
+        if (i >= 0) { marks.set(i, mark); cellActions.set(i, entry); } else loose.push(entry);
+      } else if (c.loc === 'gy' || c.loc === 'ban' || c.loc === 'extra') {
+        // a pile glows if any card in it has an effect to activate
+        const i = pileCell(c.p, c.loc);
+        if (marks.get(i) !== 'act') marks.set(i, mark);
+        pileActions.set(`${c.p}:${c.loc}:${c.seq}`, entry);
+      }
       else loose.push(entry);
     }
     if (prompt?.kind === 'place') for (const z of prompt.zones) { const i = cellIndex(z); if (i >= 0) marks.set(i, zones.some(p => sameZone(p, z)) ? 'picked' : 'pick'); }
@@ -189,13 +217,19 @@ export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswe
           <div className="logo"><Eye /><div className="w">MILLENNIUM<small>ARENA</small></div></div>
           <CardDetail code={detail} />
           {frame && <>
-            <LifePanel side={1} duel={duel} frame={frame} />
-            <LifePanel side={0} duel={duel} frame={frame} clock={clock} />
+            <LifePanel side={1} duel={duel} frame={frame} clock={clockOf(1)} />
+            <LifePanel side={0} duel={duel} frame={frame} clock={clockOf(0)} />
             <Hands frame={frame} can={handActions} onHand={(i, el) => { const e = handActions.get(i); if (e) openActions(el, e); }} />
             <PhaseBar duel={duel} frame={frame} />
             <div className="rightcol">
-              {prompt?.time && left !== null && <TimerBar left={left} full={prompt.time.turn ? duel.timer * 1000 : RESPONSE_MS} turn={prompt.time.turn} />}
-              {thinking && <div className="panel thinking"><span className="dots"><i /><i /><i /></span>{frame.turnPlayer === 0 && duel.you === 0 ? 'Working it out…' : `${duel.players[frame.turnPlayer]} is thinking…`}</div>}
+              {/* the timer is always on screen in a timed duel: whoever is choosing, or the turn player's paused time */}
+              {duel.timer > 0 && !ending && (
+                prompt?.time && left !== null ? <TimerBar label={prompt.time.turn ? 'Your turn' : 'Respond within'} left={left} full={prompt.time.turn ? duel.timer * 1000 : RESPONSE_MS} />
+                : waiting?.time && theirLeft !== null ? <TimerBar label={`${duel.players[waiting.side]} ${waiting.time.turn ? 'is thinking' : 'can respond'}`} left={theirLeft} full={waiting.time.turn ? duel.timer * 1000 : RESPONSE_MS} />
+                : timed(frame.turnPlayer) ? <TimerBar label={frame.turnPlayer === 0 && duel.you === 0 ? 'Your turn' : `${duel.players[frame.turnPlayer]}'s turn`} left={banks.current[frame.turnPlayer]} full={duel.timer * 1000} paused />
+                : null
+              )}
+              {thinking && !(waiting?.time && duel.timer) && <div className="panel thinking"><span className="dots"><i /><i /><i /></span>{thinkingText}</div>}
               <ChainPanel duel={duel} frame={frame} />
               {prompt && <PromptPanel key={prompt.id} prompt={prompt} phase={frame.phase} loose={loose} zonesLeft={prompt.kind === 'place' ? prompt.count - zones.length : 0} onAnswer={answer} onAutoZone={autoZone} />}
             </div>
@@ -287,10 +321,11 @@ function CardDetail({ code }: { code: number | null }) {
   );
 }
 
-function TimerBar({ left, full, turn }: { left: number; full: number; turn: boolean }) {
+/** A clock: `paused` between choices (nobody's time is running). */
+function TimerBar({ label, left, full, paused }: { label: string; left: number; full: number; paused?: boolean }) {
   return (
-    <div className={`panel timerbar ${left < 10_000 ? 'low' : ''}`}>
-      <span>{turn ? 'Your turn' : 'Respond within'}</span><b>{clockText(left)}</b>
+    <div className={`panel timerbar ${left < 10_000 && !paused ? 'low' : ''} ${paused ? 'paused' : ''}`}>
+      <span>{label}</span><b>{clockText(left)}</b>
       <div className="timer"><i style={{ width: `${Math.min(100, (100 * left) / Math.max(full, 1))}%` }} /></div>
     </div>
   );
@@ -352,7 +387,8 @@ function Hands({ frame, can, onHand }: { frame: Frame; can: Map<number, CardActi
   return <>
     <div className="hand">{mine.map((code, i) => {
       const off = i - (mine.length - 1) / 2;
-      return <div key={i} className={`hcard ${code ? '' : 'back'} ${can.has(i) ? 'can' : ''}`} data-code={code || undefined} onClick={can.has(i) ? e => onHand(i, e.currentTarget) : undefined}
+      const act = can.get(i);
+      return <div key={i} className={`hcard ${code ? '' : 'back'} ${act ? (act.activate ? 'act' : 'can') : ''}`} data-code={code || undefined} onClick={can.has(i) ? e => onHand(i, e.currentTarget) : undefined}
         style={{ '--x': `${off * Math.min(112, 560 / Math.max(mine.length, 1))}px`, '--y': `${off * off * 6}px`, '--a': `${off * 4}deg` } as React.CSSProperties}>
         {code ? <img src={smallImage(code)} alt="" onError={e => imageFallback(e, code)} /> : <EyeSvg />}
       </div>;
@@ -481,7 +517,7 @@ function PileViewer({ duel, frame, pile, setPile, actions, onAct }: {
         {deckHidden ? <div className="pv-empty">You can't look through a Deck during a duel.</div>
           : cards.length ? cards.map((c, i) => {
             const act = actions.get(`${p}:${kind}:${c.seq}`);
-            return <div key={i} className={`pv-card ${c.tag === 'Face-down' ? 'down' : ''} ${act ? 'can' : ''}`} data-code={c.code || undefined} onClick={act ? e => onAct(e.currentTarget, act) : undefined}>
+            return <div key={i} className={`pv-card ${c.tag === 'Face-down' ? 'down' : ''} ${act ? (act.activate ? 'act' : 'can') : ''}`} data-code={c.code || undefined} onClick={act ? e => onAct(e.currentTarget, act) : undefined}>
               {c.code ? <img src={smallImage(c.code)} alt="" onError={e => imageFallback(e, c.code)} /> : <div className="card back" style={{ position: 'absolute', inset: 0 }}><EyeSvg /></div>}
               {c.tag && <span className="tag">{c.tag}</span>}</div>;
           })

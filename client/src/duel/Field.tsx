@@ -51,8 +51,9 @@ export type CellFx =
   | { id: number; kind: 'summon'; cell: number; summon: SummonKind }
   | { id: number; kind: 'leave'; cell: number; code: number; to: LeaveTo; theirs: boolean };
 
-/** How a cell is marked while you're choosing: `can` = has something you can do, `pick` = a zone you can choose. */
-export type Mark = 'can' | 'pick' | 'picked';
+/** How a cell is marked while you're choosing: `act` = has an effect you can activate now (glows), `atk` = can attack
+ *  (Battle Phase; 'act atk' = both), `can` = something else you can do (summon, Set, change position), `pick` = a zone you can choose. */
+export type Mark = 'act' | 'atk' | 'act atk' | 'can' | 'pick' | 'picked';
 
 const sameCell = (z: ZoneRef, r: number, c: number) => { const g = gridOf(z); return !!g && g[0] === r && g[1] === c; };
 

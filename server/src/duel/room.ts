@@ -101,6 +101,8 @@ export class DuelRoom {
     // between people you only know your own deck's name
     const decks: [string, string] = this.options.hideDecks ? [side === 0 ? this.decks[0].name : '', side === 1 ? this.decks[1].name : ''] : [this.decks[0].name, this.decks[1].name];
     return { id: this.id, players: seat(this.players, side), decks: seat(decks, side), you: side === null ? null : 0, fullView: this.fullView, engine: ENGINE_NAME, timer: this.seconds, ...(key ? { seat: key } : {}),
+      ...(this.humans.length > 1 ? { people: true } : {}),
+      ...(this.seconds && this.turn ? { clock: { side: seatSide(this.turnPlayer, side) as Side, turn: this.turn, left: this.turnLeft() } } : {}),
       // side 0 goes first; the toss is only shown once, when the duel starts
       ...(this.options.coin && !rejoining ? { coin: { first: seatSide(0, side) as Side } } : {}) };
   }
@@ -112,6 +114,7 @@ export class DuelRoom {
     if (rejoining) viewer.send({ type: 'backlog', lines: this.log });
     if (this.latest) viewer.send({ type: 'frame', frame: frameFor(this.latest, viewer.side, this.fullView) });
     if (this.pending && this.pending.side === viewer.side) viewer.send({ type: 'prompt', prompt: this.timed(this.pending.prompt) });
+    else if (this.pending) viewer.send(this.waitingFor(this.pending, viewer.side));
     if (this.ended) viewer.send({ ...this.ended, winner: seatSide(this.ended.winner, viewer.side) });
   }
 
@@ -156,7 +159,10 @@ export class DuelRoom {
     if (!this.pending || viewer.side !== this.pending.side || id !== this.pending.prompt.id) return;
     this.pending = null;
     this.stopClock();
-    for (const v of this.viewers) if (v.side === viewer.side && v !== viewer) v.send({ type: 'prompt', prompt: null });
+    for (const v of this.viewers) {
+      if (v.side !== viewer.side) v.send({ type: 'waiting', side: null });
+      else if (v !== viewer) v.send({ type: 'prompt', prompt: null });   // the same player in another tab
+    }
     this.worker.postMessage({ type: 'answer', id, answer } satisfies WorkerCommand);
   }
 
@@ -211,7 +217,8 @@ export class DuelRoom {
     if ('prompt' in next) {
       this.pending = next;
       this.startClock(next.prompt, next.side);
-      if (this.pending) for (const v of this.viewers) if (v.side === next.side) v.send({ type: 'prompt', prompt: this.timed(next.prompt) });
+      // the player being asked gets the prompt; everyone else learns who the duel is waiting on, and their clock
+      if (this.pending) for (const v of this.viewers) v.send(v.side === next.side ? { type: 'prompt', prompt: this.timed(next.prompt) } : this.waitingFor(next, v.side));
       return this.pump();
     }
     const f = next.frame;
@@ -251,8 +258,18 @@ export class DuelRoom {
     if (!this.pending || this.pending.prompt.id !== id) return;
     this.stopClock();
     this.pending = null;
-    for (const v of this.viewers) if (v.side === side) v.send({ type: 'prompt', prompt: null });
+    for (const v of this.viewers) v.send(v.side === side ? { type: 'prompt', prompt: null } : { type: 'waiting', side: null });
     this.worker.postMessage({ type: 'timeout', id } satisfies WorkerCommand);
+  }
+  /** The turn player's turn time left right now (running if they're choosing, else paused). */
+  private turnLeft() {
+    const c = this.clock;
+    return c?.turn && c.side === this.turnPlayer ? Math.max(0, c.limit - (Date.now() - c.started)) : this.bank[this.turnPlayer];
+  }
+  /** For someone other than the player being asked: who the duel is waiting on (from their seat), and that player's clock. */
+  private waitingFor(pending: { prompt: Prompt; side: Side }, viewer: Side | null): ServerMessage {
+    const time = this.timed(pending.prompt).time;
+    return { type: 'waiting', side: seatSide(pending.side, viewer) as Side, ...(time ? { time } : {}) };
   }
   /** The prompt with the time left on its clock right now. */
   private timed(prompt: Prompt): Prompt {

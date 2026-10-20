@@ -103,7 +103,7 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
       const [host, guest] = room.players;
       const line = room.rules.bo === 3 ? `Game ${room.game} of 3 · ${host.name} ${host.wins}-${guest?.wins ?? 0} ${guest?.name ?? ''}` : room.kind === 'unranked' ? 'Unranked duel' : 'Private duel';
       return <DuelScreen duel={d.duel} frame={d.frame} log={d.log} ending={d.ending} prompt={d.prompt} promptAt={d.promptAt} onAnswer={answer}
-        reveal={d.reveal} onCloseReveal={d.closeReveal} reconnecting={d.reconnecting} matchLine={line}
+        reveal={d.reveal} onCloseReveal={d.closeReveal} reconnecting={d.reconnecting} waiting={d.waiting} matchLine={line}
         chat={{ lines: chat, name: me?.username ?? '', onSend: text => send({ type: 'chat', text }) }}
         leaveText={room.rules.bo === 3 ? 'Leaving the room ends the match, and counts as a loss.' : 'Leaving the room ends the duel, and counts as a loss.'}
         onSurrender={() => send({ type: 'room.surrender' })}
@@ -111,7 +111,7 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
         endAction={{ label: room.phase === 'over' ? 'See the result' : 'Continue', run: () => setShowDuel(false) }} />;
     }
     return <DuelScreen duel={d.duel} frame={d.frame} log={d.log} ending={d.ending} prompt={d.prompt} promptAt={d.promptAt} onAnswer={answer}
-      reveal={d.reveal} onCloseReveal={d.closeReveal} reconnecting={d.reconnecting}
+      reveal={d.reveal} onCloseReveal={d.closeReveal} reconnecting={d.reconnecting} waiting={d.waiting}
       onSurrender={() => { send({ type: 'surrender' }); d.setPrompt(null); }}
       onLeave={() => { send({ type: 'leave' }); saveSeat(null); d.clear(); navigate('/home'); }}
       endAction={{ label: 'Back to Solo', run: () => { send({ type: 'leave' }); d.clear(); setView('solo'); } }} />;

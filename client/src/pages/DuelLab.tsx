@@ -64,7 +64,7 @@ export function DuelLab() {
   const leave = () => { send({ type: 'leave' }); saveSeat(null); d.clear(); if (account) navigate('/home'); };
 
   if (duel && cardsReady) return <DuelScreen duel={duel} frame={frame} log={d.log} ending={ending} prompt={prompt} promptAt={d.promptAt} onAnswer={answer}
-    reveal={d.reveal} onCloseReveal={d.closeReveal} onSurrender={surrender} onLeave={leave} reconnecting={d.reconnecting} />;
+    reveal={d.reveal} onCloseReveal={d.closeReveal} onSurrender={surrender} onLeave={leave} reconnecting={d.reconnecting} waiting={d.waiting} />;
 
   const ready = connected && cardsReady && decks.length > 0;
   const start = () => ch.mode === 'play'
