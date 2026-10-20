@@ -1,4 +1,5 @@
 // Card names, text and stats, loaded once from the server (the same card database the engine uses).
+import { useEffect, useState } from 'react';
 import type { CardRow } from '@arena/shared';
 
 export interface CardInfo { code: number; name: string; alias: number; frame: string; typeLine: string; attribute: string; level: number; atk: number | null; def: number | null; text: string; ot: number }
@@ -35,6 +36,26 @@ export function imageFallback(e: React.SyntheticEvent<HTMLImageElement>, code: n
   const alias = card(code)?.alias;
   const img = e.currentTarget;
   if (alias && !img.dataset.fallback) { img.dataset.fallback = '1'; img.src = img.src.replace(String(imageCode(code)), String(alias)); }
+}
+/** A card's big picture for the detail panels. A new card's picture is loaded in the background and only shown once it
+ *  has arrived, so the previous one stays meanwhile instead of the panel going blank; alternate artworks without a
+ *  picture of their own get the original card's. */
+export function useBigImage(code: number | null): string | null {
+  const [shown, setShown] = useState<string | null>(code ? bigImage(code) : null);
+  useEffect(() => {
+    if (!code) return;
+    let current = true;
+    const load = (url: string, otherwise?: string) => {
+      const img = new Image();
+      img.onload = () => { if (current) setShown(url); };
+      img.onerror = () => { if (current && otherwise) load(otherwise); };
+      img.src = url;
+    };
+    const alias = card(code)?.alias;
+    load(bigImage(code), alias ? bigImage(alias) : undefined);
+    return () => { current = false; };
+  }, [code]);
+  return shown;
 }
 /** Just the artwork, cropped out of the card. */
 export const cropImage = (code: number) => `${IMAGES}/cards_cropped/${imageCode(code)}.jpg`;
