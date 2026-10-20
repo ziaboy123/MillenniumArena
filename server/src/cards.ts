@@ -32,7 +32,7 @@ function cardDatabases(): string[] {
 }
 
 /** Brand-new cards that Project Ignis still has under temporary numbers (101402090...) while YGOPRODeck, DeckForge and .ydk
- *  files use the official ones (50284408...), from engine/data/official-ids.json (npm run data). official -> engine. */
+ *  files use the official ones (50284408...), from engine/data/card-fixes.json (npm run data). official -> engine. */
 const officialToEngine = new Map<number, number>(), engineToOfficial = new Map<number, number>();
 /** The number the engine knows a card by (decks may use official numbers it doesn't have yet). */
 export const engineCode = (code: number) => officialToEngine.get(code) ?? code;
@@ -59,13 +59,22 @@ export function loadCards(): Map<number, EngineCard> {
     }
     db.close();
   }
-  // brand-new cards are also known by their official numbers (decks and legality use those; duels translate them back)
-  const ids = path.join(ENGINE_DATA, 'official-ids.json');
-  if (existsSync(ids)) for (const [official, engine] of Object.entries(JSON.parse(readFileSync(ids, 'utf8')) as Record<string, number>)) {
-    const c = cards.get(engine), code = Number(official);
+  // Where Project Ignis lags behind real releases (engine/data/card-fixes.json, from npm run data): brand-new cards are also
+  // known by their official numbers (decks and legality use those; duels translate them back), and cards count as released
+  // where their real release date has passed (it keeps marking them OCG-only or "not out yet" for a while).
+  const file = path.join(ENGINE_DATA, 'card-fixes.json'), today = new Date().toISOString().slice(0, 10);
+  type Dates = { tcg: string | null; ocg: string | null };
+  const released = (ot: number, d: Dates) => {
+    const out = (d.tcg && d.tcg <= today ? 0x2 : 0) | (d.ocg && d.ocg <= today ? 0x1 : 0);
+    return out ? (ot & ~0x100) | out : ot;
+  };
+  const fixes = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as { official?: Record<string, Dates & { engine: number }>; released?: Record<string, Dates> } : {};
+  for (const [code, d] of Object.entries(fixes.released ?? {})) { const c = cards.get(Number(code)); if (c) c.ot = released(c.ot, d); }
+  for (const [official, d] of Object.entries(fixes.official ?? {})) {
+    const c = cards.get(d.engine), code = Number(official);
     if (!c || cards.has(code)) continue;
-    officialToEngine.set(code, engine); engineToOfficial.set(engine, code);
-    cards.set(code, { ...c, code });
+    officialToEngine.set(code, d.engine); engineToOfficial.set(d.engine, code);
+    cards.set(code, { ...c, code, ot: released(c.ot, d) });
   }
   return cards;
 }
