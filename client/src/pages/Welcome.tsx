@@ -291,9 +291,9 @@ export function Privacy() {
         <li><b>Security:</b> your logins and the devices you've chosen to trust, so we know when to ask for a login code. These are random keys stored only in scrambled (hashed) form. Email codes expire after 10 minutes.</li>
       </ul>
       <h3>How we use your email</h3>
-      <p>Only for verification codes, password resets and important account notices (like your email or password being changed). No newsletters and no marketing. Emails are sent through an email delivery service.</p>
+      <p>Only for verification codes, password resets and important account notices (like your email or password being changed). No newsletters and no marketing. Emails are sent through Resend, an email delivery service (from its servers in Ireland), from noreply@mail.daniyalzia.co.uk, which can't receive replies.</p>
       <h3>Cookies</h3>
-      <p>One cookie keeps you logged in. If you tick "Trust this device", a second one remembers that for 30 days. Your theme and duel choices are also kept in your browser. There are no analytics or advertising cookies.</p>
+      <p>One cookie (<code>ma_session</code>) keeps you logged in. If you tick "Trust this device", a second one (<code>ma_device</code>) remembers that for 30 days. Both are sent only to Millennium Arena, only over a secure connection, and can't be read by scripts on the page. Your theme and duel choices are also kept in your browser. There are no analytics or advertising cookies.</p>
       <h3>Who can see what</h3>
       <p>Opponents and spectators see your username. Other players can open your profile and see your record (wins, losses, streaks); your match history, decks and most-played cards are shown only to you. Your email and decks stay private: in a private duel your opponent doesn't even see your deck's name.</p>
       <h3>Chat</h3>
