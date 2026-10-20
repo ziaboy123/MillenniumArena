@@ -118,6 +118,7 @@ export function SignUp() {
           <div className="ffield"><label htmlFor="suEmail">Email</label><input className="sinput full" id="suEmail" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} autoFocus maxLength={254} /></div>
           <div className="ffield"><label htmlFor="suPw">Password</label><PasswordInput id="suPw" value={password} onChange={setPassword} meter autoComplete="new-password" placeholder="At least 10 characters" /></div>
           <label className="check"><input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} /><span>I'm 13 or older, I agree to the <Link to="/terms">Terms</Link> and I've read the <Link to="/privacy">Privacy Policy</Link>.</span></label>
+          <p className="tip">New to playing with strangers online? Read <Link to="/safety">Staying safe</Link>: how to mute, report and leave, with a part for parents.</p>
           <div className="err">{err}</div>
           <button className="bigbtn" disabled={busy}>{busy ? 'Creating…' : 'Create account'}</button>
           <div className="alt">Already have an account? <Link to="/login">Log in</Link></div>
@@ -331,7 +332,7 @@ export function Privacy() {
       <ul>
         <li>Your account, decks and match history: until you delete your account.</li>
         <li>Logins: until they expire (30 days without use). Trusted devices: 30 days. Email codes: 10 minutes.</li>
-        <li>Reports: 90 days, then deleted automatically. Each report is also emailed to Daniyal to review, and that email is deleted within 90 days too.</li>
+        <li>Reports: 90 days, then deleted automatically. Each report is also emailed to Daniyal to review, and that email is deleted within 90 days too. The one exception: a report the law requires us to pass to the National Crime Agency (child sexual exploitation and abuse) is kept for 1 year, as its regulations require.</li>
         <li>Backups: the database is backed up every night, encrypted, and each backup is deleted after 14 days. A deleted account disappears from backups within 14 days.</li>
       </ul>
       <h3>How we use your email</h3>
@@ -370,22 +371,74 @@ export function Terms() {
         <li>Harassment, bullying or threats.</li>
         <li>Hate against anyone for their race, religion, sex, sexuality, gender identity or disability.</li>
         <li>Sexual content.</li>
+        <li>Encouraging or giving instructions for suicide, self-harm or eating disorders, or telling anyone to harm themselves.</li>
+        <li>Violent content, and terrorist content or support for a proscribed organisation.</li>
         <li>Trying to contact or meet children, asking anyone for personal details or photos, or trying to move a conversation to another app.</li>
         <li>Spam and scams.</li>
       </ul>
-      <p>Unranked duels pair you with strangers, so links and contact details are blocked in their chat. You can mute the chat in any duel.</p>
+      <p>You can mute the chat in any duel. <Link to="/safety">Staying safe</Link> explains muting, reporting and leaving, with a part for parents.</p>
+      <h3>The Unranked chat check</h3>
+      <p>Unranked duels pair you with strangers, so every message typed in Unranked chat is checked automatically before it's sent. The check matches words and patterns that look like links, email addresses, phone numbers, social media names or room codes; a message that matches isn't sent, and you're told why. Nothing is stored and no person sees the message. We may switch Unranked chat to quick replies only for a while (when we can't keep up with reports). If you think a message was blocked wrongly, email us: we treat it as a complaint and reply within 14 days.</p>
+      <h3>How we keep you safe</h3>
+      <ul>
+        <li><b>Child sexual exploitation and abuse, including grooming:</b> the account is suspended at once, the evidence kept, and it's reported to the National Crime Agency. The account is then removed.</li>
+        <li><b>Terrorism:</b> terrorist content is removed, and accounts run by or for a proscribed organisation are removed. We may tell Counter Terrorism Policing.</li>
+        <li><b>Other illegal content</b> (threats, harassment, hate crime, fraud): the account is warned or suspended, and removed for serious or repeated cases. Threats to someone's life are passed to the police.</li>
+        <li><b>Content harmful to children</b> (bullying, abuse and hate, sexual or violent content, and content about suicide, self-harm or eating disorders) isn't allowed for anyone. Chat is text only, short, not saved, and can be muted; Unranked chat blocks contact details; reports are read by a person and can lead to suspension.</li>
+        <li><b>How fast:</b> reports where someone may be in danger are read the same day, others within 2 days, and appeals are answered within 14 days.</li>
+      </ul>
       <h3>Playing fair</h3>
       <ul>
         <li>No cheating, bots, exploiting bugs, or deliberately disrupting duels.</li>
       </ul>
       <h3 id="reporting">Reporting, and what happens</h3>
-      <p>Use <b>Report</b> in the duel chat (the flag) or on a player's profile, or email <a href={`mailto:${CONTACT}?subject=Report`}>{CONTACT}</a> with the subject "Report". A person reads every report. We may remove content and warn, suspend or remove accounts that break these rules; illegal content is removed and, where the law requires it, reported to the authorities (child sexual abuse material to the National Crime Agency). If your account is suspended and you think that's wrong, email us to appeal: we'll reply within 14 days. More on how reports and complaints are handled: <a href="https://daniyalzia.co.uk/terms#reporting">daniyalzia.co.uk/terms</a>.</p>
+      <p>Use <b>Report</b> in the duel chat (the flag) or on a player's profile, or email <a href={`mailto:${CONTACT}?subject=Report`}>{CONTACT}</a> with the subject "Report" (you don't need an account to email). A person reads every report, and the reported player is never told who made it. We may remove content and warn, suspend or remove accounts that break these rules; illegal content is removed and, where the law requires it, reported to the authorities: child sexual exploitation and abuse, including grooming, to the National Crime Agency. If your account is suspended and you think that's wrong, email us to appeal: we'll look at it again and reply within 14 days. More on how reports and complaints are handled: <a href="https://daniyalzia.co.uk/terms#reporting">daniyalzia.co.uk/terms</a>.</p>
       <h3>Source code</h3>
       <p>Millennium Arena is open source under the GNU Affero General Public License v3.0. The exact code this site is running is on <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
       <h3>No guarantees</h3>
       <p>The site is provided as-is. It may change, go offline for maintenance, or reset data during testing. We'll give notice where we can.</p>
       <h3>Contact</h3>
       <p>Questions or reports: <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
+    </Doc>
+  );
+}
+
+// the duel chat's own buttons, so the page shows exactly what to look for
+const FlagIcon = () => <svg className="ico-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 22V4" /><path d="M4 4h12l-2 4 2 4H4" /></svg>;
+const SpeakerIcon = () => <svg className="ico-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M19 5a10 10 0 0 1 0 14" /></svg>;
+
+/** Staying safe (docs/online-safety.md, R5): muting, reporting and leaving, what never to share, help for young
+ *  players, and a part for parents and carers. Public, linked from sign-up, the Terms and the footer. */
+export function Safety() {
+  return (
+    <Doc title="Staying safe">
+      <p>Millennium Arena is for duelling, and almost everyone is here to play. If someone isn't, here's what you can do. It only takes a click, and you never have to put up with it.</p>
+      <h3>If someone makes you uncomfortable</h3>
+      <ul>
+        <li><b>Mute them</b> <SpeakerIcon />: the speaker button at the top of the duel chat hides everything other players type. Click it again to bring the chat back.</li>
+        <li><b>Report them</b> <FlagIcon />: the flag button next to it, or "Report player" on their profile. A person reads every report, with the chat messages, and they never find out who reported them.</li>
+        <li><b>Leave</b>: the Home button at the top left ends the duel. It counts as a loss, which doesn't matter at all.</li>
+        <li><b>In a private room</b>, nobody can watch unless both players say yes, and you can remove a spectator at any time with "Remove".</li>
+      </ul>
+      <h3>Never share</h3>
+      <p>Your real name, age, school, address, phone number, photos, or your username on other apps or games. Unranked chat blocks links and contact details, but be careful everywhere. Nobody from Millennium Arena will ever ask for your password.</p>
+      <h3>If you're under 18</h3>
+      <ul>
+        <li>If anyone asks you to meet up, to send photos, to move to another app, or to keep a secret, stop chatting, tell an adult you trust, and report them.</li>
+        <li>Childline is free and confidential, any time: call 0800 1111 or go to <a href="https://www.childline.org.uk" target="_blank" rel="noopener noreferrer">childline.org.uk</a>.</li>
+        <li>Worried about someone you met online? You (or an adult) can report it to the police's child protection team, CEOP: <a href="https://www.ceop.police.uk" target="_blank" rel="noopener noreferrer">ceop.police.uk</a>.</li>
+        <li>If anything makes you feel low or unsafe, Samaritans listen any time: call 116 123.</li>
+      </ul>
+      <h3>For parents and carers</h3>
+      <p>Millennium Arena is a free card-game website with no ads and nothing to buy. Accounts are for ages 13 and up.</p>
+      <ul>
+        <li><b>Chat:</b> players can type short text messages during a duel. In Unranked, players are matched with strangers; links, email addresses, phone numbers and social media names are blocked there. In private rooms they play friends who've shared a code. There are no photos, files, private messages or friends lists, and chat isn't saved once the duel ends.</li>
+        <li><b>What we do:</b> a person reads every report. Accounts that break the <Link to="/terms">Terms</Link> are warned, suspended or removed, and anything involving the sexual exploitation of children is reported to the National Crime Agency.</li>
+        <li><b>What helps:</b> show them the mute, report and Home buttons above, and agree they'll tell you if anything feels wrong. The NSPCC has good advice on online gaming: <a href="https://www.nspcc.org.uk/keeping-children-safe/online-safety/" target="_blank" rel="noopener noreferrer">nspcc.org.uk</a>.</li>
+        <li><b>Contact us</b> about anything, including your child's account: <a href={`mailto:${CONTACT}`}>{CONTACT}</a>.</li>
+      </ul>
+      <h3>In an emergency</h3>
+      <p>If anyone is in immediate danger, call 999.</p>
     </Doc>
   );
 }

@@ -1,7 +1,7 @@
 // The duel screen: field + interface panels. You play from the bottom (side 0); when you're only watching,
 // both sides are bots. Prompts from the engine light up the cards you can use.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { COIN_TOSS_MS, type ChatLine, type DuelInfo, type Frame, type Prompt, type PromptAnswer, type ServerMessage, type Side, type SummonKind, type ZoneRef } from '@arena/shared';
+import { COIN_TOSS_MS, QUICK_REPLIES, type ChatLine, type DuelInfo, type Frame, type Prompt, type PromptAnswer, type ServerMessage, type Side, type SummonKind, type ZoneRef } from '@arena/shared';
 import { bigImage, card, cardName, imageFallback, smallImage, useBigImage } from '../lib/cards.ts';
 import { Coin, initial } from '../lib/coin.tsx';
 import { ReportDialog } from '../lib/report.tsx';
@@ -53,7 +53,7 @@ function useFleeting<T extends { id: number }>(ms: number) {
 }
 
 /** Duels between people: the chat, which shares the bottom-right panel with the duel log. */
-export interface DuelChat { lines: ChatLine[]; name: string; onSend: (text: string) => void }
+export interface DuelChat { lines: ChatLine[]; name: string; onSend: (text: string) => void; /** no typing, only quick replies */ quickOnly?: boolean }
 
 export function DuelScreen({ duel, frame, log, ending, prompt, promptAt, onAnswer, reveal, onCloseReveal, onSurrender, onLeave, reconnecting, waiting = null, embedded, initialDetail, chat, matchLine, leaveText, endAction }: {
   duel: DuelInfo; frame: Frame | null; log: LogRow[]; ending: Ending | null;
@@ -444,7 +444,7 @@ function LogPanel({ log, step, duel }: { log: LogRow[]; step: number; duel: Duel
   );
 }
 
-const QUICK = ['GG', 'Good luck!', 'Nice play', 'Thinking…'];
+const QUICK = QUICK_REPLIES;
 
 /** Chat and the duel log as two tabs. Mute hides what the opponent and spectators say. */
 function TalkPanel({ log, step, chat, matchLine, onReport }: { log: LogRow[]; step: number; chat: DuelChat; matchLine?: string; onReport: () => void }) {
@@ -482,10 +482,12 @@ function TalkPanel({ log, step, chat, matchLine, onReport }: { log: LogRow[]; st
           {muted && <div className="cm k-sys">Chat muted: messages from others are hidden.</div>}
         </div>
         <div className="quick">{QUICK.map(q => <button key={q} onClick={() => send(q)}>{q}</button>)}</div>
-        <form className="send" onSubmit={e => { e.preventDefault(); send(text); }}>
-          <input className="chatin" maxLength={200} spellCheck={false} placeholder="Say something…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.stopPropagation()} />
-          <button className="sbtn p" disabled={!text.trim()}>Send</button>
-        </form>
+        {chat.quickOnly ? <div className="cm k-sys quickonly">Unranked chat is quick replies only for now.</div> : (
+          <form className="send" onSubmit={e => { e.preventDefault(); send(text); }}>
+            <input className="chatin" maxLength={200} spellCheck={false} placeholder="Say something…" value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.stopPropagation()} />
+            <button className="sbtn p" disabled={!text.trim()}>Send</button>
+          </form>
+        )}
       </> : (
         <div className="body lines" ref={logBox}>
           {log.map((r, k) => <div key={k} className={`ln ${r.isTurn ? 'turn' : ''} ${r.step === step ? 'now' : ''}`}>{r.isTurn ? r.text : <><i>T{r.turn}</i><span>{r.text}</span></>}</div>)}

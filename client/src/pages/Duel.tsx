@@ -108,7 +108,7 @@ export function DuelPage({ joinCode }: { joinCode?: string }) {
       const line = room.rules.bo === 3 ? `Game ${room.game} of 3 · ${host.name} ${host.wins}-${guest?.wins ?? 0} ${guest?.name ?? ''}` : room.kind === 'unranked' ? 'Unranked duel' : 'Private duel';
       return <DuelScreen duel={d.duel} frame={d.frame} log={d.log} ending={d.ending} prompt={d.prompt} promptAt={d.promptAt} onAnswer={answer}
         reveal={d.reveal} onCloseReveal={d.closeReveal} reconnecting={d.reconnecting} waiting={d.waiting} matchLine={line}
-        chat={{ lines: chat, name: me?.username ?? '', onSend: text => send({ type: 'chat', text }) }}
+        chat={{ lines: chat, name: me?.username ?? '', onSend: text => send({ type: 'chat', text }), quickOnly: room.quickOnly }}
         leaveText={room.rules.bo === 3 ? 'Leaving the room ends the match, and counts as a loss.' : 'Leaving the room ends the duel, and counts as a loss.'}
         onSurrender={() => send({ type: 'room.surrender' })}
         onLeave={() => { leaveRoom(); d.clear(); navigate('/home'); }}

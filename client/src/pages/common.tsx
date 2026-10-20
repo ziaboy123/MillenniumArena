@@ -92,7 +92,7 @@ function mainScroller(root: HTMLElement | null, dir: 1 | -1): HTMLElement | null
 export function Foot() {
   return (
     <div className="foot">
-      <div><Link to="/privacy">Privacy</Link> &nbsp;·&nbsp; <Link to="/terms">Terms</Link> &nbsp;·&nbsp; <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">Source code (AGPL-3.0)</a></div>
+      <div><Link to="/privacy">Privacy</Link> &nbsp;·&nbsp; <Link to="/terms">Terms</Link> &nbsp;·&nbsp; <Link to="/safety">Staying safe</Link> &nbsp;·&nbsp; <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">Source code (AGPL-3.0)</a></div>
       <div>Card data from Project Ignis, images from YGOPRODeck &nbsp;·&nbsp; Unofficial fan project, not affiliated with Konami</div>
     </div>
   );

@@ -140,6 +140,8 @@ const MIGRATIONS: string[] = [
      created_at    timestamptz not null default now()
    );
    create index on arena.reports (created_at);`,
+  // 7: a report sent to the National Crime Agency is kept a year (its regulations), not 90 days: set keep_until by hand
+  `alter table arena.reports add column if not exists keep_until timestamptz;`,
 ];
 
 export async function migrate() {
@@ -155,7 +157,7 @@ export async function migrate() {
   // expired codes, sessions and devices are cleared out regularly
   const sweep = () => q(`delete from arena.codes where expires_at < now() - interval '1 day';
     delete from arena.sessions where expires_at < now(); delete from arena.devices where expires_at < now();
-    delete from arena.reports where created_at < now() - interval '90 days';`).catch(() => {});
+    delete from arena.reports where created_at < now() - interval '90 days' and (keep_until is null or keep_until < now());`).catch(() => {});
   sweep();
   setInterval(sweep, 6 * 3600_000).unref();
 }

@@ -280,6 +280,8 @@ export interface RoomRules {
 }
 export const DEFAULT_RULES: RoomRules = { bo: 1, timer: 90, banlist: 'TCG', lp: 8000, check: true, spectators: 'ask' };
 /** Unranked matches: quick and standard (his call, 2026-10-20). */
+/** The chat's quick replies (the only chat when Unranked is switched to quick replies only). */
+export const QUICK_REPLIES = ['GG', 'Good luck!', 'Nice play', 'Thinking…'];
 export const UNRANKED_RULES: RoomRules = { bo: 1, timer: 90, banlist: 'TCG', lp: 8000, check: true, spectators: 'off' };
 
 export type RoomRole = 'host' | 'guest';
@@ -292,6 +294,8 @@ export type RoomPhase = 'lobby' | 'toss' | 'choose' | 'dueling' | 'siding' | 'ov
 export interface RoomView {
   /** A private room (friends, a code) or an unranked match the server paired up (fixed rules, no lobby). */
   kind: 'private' | 'unranked';
+  /** Chat is quick replies only (Unranked, while the owner has switched free text off). */
+  quickOnly?: boolean;
   code: string; you: RoomRole | 'spectator' | 'asking';
   rules: RoomRules; password: boolean;
   /** Host first; the guest's place is null until someone joins. */

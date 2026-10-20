@@ -115,7 +115,7 @@ async function roomDeck(userId: string, id: string): Promise<SavedDeck | null> {
   return accountDeck(userId, id);
 }
 const matchDeps: MatchDeps = {
-  banlists: { TCG: banlist, OCG: ocgBanlist }, ruleCard, loadDeck: roomDeck, full: () => rooms.size >= MAX_DUELS,
+  banlists: { TCG: banlist, OCG: ocgBanlist }, ruleCard, loadDeck: roomDeck, roomOpen: code => matches.has(code), full: () => rooms.size >= MAX_DUELS,
   track: r => rooms.set(r.id, r), untrack: r => rooms.delete(r.id), record: recordMatch,
   closed: m => { matches.delete(m.code); for (const [user, x] of matchOf) if (x === m) matchOf.delete(user); },
 };

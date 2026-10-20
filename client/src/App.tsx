@@ -11,9 +11,9 @@ import { DuelLab } from './pages/DuelLab.tsx';
 import { ProfilePage } from './pages/Profile.tsx';
 import { Home } from './pages/Home.tsx';
 import { Settings } from './pages/Settings.tsx';
-import { AcceptTerms, ChooseName, Forgot, LogIn, Privacy, SignUp, Terms, Welcome } from './pages/Welcome.tsx';
+import { AcceptTerms, ChooseName, Forgot, LogIn, Privacy, Safety, SignUp, Terms, Welcome } from './pages/Welcome.tsx';
 
-const PUBLIC: Record<string, ComponentType> = { '/privacy': Privacy, '/terms': Terms };
+const PUBLIC: Record<string, ComponentType> = { '/privacy': Privacy, '/terms': Terms, '/safety': Safety };
 const SIGNED_OUT: Record<string, ComponentType> = { '/': Welcome, '/signup': SignUp, '/login': LogIn, '/forgot': Forgot };
 const SIGNED_IN: Record<string, ComponentType> = {
   '/home': Home,

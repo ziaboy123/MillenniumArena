@@ -2,7 +2,7 @@
 // 3 with side decking between games). Others can ask to watch; every duelist in the room has to say yes. Everyone
 // must be logged in; people are known by their account, so a reload or a dropped connection finds the room again.
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
-import { DEFAULT_RULES, type ChatLine, type RoomPhase, type RoomPreview, type RoomRole, type RoomRules, type RoomView, type ServerMessage, type Side } from '@arena/shared';
+import { DEFAULT_RULES, QUICK_REPLIES, type ChatLine, type RoomPhase, type RoomPreview, type RoomRole, type RoomRules, type RoomView, type ServerMessage, type Side } from '@arena/shared';
 import { deckBlocker, ZONE_MAX, type Banlist, type DeckLists, type RuleCard, type SavedDeck } from '@arena/shared/decks';
 import { DuelRoom, type Viewer } from './duel/room.ts';
 import type { MatchRecord } from './history.ts';
@@ -16,6 +16,8 @@ export interface MatchDeps {
   ruleCard: (code: number) => RuleCard | undefined;
   /** One of this account's decks. */
   loadDeck: (userId: string, id: string) => Promise<SavedDeck | null>;
+  /** Is a room with this code open? (Unranked chat refuses room codes.) */
+  roomOpen: (code: string) => boolean;
   /** The server is running as many duels as it can. */
   full: () => boolean;
   /** A duel started / finished (for the server's count of running duels), and the match closed. */
@@ -40,6 +42,9 @@ interface Request extends Person { accepted: Set<RoomRole> }
 
 /** A problem to tell the person who asked (not a crash). */
 export class RoomError extends Error {}
+
+/** The owner's switch for busy or away times (docs/online-safety.md 4.4): Unranked chat becomes quick replies only. */
+const UNRANKED_QUICK_ONLY = process.env.ARENA_UNRANKED_QUICK_ONLY === '1';
 
 /** A link, an email address, a phone number or a social handle (Unranked chat is between strangers). */
 export function sharesContact(text: string) {
@@ -416,8 +421,13 @@ export class PrivateMatch {
     if (!p || this.requests.has(userId)) throw new RoomError('Only people in the room can chat.');
     const t = clean(text, 200);
     if (!t) return;
-    // with strangers, no links or contact details: keeps people (some of them young) from being drawn off the site
-    if (this.kind === 'unranked' && sharesContact(t)) throw new RoomError("Links and contact details can't be shared in Unranked chat.");
+    // with strangers, no links, contact details or room codes: keeps people (some of them young) from being drawn
+    // off the site or into a private room without these checks; the owner can make it quick replies only for a while
+    if (this.kind === 'unranked') {
+      if (UNRANKED_QUICK_ONLY && !QUICK_REPLIES.includes(t)) throw new RoomError('Unranked chat is quick replies only for now.');
+      if (sharesContact(t)) throw new RoomError("Links and contact details can't be shared in Unranked chat.");
+      if (this.sharesRoomCode(t)) throw new RoomError("Room codes can't be shared in Unranked chat.");
+    }
     const now = Date.now(), times = (this.chatTimes.get(userId) ?? []).filter(x => now - x < 10_000);
     if (times.length >= 8 || (times.length && now - times[times.length - 1] < 400)) throw new RoomError('Slow down a little.');
     this.chatTimes.set(userId, [...times, now]);
@@ -425,6 +435,12 @@ export class PrivateMatch {
     this.post({ from: p.name, role: m ? m.role : 'spectator', text: t, at: now });
   }
   private system(text: string) { this.post({ from: '', role: 'system', text, at: Date.now() }); }
+  /** Does the text contain the code of an open room (spaces and punctuation ignored)? */
+  private sharesRoomCode(text: string) {
+    const letters = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    for (let i = 0; i + 6 <= letters.length; i++) if (this.deps.roomOpen(letters.slice(i, i + 6))) return true;
+    return false;
+  }
   /** The last `n` chat lines (for a report). */
   recentChat(n: number): ChatLine[] { return this.chat.slice(-n); }
   private post(line: ChatLine) {
@@ -446,7 +462,7 @@ export class PrivateMatch {
       deck: m.userId === userId && m.deck ? { name: m.deck.name, cover: m.deck.cover } : null,
     };
     return {
-      kind: this.kind, code: this.code, you: me ? me.role : asking ? 'asking' : 'spectator', rules: this.rules, password: !!this.password,
+      kind: this.kind, ...(this.kind === 'unranked' && UNRANKED_QUICK_ONLY ? { quickOnly: true } : {}), code: this.code, you: me ? me.role : asking ? 'asking' : 'spectator', rules: this.rules, password: !!this.password,
       players: [player(this.host)!, player(this.guest)], phase: this.phase, game: this.game, chooser: this.chooser, toss: this.toss,
       last: this.last, winner: this.winner,
       spectators: asking ? [] : [...this.spectators.values()].map(s => ({ id: s.userId, name: s.name })),
