@@ -7,6 +7,7 @@ import { createReadStream } from 'node:fs';
 import { mkdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import type { ServerResponse } from 'node:http';
 import path from 'node:path';
+import { pipeline } from 'node:stream';
 
 const SOURCE: Record<string, string> = { cards: 'cards', small: 'cards_small', cropped: 'cards_cropped' };
 const DIR = process.env.ARENA_IMAGES || path.resolve(import.meta.dirname, '../../images');
@@ -31,8 +32,9 @@ export async function serveImage(res: ServerResponse, rel: string, known: (code:
     res.end('No picture');
     return true;
   }
+  if (res.destroyed) return true;   // the visitor went while we were fetching it: don't open the file
   res.writeHead(200, { 'content-type': 'image/jpeg', 'content-length': size, 'cache-control': 'public, max-age=31536000, immutable' });
-  createReadStream(file).on('error', () => res.destroy()).pipe(res);
+  pipeline(createReadStream(file), res, () => {});   // closes the file if the visitor goes before it's all sent
   return true;
 }
 

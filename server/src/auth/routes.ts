@@ -121,9 +121,12 @@ export async function accountRoutes(req: IncomingMessage, res: ServerResponse, r
         return send(res, 200, { ok: true }), true;
       case '/api/auth/signup/verify':
         if (limited(`code:${ip}`, 30, 900_000)) throw tooMany();
-        return await login(await A.signupVerify(email, body.code), true), true;
+        return await login(await A.signupVerify(email, body.code, body.password), true), true;
       case '/api/auth/login': {
-        if (limited(`login:${ip}`, 30, 900_000) || limited(`login:${email}`, 8, 900_000)) throw tooMany();
+        if (limited(`login:${ip}`, 30, 900_000)) throw tooMany();
+        // the per-email limit slows guessing; a browser already trusted for that account skips it, so someone sending wrong
+        // passwords for your email can't lock you out on your own devices
+        if (!(await A.trustedFor(email, jar[DEVICE])) && limited(`login:${email}`, 8, 900_000)) throw tooMany();
         const result = await A.loginStart(email, body.password, jar[DEVICE]);
         if ('needCode' in result) return send(res, 200, { ok: true, needCode: true }), true;
         return await login(result.userId, false), true;
@@ -132,14 +135,17 @@ export async function accountRoutes(req: IncomingMessage, res: ServerResponse, r
         if (limited(`code:${ip}`, 30, 900_000)) throw tooMany();
         return await login(await A.loginVerify(email, body.code), body.trust === true), true;
       case '/api/auth/forgot':
-        if (limited(`forgot:${ip}`, 10, 3600_000) || limited(`forgot:${email}`, 3, 600_000)) throw tooMany();
-        await A.forgotStart(email);
+        if (limited(`forgot:${ip}`, 10, 3600_000)) throw tooMany();
+        // over this email's limit, no new code is sent but the code step still opens: the newest code already in the
+        // inbox still works (so someone requesting codes for your email can't stop you resetting)
+        if (!limited(`forgot:${email}`, 3, 600_000)) await A.forgotStart(email);
         return send(res, 200, { ok: true }), true;
       case '/api/auth/forgot/verify':
         if (limited(`code:${ip}`, 30, 900_000)) throw tooMany();
         return await login(await A.forgotVerify(email, body.code, body.password), false), true;
       case '/api/auth/logout':
-        await A.endSession(jar[SESSION]);
+        // the cookie is cleared even if the database can't be reached (the login then just expires)
+        await A.endSession(jar[SESSION]).catch(e => console.error(`logout: ${e?.message ?? e}`));
         return send(res, 200, { ok: true }, [cookie(SESSION, '', 0)]), true;
     }
 

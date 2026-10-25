@@ -63,14 +63,16 @@ async function sendCode(email: string, purpose: Purpose, what: string, payload: 
   await sendMail(email, mail.subject, mail.text);
 }
 
-/** Use up a code, returning what was saved with it. Wrong guesses count; the fifth one burns the code. */
+/** Use up a code, returning what was saved with it. Every guess counts (and is counted before it's checked, so
+ *  guesses sent all at once still only get five between them); the fifth wrong one burns the code. */
 async function useCode(email: string, purpose: Purpose, code: unknown): Promise<Record<string, any>> {
-  const row = await one('select id, code_hash, attempts from arena.codes where email = $1 and purpose = $2 and expires_at > now() order by id desc limit 1', [email, purpose]);
+  const row = await one(`update arena.codes set attempts = attempts + 1
+      where id = (select id from arena.codes where email = $1 and purpose = $2 and expires_at > now() order by id desc limit 1) and attempts < 5
+      returning id, code_hash, attempts`, [email, purpose]);
   if (!row) throw new Problem('That code has expired. Ask for a new one.');
   const typed = String(code ?? '').replace(/\D/g, '');
   if (typed.length !== 6 || !sameHash(row.code_hash, codeHash(purpose, email, typed))) {
-    const tries = (await one('update arena.codes set attempts = attempts + 1 where id = $1 returning attempts', [row.id]))?.attempts ?? 5;
-    if (tries >= 5) { await q('delete from arena.codes where id = $1', [row.id]); throw new Problem('Too many wrong codes. Ask for a new one.'); }
+    if (row.attempts >= 5) { await q('delete from arena.codes where id = $1', [row.id]); throw new Problem('Too many wrong codes. Ask for a new one.'); }
     throw new Problem("That code isn't right.");
   }
   // deleting it is what claims it: if two requests race with the right code, only one gets the row back
@@ -97,10 +99,12 @@ export async function signupStart(emailIn: unknown, passwordIn: unknown) {
   background(sendCode(email, 'signup', 'finish creating your account', { hash }));
 }
 
-/** Creates the account; returns its id. The username is chosen next. */
-export async function signupVerify(emailIn: unknown, code: unknown): Promise<string> {
+/** Creates the account; returns its id. The username is chosen next. `password` must be the one this sign-up started
+ *  with: a second sign-up for the same email replaces the code (and its password), and its code mustn't finish the first. */
+export async function signupVerify(emailIn: unknown, code: unknown, password: unknown): Promise<string> {
   const email = normEmail(emailIn);
   const { hash } = await useCode(email, 'signup', code);
+  if (!(await bcrypt.compare(String(password ?? '').slice(0, 200), hash))) throw new Problem('That code is for a different sign-up. Ask for a new one.');
   return tx(async c => {
     if ((await c.query('select 1 from public.users where email = $1', [email])).rowCount) throw new Problem('That email already has an account. Log in instead.');
     const id = newId();
@@ -194,6 +198,10 @@ export async function trustDevice(userId: string, label: string): Promise<string
   return token;
 }
 
+/** Is this browser trusted for the account with this email? (Then someone guessing that email's password can't lock it out.) */
+export const trustedFor = async (email: string, deviceToken: string | undefined) =>
+  !!deviceToken && deviceToken.length <= 100 && !!(await one(`select 1 from arena.devices d join public.users u on u.id = d.user_id
+    where u.email = $1 and d.token_hash = $2 and d.expires_at > now()`, [email, sha256(deviceToken)]));
 export const isTrusted = async (userId: string, deviceToken: string | undefined) =>
   !!deviceToken && deviceToken.length <= 100 && !!(await one('select 1 from arena.devices where token_hash = $1 and user_id = $2 and expires_at > now()', [sha256(deviceToken), userId]));
 

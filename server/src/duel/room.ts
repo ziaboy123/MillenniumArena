@@ -35,6 +35,10 @@ export interface RoomOptions {
   onEnd?: (end: Extract<ServerMessage, { type: 'end' }>) => void;
   /** Part of a match: the match decides when to close it, not the last person leaving. */
   managed?: boolean;
+  /** Duels against the bot: stop (unrecorded) when the player hasn't answered for this long, even with the timer off,
+   *  and close this long after the result, so abandoned duels don't hold the server's duel slots. */
+  idleMs?: number;
+  closeAfterEndMs?: number;
 }
 
 const SPEED: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.45, instant: 0.12 };
@@ -49,7 +53,9 @@ type Queued = { frame: Frame } | { prompt: Prompt; side: Side } | { reveal: Reve
 export class DuelRoom {
   readonly id = randomUUID().slice(0, 8);
   private worker: Worker;
-  private viewers = new Set<Viewer>();
+  // each connection and its seat in THIS duel, fixed when it joins: a connection's Viewer.side can change later (it may
+  // start a bot duel, or be in a match too), and that must never change what this duel shows it
+  private viewers = new Map<Viewer, Side | null>();
   private queue: Queued[] = [];
   private latest: Frame | null = null;
   private pending: { prompt: Prompt; side: Side } | null = null;
@@ -109,13 +115,14 @@ export class DuelRoom {
 
   /** `rejoining`: also send the log so far (the page may have been reloaded). */
   join(viewer: Viewer, rejoining = false) {
-    this.viewers.add(viewer);
-    viewer.send({ type: 'duel', duel: this.info(viewer.side, rejoining) });
+    const side = viewer.side;
+    this.viewers.set(viewer, side);
+    viewer.send({ type: 'duel', duel: this.info(side, rejoining) });
     if (rejoining) viewer.send({ type: 'backlog', lines: this.log });
-    if (this.latest) viewer.send({ type: 'frame', frame: frameFor(this.latest, viewer.side, this.fullView) });
-    if (this.pending && this.pending.side === viewer.side) viewer.send({ type: 'prompt', prompt: this.timed(this.pending.prompt) });
-    else if (this.pending) viewer.send(this.waitingFor(this.pending, viewer.side));
-    if (this.ended) viewer.send({ ...this.ended, winner: seatSide(this.ended.winner, viewer.side) });
+    if (this.latest) viewer.send({ type: 'frame', frame: frameFor(this.latest, side, this.fullView) });
+    if (this.pending && this.pending.side === side) viewer.send({ type: 'prompt', prompt: this.timed(this.pending.prompt) });
+    else if (this.pending) viewer.send(this.waitingFor(this.pending, side));
+    if (this.ended) viewer.send({ ...this.ended, winner: seatSide(this.ended.winner, side) });
   }
 
   /** Back into a seat after a dropped connection; false if the key doesn't match. */
@@ -140,27 +147,32 @@ export class DuelRoom {
 
   /** `dropped`: the connection was lost (the seat is kept for a minute) rather than the player leaving. */
   leave(viewer: Viewer, dropped = false) {
+    const side = this.viewers.get(viewer) ?? null;
     this.viewers.delete(viewer);
-    const side = viewer.side;
-    if (dropped && side !== null && this.seats.has(side) && !this.ended && ![...this.viewers].some(v => v.side === side)) {
+    if (dropped && side !== null && this.seats.has(side) && !this.ended && ![...this.viewers.values()].includes(side)) {
       this.away.set(side, setTimeout(() => {
         this.away.delete(side);
         // against a person, not coming back loses the duel; against the bot the duel just stops
         if (this.humans.length > 1) this.concede(side, `${this.players[side]} left the duel`);
-        else if (![...this.viewers].some(v => v.side !== null)) this.close();
+        else if (![...this.viewers.values()].some(s => s !== null)) this.close();
       }, REJOIN_MS));
       return;
     }
     if (!this.viewers.size && !this.away.size && !this.options.managed) this.close();
   }
 
+  /** The seat this connection has in this duel (null: watching, or not in it). */
+  seatOf(viewer: Viewer): Side | null { return this.viewers.get(viewer) ?? null; }
+
   /** A player's answer to the prompt they were shown. Anything stale or from the wrong seat is ignored. */
   answer(viewer: Viewer, id: number, answer: PromptAnswer) {
-    if (!this.pending || viewer.side !== this.pending.side || id !== this.pending.prompt.id) return;
+    const side = this.viewers.get(viewer);
+    if (!this.pending || side === undefined || side !== this.pending.side || id !== this.pending.prompt.id) return;
     this.pending = null;
     this.stopClock();
-    for (const v of this.viewers) {
-      if (v.side !== viewer.side) v.send({ type: 'waiting', side: null });
+    this.clearIdle();
+    for (const [v, s] of this.viewers) {
+      if (s !== side) v.send({ type: 'waiting', side: null });
       else if (v !== viewer) v.send({ type: 'prompt', prompt: null });   // the same player in another tab
     }
     this.worker.postMessage({ type: 'answer', id, answer } satisfies WorkerCommand);
@@ -179,13 +191,14 @@ export class DuelRoom {
   }
 
   /** Who's connected to the duel right now. */
-  get people() { return this.viewers; }
+  get people() { return new Set(this.viewers.keys()); }
   /** The duel has a result (or is about to show it). */
   get finished() { return !!(this.ended || this.ending); }
 
   close() {
     if (this.closed) return;
     this.closed = true;
+    this.clearIdle();
     if (this.timer) clearTimeout(this.timer);
     if (this.clock) clearTimeout(this.clock.timeout);
     for (const t of this.away.values()) clearTimeout(t);
@@ -202,30 +215,34 @@ export class DuelRoom {
       if (this.ending) {
         const end = this.ending;
         this.ended = end;
-        for (const v of this.viewers) v.send({ ...end, winner: seatSide(end.winner, v.side) });
+        for (const [v, s] of this.viewers) v.send({ ...end, winner: seatSide(end.winner, s) });
         this.ending = null;
         for (const t of this.away.values()) clearTimeout(t);
         this.away.clear();
-        this.options.onEnd?.(end);
+        if (!this.unrecorded) this.options.onEnd?.(end);
+        this.clearIdle();
+        // a finished duel against the bot closes a little later, freeing its slot (the result stays on screen)
+        if (this.options.closeAfterEndMs) setTimeout(() => this.close(), this.options.closeAfterEndMs).unref();
       }
       return;
     }
     if ('reveal' in next) {
-      for (const v of this.viewers) if (next.side === 'all' || v.side === next.side) v.send(next.reveal);
+      for (const [v, s] of this.viewers) if (next.side === 'all' || s === next.side) v.send(next.reveal);
       return this.pump();
     }
     if ('prompt' in next) {
       this.pending = next;
+      this.armIdle();
       this.startClock(next.prompt, next.side);
       // the player being asked gets the prompt; everyone else learns who the duel is waiting on, and their clock
-      if (this.pending) for (const v of this.viewers) v.send(v.side === next.side ? { type: 'prompt', prompt: this.timed(next.prompt) } : this.waitingFor(next, v.side));
+      if (this.pending) for (const [v, s] of this.viewers) v.send(s === next.side ? { type: 'prompt', prompt: this.timed(next.prompt) } : this.waitingFor(next, s));
       return this.pump();
     }
     const f = next.frame;
     this.latest = f;
     for (const text of f.lines) this.log.push({ step: f.step, turn: f.turn, text });
     if (f.turn !== this.turn) { this.turn = f.turn; this.turnPlayer = f.turnPlayer; this.bank[f.turnPlayer] = this.seconds * 1000; }   // a fresh turn's time
-    for (const v of this.viewers) v.send({ type: 'frame', frame: frameFor(f, v.side, this.fullView) });
+    for (const [v, s] of this.viewers) v.send({ type: 'frame', frame: frameFor(f, s, this.fullView) });
     this.timer = setTimeout(() => { this.timer = null; this.pump(); }, this.pace(f) * PACE);
   }
 
@@ -257,8 +274,9 @@ export class DuelRoom {
   private expire(id: number, side: Side) {
     if (!this.pending || this.pending.prompt.id !== id) return;
     this.stopClock();
+    this.clearIdle();
     this.pending = null;
-    for (const v of this.viewers) v.send(v.side === side ? { type: 'prompt', prompt: null } : { type: 'waiting', side: null });
+    for (const [v, s] of this.viewers) v.send(s === side ? { type: 'prompt', prompt: null } : { type: 'waiting', side: null });
     this.worker.postMessage({ type: 'timeout', id } satisfies WorkerCommand);
   }
   /** The turn player's turn time left right now (running if they're choosing, else paused). */
@@ -277,5 +295,28 @@ export class DuelRoom {
     return { ...prompt, time: { left: Math.max(0, this.clock.limit - (Date.now() - this.clock.started)), turn: this.clock.turn } };
   }
 
-  private broadcast(msg: ServerMessage) { for (const v of this.viewers) v.send(msg); }
+  // ---------- nobody moving ----------
+  private idle: NodeJS.Timeout | null = null;
+  private unrecorded = false;
+  private armIdle() {
+    if (!this.options.idleMs) return;
+    this.clearIdle();
+    this.idle = setTimeout(() => this.stop('The duel was closed after 10 minutes with no move'), this.options.idleMs);
+    this.idle.unref();
+  }
+  private clearIdle() { if (this.idle) { clearTimeout(this.idle); this.idle = null; } }
+  /** Ends the duel with no result and nothing recorded (an abandoned duel against the bot). */
+  private stop(reason: string) {
+    if (this.closed || this.ended || this.ending) return;
+    this.unrecorded = true;
+    this.queue = [];
+    this.pending = null;
+    this.stopClock();
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    this.worker.terminate();
+    this.ending = { type: 'end', winner: null, reason, turns: this.turn };
+    this.pump();
+  }
+
+  private broadcast(msg: ServerMessage) { for (const v of this.viewers.keys()) v.send(msg); }
 }

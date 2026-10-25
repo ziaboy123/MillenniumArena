@@ -16,7 +16,13 @@ export function useArenaSocket(onMessage: (msg: ServerMessage) => void) {
       ws.current = socket;
       socket.onopen = () => setConnected(true);
       socket.onmessage = e => handler.current(JSON.parse(e.data));
-      socket.onclose = () => { setConnected(false); if (!stopped) retry = setTimeout(connect, 1500); };
+      socket.onclose = e => {
+        // the server closes with 4001 when this login has ended (logged out elsewhere, password changed, suspended):
+        // reload, so the page shows you logged out instead of carrying on as nobody
+        if (e.code === 4001 && !stopped) { location.reload(); return; }
+        setConnected(false);
+        if (!stopped) retry = setTimeout(connect, 1500);
+      };
     };
     connect();
     return () => { stopped = true; clearTimeout(retry); ws.current?.close(); };

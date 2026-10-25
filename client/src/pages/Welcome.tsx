@@ -99,8 +99,8 @@ export function SignUp() {
     e.preventDefault();
     setBusy(true); setErr('');
     try {
-      const res = await api('auth/signup/verify', { email, code });
-      try { sessionStorage.setItem('ma-agreed', '1'); } catch {}   // ticked on step 1: the username step starts ticked
+      const res = await api('auth/signup/verify', { email, code, password });   // the code only finishes this sign-up
+      try { sessionStorage.setItem('ma-agreed', res.me?.id ?? ''); } catch {}   // ticked on step 1: this account's username step starts ticked
       setMe(res.me ?? null); navigate('/choose-name', true);
     }
     catch (x) { setErr(message(x)); } finally { setBusy(false); }
@@ -142,7 +142,7 @@ export function SignUp() {
 export function ChooseName() {
   const { me, setMe } = useSession();
   const [name, setName] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState('');
-  const [agree, setAgree] = useState(() => { try { return sessionStorage.getItem('ma-agreed') === '1'; } catch { return false; } });
+  const [agree, setAgree] = useState(() => { try { return !!me?.id && sessionStorage.getItem('ma-agreed') === me.id; } catch { return false; } });
   const valid = /^[A-Za-z][A-Za-z0-9_]{2,15}$/.test(name);
   const save = async (e: FormEvent) => {
     e.preventDefault();

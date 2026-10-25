@@ -56,6 +56,9 @@ export function Settings() {
 
 type Save = (patch: Partial<UserSettings>) => void;
 
+/** Logging out or deleting: forget what this tab kept for the account (the Terms tick, a bot duel's seat). */
+const forgetTab = () => { for (const k of ['ma-agreed', 'ma-seat']) try { sessionStorage.removeItem(k); } catch {} };
+
 function About() {
   return <>
     <div className="eyebrow">About</div>
@@ -150,7 +153,11 @@ function Account({ me, toast }: { me: Me; toast: (m: string) => void }) {
   const [devicesKey, setDevicesKey] = useState(0);
   const toggle = (f: Flow) => setOpen(o => (o === f ? '' : f));
   const done = (m: string, next?: Me | null) => { if (next) setMe(next); setOpen(''); toast(m); };
-  const logout = async () => { try { await api('auth/logout'); } catch {} setMe(null); navigate('/', true); };
+  // only says you're logged out once the server has ended the login (else the cookie would still work)
+  const logout = async () => {
+    try { await api('auth/logout'); } catch (x) { toast(message(x)); return; }
+    forgetTab(); setMe(null); navigate('/', true);
+  };
 
   return <>
     <h3>Account</h3>
@@ -306,7 +313,7 @@ function DeleteFlow({ me, onCancel }: { me: Me; onCancel: () => void }) {
   const go = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setErr('');
-    try { await api('account/delete', { confirm: typed, password }); setMe(null); navigate('/', true); } catch (x) { setErr(message(x)); setBusy(false); }
+    try { await api('account/delete', { confirm: typed, password }); forgetTab(); setMe(null); navigate('/', true); } catch (x) { setErr(message(x)); setBusy(false); }
   };
   return (
     <form className="flow on danger" onSubmit={go}>

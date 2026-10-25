@@ -2,13 +2,14 @@
 // all under one path prefix so it sits behind nginx like the other sites (e.g. /millenniumarena).
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, statSync } from 'node:fs';
+import { pipeline } from 'node:stream';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { UNRANKED_RULES, type ClientMessage, type ServerMessage, type Side, type Speed } from '@arena/shared';
 import { sessionUser } from './auth/accounts.ts';
 import { MAIL_READY } from './auth/mailer.ts';
-import { accountRoutes, cookies, sameOrigin } from './auth/routes.ts';
+import { accountRoutes, clientIp, cookies, sameOrigin } from './auth/routes.ts';
 import { AUTH_READY } from './auth/security.ts';
 import { blocksPlay, deckBlocker, deckProblems, type SavedDeck } from '@arena/shared/decks';
 import { loadBanlist } from './banlist.ts';
@@ -55,7 +56,7 @@ function serveClient(req: IncomingMessage, res: ServerResponse, rel: string) {
   if (!file.startsWith(CLIENT_DIST) || !existsSync(file) || statSync(file).isDirectory()) file = path.join(CLIENT_DIST, 'index.html');   // app routes
   const hashed = /[-.][A-Za-z0-9_]{8,}\.(js|css)$/.test(file);
   res.writeHead(200, { 'content-type': TYPES[path.extname(file)] ?? 'application/octet-stream', 'cache-control': hashed ? 'public, max-age=31536000, immutable' : 'no-cache' });
-  createReadStream(file).on('error', () => res.destroy()).pipe(res);
+  pipeline(createReadStream(file), res, () => {});   // closes the file if the visitor goes before it's all sent
 }
 
 /** Headers on every response: no sniffing, no framing, a strict content policy for the app's pages. */
@@ -172,29 +173,55 @@ async function ownDeck(userId: string | undefined, id: string): Promise<Deck | s
 const wss = new WebSocketServer({ server, path: `${BASE}/ws`, maxPayload: 64 * 1024, verifyClient: ({ req }: { req: IncomingMessage }) => sameOrigin(req) });
 // Cloudflare closes a WebSocket that's been quiet for 100 s, so every connection is pinged (the browser answers by
 // itself) every 30 s. One that didn't answer the last ping has gone, and is closed (its seat waits a minute for it).
+// A connection made while logged in is checked on the same beat: once that login has ended (logged out everywhere, a
+// password change or reset, a suspension, a deleted account) the connection is closed, and the page reloads logged out.
 const answered = new WeakSet<WebSocket>();
+const logins = new WeakMap<WebSocket, { token: string; userId: string }>();
 setInterval(() => {
   for (const ws of wss.clients) {
     if (!answered.has(ws)) { ws.terminate(); continue; }
     answered.delete(ws);
     ws.ping();
+    const login = logins.get(ws);
+    if (login) sessionUser(login.token).then(me => { if (!me || me.id !== login.userId) ws.close(4001, 'Logged out'); }).catch(() => {});   // a database hiccup keeps it
   }
 }, 30_000).unref();
+
+// Duels against the bot are open to everyone, so each player (or, logged out, each address) gets one at a time, and
+// they can't take the last few slots: those are kept for duels between people.
+const PEOPLE_SLOTS = Math.min(2, MAX_DUELS - 1);
+// a duel against the bot with no move for 10 minutes stops (unrecorded); a finished one closes 2 minutes after the result
+// (shorter only when a test server sets these)
+const BOT_IDLE_MS = Number(process.env.ARENA_BOT_IDLE_MS) || 10 * 60_000, BOT_CLOSE_MS = Number(process.env.ARENA_BOT_CLOSE_MS) || 2 * 60_000;
+const botDuels = new Map<string, DuelRoom>();   // each player's (or address's) duel against the bot
+/** Who a duel against the bot counts against: the account, or the visitor's address (an IPv6 address by its /64). */
+function botKey(me: { id: string } | null, req: IncomingMessage) {
+  if (me) return `u:${me.id}`;
+  const ip = clientIp(req).replace(/^::ffff:/, '');
+  if (!ip.includes(':')) return `ip:${ip}`;
+  const [head, tail = ''] = ip.split('::'), a = head ? head.split(':') : [], b = tail ? tail.split(':') : [];
+  return `ip6:${[...a, ...Array(Math.max(0, 8 - a.length - b.length)).fill('0'), ...b].slice(0, 4).join(':')}`;
+}
 wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   answered.add(ws);
   ws.on('pong', () => answered.add(ws));
   // a frame that's too big or isn't valid text closes this connection (ws does that); without a listener it would crash the server
   ws.on('error', e => console.warn(`ws: ${e.message}`));
   // who's connected (if logged in); messages wait for this
-  const who = DB_ENABLED ? sessionUser(cookies(req).ma_session).catch(() => null) : Promise.resolve(null);
-  who.then(me => { if (me?.username) online.set(me.id, (online.get(me.id) ?? 0) + 1); });
+  const token = cookies(req).ma_session;
+  const who = DB_ENABLED ? sessionUser(token).catch(() => null) : Promise.resolve(null);
+  who.then(me => {
+    if (me && token) logins.set(ws, { token, userId: me.id });
+    if (me?.username) online.set(me.id, (online.get(me.id) ?? 0) + 1);
+  });
   let room: DuelRoom | null = null;
   let match: PrivateMatch | null = null;   // the private room this tab is in
   const viewer: Viewer = { side: null, send: (msg: ServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg)); } };
   let playerName = '';
   const leave = (dropped = false) => {
     // leaving a duel against the bot before it's over counts as a loss (a dropped connection gets a minute to come back)
-    if (!dropped && room && viewer.side !== null && !room.finished) room.concede(viewer.side, `${playerName} left the duel`);
+    const seat = room?.seatOf(viewer) ?? null;   // this connection's seat in that duel (not whatever it last joined)
+    if (!dropped && room && seat !== null && !room.finished) room.concede(seat, `${playerName} left the duel`);
     room?.leave(viewer, dropped); room = null; viewer.side = null;
   };
   const full = () => rooms.size >= MAX_DUELS && (viewer.send({ type: 'error', message: 'The server is running as many duels as it can right now. Try again in a minute.' }), true);
@@ -317,7 +344,14 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const mine = String(msg.deck).startsWith('acct:') ? await ownDeck(me?.id, String(msg.deck).slice(5)) : decks.get(msg.deck), bot = decks.get(msg.botDeck);
       if (typeof mine === 'string') return viewer.send({ type: 'error', message: mine });
       if (!mine || !bot) return viewer.send({ type: 'error', message: 'Unknown deck.' });
-      if (full()) return;
+      const key = botKey(me, req), before = botDuels.get(key);
+      // one at a time: a duel still open in another tab blocks a new one; one nobody's connected to any more (a closed
+      // tab, waiting a minute for a reconnect) just ends, so the new one can start
+      if (before && !before.closed) {
+        if (before.people.size) return viewer.send({ type: 'error', message: "You've already got a duel against the bot going (in another tab?). Finish or leave it first." });
+        before.close();
+      }
+      if (rooms.size >= MAX_DUELS - PEOPLE_SLOTS) return viewer.send({ type: 'error', message: 'The server is running as many duels as it can right now. Try again in a minute.' });
       // logged in: your username; otherwise the name typed in the lobby (cleaned up)
       const name = me?.username ?? (String(msg.name ?? '').replace(/[^\p{L}\p{N} _.'-]/gu, '').trim().slice(0, 16) || 'Duelist');
       playerName = name;
@@ -325,8 +359,8 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const tossed = first !== 'me' && first !== 'you' && first !== 'bot';   // a coin toss, which the player gets to watch
       const side: Side = first === 'me' || first === 'you' ? 0 : first === 'bot' ? 1 : (Math.random() < 0.5 ? 0 : 1);   // side 0 goes first
       const r = new DuelRoom(side === 0 ? [mine, bot] : [bot, mine], side === 0 ? [name, 'Bot'] : ['Bot', name], [side],
-        false, msg.seed ?? Math.floor(Math.random() * 1e9), () => rooms.delete(r.id),
-        { speed: speedOf(msg.speed), timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, responses: msg.responses === 'always' ? 'always' : 'smart', coin: tossed, setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined,
+        false, msg.seed ?? Math.floor(Math.random() * 1e9), () => { rooms.delete(r.id); if (botDuels.get(key) === r) botDuels.delete(key); },
+        { speed: speedOf(msg.speed), idleMs: BOT_IDLE_MS, closeAfterEndMs: BOT_CLOSE_MS, timer: TIMERS.has(Number(msg.timer)) ? Number(msg.timer) : 90, responses: msg.responses === 'always' ? 'always' : 'smart', coin: tossed, setup: DEV ? setupFor(msg.scenario, side) : undefined, setupLua: DEV ? luaFor(msg.scenario, side) : undefined,
           // logged in, a finished duel goes into your match history (test setups don't)
           onEnd: me?.username && !(DEV && msg.scenario) ? end => {
             const won = end.winner === side, lost = end.winner === 1 - side;
@@ -335,11 +369,12 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
               result: won ? 'win' : lost ? 'loss' : 'draw', scoreFor: won ? 1 : 0, scoreAgainst: lost ? 1 : 0, uses: r.uses[side] }] });
           } : undefined });
       rooms.set(r.id, r);
+      botDuels.set(key, r);
       room = r;
       viewer.side = side;
       r.join(viewer);
     } else if (msg.type === 'answer') (room ?? match?.room)?.answer(viewer, msg.id, msg.answer);
-    else if (msg.type === 'surrender') { if (room && viewer.side !== null) room.concede(viewer.side, `${playerName} surrendered`); }
+    else if (msg.type === 'surrender') { const seat = room?.seatOf(viewer) ?? null; if (room && seat !== null) room.concede(seat, `${playerName} surrendered`); }
     else if (msg.type === 'resume') {
       // back into a duel after a dropped connection or a page reload
       leave();
